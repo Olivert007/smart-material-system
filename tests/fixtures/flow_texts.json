@@ -1,0 +1,101 @@
+[
+  {
+    "id": "split_multi_in",
+    "text": "2025年6月，张停伟维护材料采购，沈鸿入库4包；2026年6月，李茜入库6包",
+    "flow_type": "IN",
+    "expect_segments": 2,
+    "expect": [
+      {"parse_level": "L1", "quantity": 4.0, "unit": "包", "min_person_parts": 1},
+      {"parse_level": "L1", "quantity": 6.0, "unit": "包"}
+    ]
+  },
+  {
+    "id": "out_slash_style",
+    "text": "2026.1.6/李茜/西坝大楼2408会议室搭建备用使用",
+    "flow_type": "OUT",
+    "col_qty": 1,
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L1", "quantity": 1.0, "flow_date": "2026-01-06", "person_contains": "李茜"}
+    ]
+  },
+  {
+    "id": "out_with_qty_in_text",
+    "text": "2025年10月，徐吉领用3个，用于机房音频配线",
+    "flow_type": "OUT",
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L1", "quantity": 3.0, "unit": "个", "person_contains": "徐吉"}
+    ]
+  },
+  {
+    "id": "year_only_not_qty",
+    "text": "2023年",
+    "flow_type": "IN",
+    "col_qty": 10,
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L2", "quantity": 10.0, "flow_date": null, "forbid_quantity": [2023, 2025, 2026]}
+    ]
+  },
+  {
+    "id": "year_before_purchase",
+    "text": "2024年之前采购",
+    "flow_type": "IN",
+    "col_qty": 5,
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L2", "quantity": 5.0, "flow_date": null, "forbid_quantity": [2024]}
+    ]
+  },
+  {
+    "id": "pure_datetime_cell",
+    "text": "2022-08-17 00:00:00",
+    "flow_type": "IN",
+    "col_qty": 2,
+    "col_unit": "台",
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L1", "quantity": 2.0, "unit": "台", "flow_date": "2022-08-17", "forbid_quantity": [2022]}
+    ]
+  },
+  {
+    "id": "l3_used",
+    "text": "已使用",
+    "flow_type": "OUT",
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L3", "quantity": null}
+    ]
+  },
+  {
+    "id": "borrow_as_out",
+    "text": "2024.12.30 借用给宜昌分部",
+    "flow_type": "OUT",
+    "col_qty": 1,
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L1", "flow_type": "OUT", "quantity": 1.0, "flag_contains": "BORROW"}
+    ]
+  },
+  {
+    "id": "multi_seg_no_qty_no_split",
+    "text": "2025年9月，张停伟维护材料采购，沈鸿入库；2026年6月，李茜入库",
+    "flow_type": "IN",
+    "col_qty": 10,
+    "expect_segments": 2,
+    "expect": [
+      {"parse_level": "L2", "quantity": null, "flag_contains": "multi_seg_no_qty"},
+      {"parse_level": "L2", "quantity": null, "flag_contains": "multi_seg_no_qty"}
+    ]
+  },
+  {
+    "id": "dot_date_out_qty",
+    "text": "2026.4.14出库至溪洛渡1个",
+    "flow_type": "OUT",
+    "expect_segments": 1,
+    "expect": [
+      {"parse_level": "L1", "quantity": 1.0, "unit": "个", "flow_date": "2026-04-14", "forbid_quantity": [2026]}
+    ]
+  }
+]

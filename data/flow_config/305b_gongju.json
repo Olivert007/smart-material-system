@@ -1,0 +1,6 @@
+{
+  "source_sheet": "公用工器具",
+  "aliases": ["台账305B_公用工器具", "305B_公用工器具", "公用工器具台账"],
+  "domain": "asset",
+  "description": "T4.1（2026-08-10，LD-3 锁定）：无流水列 → 仅 aliases + domain 标记；路由与列解析由 ledger_route.json + ALIASES 负责。"
+}

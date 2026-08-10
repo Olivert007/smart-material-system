@@ -1,0 +1,6 @@
+{
+  "source_sheet": "应急备汛物资",
+  "aliases": ["台账305B_应急备汛物资", "305B_应急备汛物资", "应急备汛物资台账"],
+  "domain": "inventory",
+  "description": "T4.1（2026-08-10，LD-3 锁定）：无流水列 → 仅 aliases + domain 标记；路由与列解析由 ledger_route.json + ALIASES 负责。"
+}

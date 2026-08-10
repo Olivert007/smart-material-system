@@ -1,0 +1,45 @@
+# F3 production-ish compose: Nginx :8080 → api:8010 (docs/11 §5)
+#   docker compose -f deploy/compose.prod.yml up --build
+# Bind only loopback. LLM endpoints are host-reachable defaults.
+# 拓扑拍板（docs/09/11）：worker 与 API 同进程（后台任务在 API 进程内调度），
+# 无独立 worker 服务（低危7 已决策关闭）。
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      - DATA_DIR=/app/data
+      - OPS_TOKEN=${OPS_TOKEN:?OPS_TOKEN must be set}
+      - PYTHONPATH=/app
+      - ALLOW_FREE_QUERY=${ALLOW_FREE_QUERY:-0}
+      - ALLOWED_CIDRS=${ALLOWED_CIDRS:-}
+      - LLM_BIG_ENDPOINT=${LLM_BIG_ENDPOINT:-http://host.docker.internal:8001/v1}
+      - LLM_FAST_ENDPOINT=${LLM_FAST_ENDPOINT:-http://host.docker.internal:8000/v1}
+      - LLM_EMBED_ENDPOINT=${LLM_EMBED_ENDPOINT:-http://host.docker.internal:8002/v1}
+      - LLM_BIG_MODEL=${LLM_BIG_MODEL:-qwen3.6-27b}
+      - LLM_EMBED_MODEL=${LLM_EMBED_MODEL:-qwen3-embedding-0.6b}
+      - LLM_ENABLE_THINKING=0
+      - FLOW_LLM_ENABLED=${FLOW_LLM_ENABLED:-1}
+      - FRONTEND_DIST=/app/frontend_dist_unused
+    volumes:
+      - ../data:/app/data
+    expose:
+      - "8010"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy

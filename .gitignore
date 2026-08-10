@@ -1,0 +1,41 @@
+# Runtime data (never commit live DB / uploads)
+data/uploads/
+data/raw_evidence/
+data/staging/
+data/backups/
+data/reports/
+data/eval/
+data/test_run/
+data/*.sqlite
+data/*.sqlite.*
+data/*.duckdb
+data/*.duckdb.*
+
+# Test sandboxes (scripts recreate under tests/sandboxes/)
+tests/sandboxes/**
+!tests/sandboxes/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+deploy/.env

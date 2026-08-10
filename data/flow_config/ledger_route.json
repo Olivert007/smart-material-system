@@ -1,0 +1,10 @@
+{
+  "version": "1",
+  "description": "4-sheet 台账 sheet→域路由（T3.1，LD-3 锁定 2026-08-10）：维护材料/备品备件→inventory+flow；公用工器具→asset；应急备汛物资→inventory",
+  "sheets": [
+    {"sheet": "维护材料", "aliases": ["台账305B_维护材料", "305B_维护材料", "维护材料台账"], "domain": "inventory", "flow": true},
+    {"sheet": "备品备件", "aliases": ["台账305B_备品备件", "305B_备品备件", "备品备件台账"], "domain": "inventory", "flow": true},
+    {"sheet": "公用工器具", "aliases": ["台账305B_公用工器具", "305B_公用工器具", "公用工器具台账"], "domain": "asset", "flow": false},
+    {"sheet": "应急备汛物资", "aliases": ["台账305B_应急备汛物资", "305B_应急备汛物资", "应急备汛物资台账"], "domain": "inventory", "flow": false}
+  ]
+}

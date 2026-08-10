@@ -1,0 +1,20 @@
+{
+  "source_sheet": "成都区域ZW物资台账（新模板）",
+  "aliases": ["ZW物资_成都区域ZW物资台账", "成都区域ZW物资台账"],
+  "flow_columns": [
+    {
+      "header": "出库记录（ZW）",
+      "flow_type": "OUT",
+      "qty_column": "出库数量",
+      "unit_column": "单位",
+      "separators": ["；", ";", "。", "\n"]
+    },
+    {
+      "header": "入库记录",
+      "flow_type": "IN",
+      "qty_column": "入库数量",
+      "unit_column": "单位",
+      "separators": ["；", ";", "。", "\n"]
+    }
+  ]
+}

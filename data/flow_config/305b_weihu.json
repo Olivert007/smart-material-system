@@ -1,0 +1,23 @@
+{
+  "source_sheet": "维护材料",
+  "aliases": ["台账305B_维护材料"],
+  "flow_columns": [
+    {
+      "header": "入库记录",
+      "flow_type": "IN",
+      "qty_column": "入库数量",
+      "unit_column": "单位",
+      "separators": ["；", ";", "。", "\n"],
+      "date_formats": ["yyyy-MM-dd", "yyyy.M.d", "yyyy年M月", "yyyy/M/d"],
+      "qty_patterns": ["入?库?(\\d+(?:\\.\\d+)?)(个|台|包|根|对|条|部|套|把|米|卷)?"],
+      "person_delims": ["、", ",", "，", "/"]
+    },
+    {
+      "header": "出库记录",
+      "flow_type": "OUT",
+      "qty_column": "出库数量",
+      "unit_column": "单位",
+      "separators": ["；", ";", "。", "\n"]
+    }
+  ]
+}
