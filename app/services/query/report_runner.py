@@ -322,6 +322,44 @@ def run_report(
                     ),
                 ],
             )
+
+        source_release_ids: list[str] = []
+        try:
+            with meta_tx() as con:
+                rows = con.execute(
+                    """
+                    SELECT release_id FROM release_manifest
+                    ORDER BY released_at DESC LIMIT 5
+                    """
+                ).fetchall()
+            source_release_ids = [str(r["release_id"]) for r in rows if r and r["release_id"]]
+        except Exception:
+            source_release_ids = []
+
+        metric_versions: list[dict[str, Any]] = []
+        try:
+            from app.services import metrics as metrics_svc
+
+            active = metrics_svc.list_metrics(status="active").get("items") or []
+            for m in active[:20]:
+                metric_versions.append(
+                    {
+                        "metric_id": m.get("metric_id"),
+                        "version": m.get("version"),
+                        "metric_name": m.get("metric_name"),
+                    }
+                )
+        except Exception:
+            metric_versions = []
+
+        release_note = (
+            "、".join(source_release_ids[:3]) if source_release_ids else "无发布清单"
+        )
+        metric_note = (
+            f"{len(metric_versions)} 项启用口径"
+            if metric_versions
+            else "无启用口径版本"
+        )
         return {
             "ok": True,
             "run_id": run_id,
@@ -331,6 +369,14 @@ def run_report(
             "artifact_path": str(artifact),
             "csv_path": str(csv_path),
             "actor": actor,
+            "data_scope": "available_candidate",
+            "formal_publish": False,
+            "source_release_ids": source_release_ids,
+            "metric_versions": metric_versions,
+            "note": (
+                f"可用候选数据快照，非正式发布报表；"
+                f"来源版本 {release_note}；指标口径 {metric_note}"
+            ),
         }
     except Exception as e:
         with meta_tx() as con:

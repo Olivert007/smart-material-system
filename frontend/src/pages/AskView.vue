@@ -4,9 +4,22 @@
       type="info"
       :closable="false"
       show-icon
-      title="自然语言查数（指标模板优先）"
-      description="优先命中指标字典统一口径，无需大模型推算；未命中时自动生成查询并做语法校验。流水类指标草稿状态会提示质量门禁。"
+      title="问数助手"
+      description="基于当前可用数据辅助查询：优先命中指标字典口径；未命中时生成并校验查询。结果默认不是正式发布报表；数据未规整完成时仅供参考。"
     />
+
+    <el-alert
+      v-if="modelDown"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="本地模型不可用（复杂问数暂不可用）"
+      description="指标模板类问题（库存总量是多少、库存表有多少行、按库位统计库存记录数等）仍可回答；数据成果浏览、导出与治理待办不受影响。"
+    />
+    <div v-if="modelDown" class="ask-degraded-actions">
+      <el-button size="small" @click="$router.push('/system?tab=models')">查看本地模型状态</el-button>
+      <el-button size="small" @click="$router.push('/data')">去数据成果</el-button>
+    </div>
 
     <div class="composer">
       <el-input
@@ -37,6 +50,14 @@
         <div class="result-head">
           <span>结果</span>
           <div class="tags">
+            <el-tag size="small" type="warning">{{ scopeChip }}</el-tag>
+            <el-tag v-if="result.metric_id" size="small" type="success">
+              指标口径 {{ result.metric_name || result.metric_id
+              }}{{ result.metric_version != null ? ` v${result.metric_version}` : '' }}
+            </el-tag>
+            <el-tag size="small" :type="result.ok ? 'success' : 'danger'">
+              {{ result.ok ? '成功' : '失败' }}
+            </el-tag>
             <el-button
               v-if="result.data?.length"
               size="small"
@@ -44,26 +65,35 @@
               plain
               @click="exportResult"
             >
-              导出 CSV
+              导出 CSV（问数结果快照）
             </el-button>
-            <el-tag size="small" :type="result.ok ? 'success' : 'danger'">
-              {{ result.ok ? '成功' : '失败' }}
-            </el-tag>
-            <el-tag v-if="result.source === 'metric_template'" size="small" type="success">
-              指标模板 {{ result.metric_id || '' }}
-            </el-tag>
-            <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
-            <el-tag v-if="result.model" size="small">{{ result.model }}</el-tag>
-            <el-tag v-if="result.model_invoked === false" size="small">未调用大模型：已命中指标字典口径</el-tag>
-            <el-tag v-if="result.latency_ms != null" size="small" type="warning">
-              {{ result.latency_ms }} ms
-            </el-tag>
           </div>
         </div>
       </template>
 
       <el-alert
-        v-if="result.hint"
+        v-if="isModelDegraded(result)"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="本地模型不可用，复杂问数暂不可用"
+        :description="result.hint || result.error || '模型离线，未能生成查询'"
+        class="answer"
+      />
+      <div v-if="isModelDegraded(result)" class="ask-degraded-actions">
+        <el-button size="small" @click="$router.push('/system?tab=models')">查看本地模型状态</el-button>
+        <el-button size="small" @click="$router.push('/data')">去数据成果</el-button>
+        <el-button
+          v-for="ex in (result.suggested_examples || []).slice(0, 3)"
+          :key="ex"
+          size="small"
+          @click="question = ex"
+        >
+          试问：{{ ex }}
+        </el-button>
+      </div>
+      <el-alert
+        v-if="result.hint && !isModelDegraded(result)"
         :title="result.hint"
         type="info"
         :closable="false"
@@ -83,11 +113,6 @@
         :closable="false"
         class="answer"
       />
-
-      <div v-if="result.sql" class="sql-block">
-        <div class="label">查询语句</div>
-        <pre>{{ result.sql }}</pre>
-      </div>
 
       <div v-if="chartable" class="chart-wrap">
         <div class="label">自动图表</div>
@@ -118,9 +143,26 @@
         show-icon
         class="truncate-hint"
         :title="`结果共 ${result.total_rows ?? result.rows ?? 0} 行，页面仅展示前 ${result.data?.length ?? 0} 行`"
-        description="请缩小查询范围，或使用数据中心导出完整明细。"
+        description="请缩小查询范围，或使用数据成果导出完整明细。"
       />
       <div v-if="result.ok && !result.data?.length" class="empty">无数据行（行数={{ result.rows ?? 0 }}）</div>
+
+      <el-collapse class="adv-fold">
+        <el-collapse-item title="高级详情（查询语句 / 模型状态）" name="adv">
+          <div v-if="result.sql" class="sql-block">
+            <div class="label">查询语句</div>
+            <pre>{{ result.sql }}</pre>
+          </div>
+          <div class="adv-meta">
+            <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
+            <el-tag v-if="result.model_invoked === false" size="small">未调用本地模型：已命中指标字典口径</el-tag>
+            <el-tag v-if="result.latency_ms != null" size="small" type="warning">
+              {{ result.latency_ms }} ms
+            </el-tag>
+            <el-tag v-if="result.source" size="small">来源 {{ result.source }}</el-tag>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
     </el-card>
 
     <el-card v-if="history.length" header="本会话历史" shadow="never">
@@ -147,7 +189,7 @@ import * as echarts from 'echarts/core'
 import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { askQuestion, downloadCsv, formatApiError, type AskResult } from '@/api/client'
+import { askQuestion, downloadCsv, flowGate, formatApiError, modelsStatus, type AskResult } from '@/api/client'
 import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
@@ -181,6 +223,18 @@ const result = ref<AskResult | null>(null)
 const history = ref<Hist[]>([])
 const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
+const gateReady = ref<boolean | null>(null)
+const modelDown = ref(false)
+
+const scopeChip = computed(() => {
+  if (gateReady.value === false) return '数据范围：门禁未就绪，结果仅供参考'
+  const scope = '可用'
+  if (result.value?.source === 'metric_template') {
+    const ver = result.value.metric_version != null ? ` · 口径 v${result.value.metric_version}` : ''
+    return `状态：${scope} · 指标口径${ver}（非正式发布）`
+  }
+  return `状态：${scope}（非正式发布）`
+})
 
 function isNumeric(v: unknown): boolean {
   if (typeof v === 'number') return Number.isFinite(v)
@@ -301,8 +355,31 @@ async function runAsk() {
   }
 }
 
-onMounted(() => {
+function isModelDegraded(res: AskResult | null) {
+  if (!res) return false
+  if (res.degraded) return true
+  return [
+    'local_model_unavailable',
+    'circuit_open',
+    'llm_invocation_failed',
+    'model_unavailable',
+  ].includes(String(res.model_state || ''))
+}
+
+onMounted(async () => {
   loadHistory()
+  try {
+    const g = await flowGate()
+    gateReady.value = !!g.ready
+  } catch {
+    gateReady.value = null
+  }
+  try {
+    const ms = await modelsStatus()
+    modelDown.value = !ms.big?.ok
+  } catch {
+    modelDown.value = false
+  }
   const q = typeof route.query.q === 'string' ? route.query.q : ''
   if (q) {
     question.value = q
@@ -326,9 +403,10 @@ watch(
 </script>
 
 <style scoped>
-.ask { display: flex; flex-direction: column; gap: 16px; max-width: 960px; }
+.ask { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .composer { display: flex; flex-direction: column; gap: 10px; }
 .composer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ask-degraded-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .hint { color: #909399; font-size: 12px; }
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -344,5 +422,7 @@ watch(
 .chart { width: 100%; height: 280px; }
 .empty { color: #909399; font-size: 13px; }
 .truncate-hint { margin-top: 12px; }
+.adv-fold { margin-top: 12px; }
+.adv-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .hist-meta { margin-left: 8px; color: #909399; font-size: 12px; }
 </style>

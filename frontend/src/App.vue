@@ -3,28 +3,23 @@
     <el-aside width="220px" class="aside">
       <div class="brand">Smart Material</div>
       <el-menu :default-active="activePath" router>
-        <el-menu-item-group title="看数">
-          <el-menu-item index="/">总览</el-menu-item>
-          <el-menu-item index="/ask">问数</el-menu-item>
-          <el-menu-item index="/data">数据中心</el-menu-item>
-        </el-menu-item-group>
-        <el-menu-item-group title="接入">
-          <el-menu-item index="/intake">接入与任务</el-menu-item>
-        </el-menu-item-group>
-        <el-menu-item-group title="治理">
-          <el-menu-item index="/govern">治理中心</el-menu-item>
-        </el-menu-item-group>
-        <el-menu-item-group v-if="isOps" title="系统">
-          <el-menu-item index="/system">系统</el-menu-item>
-        </el-menu-item-group>
+        <el-menu-item index="/">工作台</el-menu-item>
+        <el-menu-item index="/intake">数据接入</el-menu-item>
+        <el-menu-item index="/govern">数据规整</el-menu-item>
+        <el-menu-item index="/todos">治理待办</el-menu-item>
+        <el-menu-item index="/ai-review">AI建议审核</el-menu-item>
+        <el-menu-item index="/data">数据成果</el-menu-item>
+        <el-menu-item index="/ask">问数助手</el-menu-item>
+        <el-menu-item index="/trace">追溯审计</el-menu-item>
+        <el-menu-item v-if="isOps" index="/system">系统设置</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
       <el-header class="header">
         <span class="title">{{ title }}</span>
         <div class="header-right">
-          <el-tag :type="apiOk ? 'success' : 'danger'" size="small">
-            API {{ apiOk ? '在线' : '离线' }}
+          <el-tag :type="systemReady ? 'success' : 'danger'" size="small">
+            {{ systemReady ? '系统就绪' : '系统未就绪' }}
           </el-tag>
         </div>
       </el-header>
@@ -38,11 +33,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { healthLive } from '@/api/client'
+import { healthReady } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
-const apiOk = ref(false)
+const systemReady = ref(false)
 const opsRole = ref(localStorage.getItem('ops_role') || 'ops')
 
 const isOps = computed(() => opsRole.value === 'ops')
@@ -50,21 +45,27 @@ const isOps = computed(() => opsRole.value === 'ops')
 const activePath = computed(() => {
   const p = route.path
   if (p === '/browse' || p === '/reports') return '/data'
+  if (p === '/todos' || p === '/govern/todos') return '/todos'
+  if (p === '/ai-review' || p === '/suggestions') return '/ai-review'
   if (['/metrics', '/learning'].includes(p)) return '/govern'
-  if (['/models', '/ops', '/lineage', '/audit', '/settings'].includes(p)) return '/system'
+  if (['/lineage', '/audit'].includes(p) || p === '/trace') return '/trace'
+  if (['/models', '/ops', '/settings'].includes(p)) return '/system'
   return p
 })
 
 const title = computed(() => {
   const map: Record<string, string> = {
-    '/': '总览',
-    '/ask': '问数',
-    '/data': '数据中心',
-    '/govern': '治理中心',
-    '/system': '系统',
-    '/intake': '接入与任务',
+    '/': '工作台',
+    '/ask': '问数助手',
+    '/data': '数据成果',
+    '/govern': '数据规整',
+    '/todos': '治理待办',
+    '/ai-review': 'AI建议审核',
+    '/system': '系统设置',
+    '/intake': '数据接入',
+    '/trace': '追溯审计',
   }
-  if (route.path.startsWith('/stage/')) return '规整确认门'
+  if (route.path.startsWith('/stage/')) return '规整确认'
   return map[route.path] || 'Smart Material System'
 })
 
@@ -80,10 +81,10 @@ onMounted(async () => {
   window.addEventListener('ops-auth-required', onAuthRequired)
   window.addEventListener('storage', onStorage)
   try {
-    const h = await healthLive()
-    apiOk.value = h.status === 'live'
+    const h = await healthReady()
+    systemReady.value = h.status === 'ready'
   } catch {
-    apiOk.value = false
+    systemReady.value = false
   }
 })
 
@@ -104,7 +105,6 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .aside :deep(.el-menu) { border-right: none; background: transparent; }
-.aside :deep(.el-menu-item-group__title) { color: #8a9bb0; font-size: 11px; padding-left: 16px; }
 .aside :deep(.el-menu-item) { color: #c9d4e0; }
 .aside :deep(.el-menu-item.is-active) { background: rgba(64,158,255,0.18); color: #fff; }
 .header {

@@ -4,10 +4,19 @@
       type="info"
       :closable="false"
       show-icon
-      title="模型管理（只读探测）"
-      description="模型卡片探测与受控切换（记录审计，不执行任意 shell 重启）。"
+      title="本地模型状态"
+      description="面向运维：查看模型是否可用及能力影响。模型输出只做建议，不能自动写入业务事实或发布。"
     />
 
+    <el-alert
+      v-if="impactLines.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="当前降级 / 不可用影响"
+      :description="impactLines.join(' ')"
+      style="margin-bottom: 8px"
+    />
     <div class="toolbar">
       <el-space wrap>
         <el-tag type="success" size="large">Stage {{ status?.stage ?? '—' }}</el-tag>
@@ -39,11 +48,18 @@
         <el-space wrap class="tags">
           <el-tag size="small" type="info" v-for="t in c.tags" :key="t">{{ t }}</el-tag>
         </el-space>
-        <div class="meta mono">
-          <div>endpoint: {{ c.endpoint || '—' }}</div>
-          <div v-if="c.error" class="err">error: {{ c.error }}</div>
-          <div v-else-if="c.ok">探测：可达</div>
+        <div class="meta">
+          <div v-if="c.ok">状态：可用</div>
+          <div v-else class="err">状态：不可用（已保留规则路径）</div>
         </div>
+        <el-collapse>
+          <el-collapse-item title="高级详情（endpoint / 错误）" :name="c.role">
+            <div class="mono">
+              <div>endpoint: {{ c.endpoint || '—' }}</div>
+              <div v-if="c.error" class="err">error: {{ c.error }}</div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
         <div class="actions">
           <el-button size="small" :loading="actionBusy === c.role" @click="activate(c.role)">设为活跃</el-button>
           <el-button size="small" :loading="actionBusy === c.role" @click="restart(c.role)">受控重启</el-button>
@@ -57,7 +73,7 @@
         GB10 同卡难塞 fast+big+embed。当前常见：fast(:8000)+big(:8001) 双驻时 embed 停用并走
         lexical_fallback；或 big+embed（Stage1）。docs/10 评测门槛未过前，仅作过渡探测，不宣称生产双常驻达标。
       </p>
-      <el-button link type="primary" @click="$router.push('/ops')">打开运维面板（备份 / 血缘）</el-button>
+      <el-button link type="primary" @click="$router.push('/system?tab=ops')">打开运维面板（备份 / 自检）</el-button>
     </el-card>
   </div>
 </template>
@@ -148,6 +164,16 @@ const filtered = computed(() => {
   )
 })
 
+const impactLines = computed(() => {
+  const lines: string[] = []
+  const s = status.value
+  if (!s) return lines
+  if (!s.big?.ok) lines.push('主模型离线：复杂问数/解释建议不可用，规则与指标模板仍可用。')
+  if (!s.embed?.ok) lines.push('向量模型离线或词法兜底：映射召回降级，须人工确认。')
+  if (s.fast && !s.fast.ok) lines.push('快速模型离线：轻量建议降级，不阻断确认与写入。')
+  return lines
+})
+
 function cardStateType(c: RoleCard) {
   if (c.cardState === 'active') return 'success'
   if (c.cardState === 'unreachable') return 'danger'
@@ -209,7 +235,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.models { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; }
+.models { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .toolbar { display: flex; }
 .cards {
   display: grid;
@@ -235,5 +261,5 @@ onMounted(load)
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
 .hint { color: #909399; font-size: 13px; margin: 0 0 8px; line-height: 1.5; }
-.topology { max-width: 1100px; }
+.topology { width: 100%; }
 </style>

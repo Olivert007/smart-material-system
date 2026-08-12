@@ -315,6 +315,11 @@ def browse_table(table: str, limit: int = 100, offset: int = 0, zh: int = 1, mod
         total = int(con.execute(cnt_guard.sql).fetchone()[0])
     finally:
         con.close()
+    # 溯源字段：展示层隐藏，但行内保留英文键供「追溯」深链
+    release_ids = (
+        df["source_release_id"].tolist() if "source_release_id" in df.columns else None
+    )
+    row_keys = df["row_key"].tolist() if "row_key" in df.columns else None
     if zh:
         keep = fd.visible_fields(list(df.columns))
         if keep:
@@ -325,9 +330,20 @@ def browse_table(table: str, limit: int = 100, offset: int = 0, zh: int = 1, mod
         df.columns = fd.zh_columns_for_table(table, list(df.columns))
     # NaN → null、时间 → ISO 字符串，直接可 JSON 序列化
     rows = json.loads(df.to_json(orient="records"))
+    if release_ids is not None:
+        for i, row in enumerate(rows):
+            if i < len(release_ids):
+                val = release_ids[i]
+                row["source_release_id"] = None if (val != val) else val  # NaN check
+    if row_keys is not None:
+        for i, row in enumerate(rows):
+            if i < len(row_keys):
+                val = row_keys[i]
+                row["row_key"] = None if (val != val) else val  # NaN check
     return {
         "table": table,
         "mode": mode,
+        "data_scope": "available_candidate",
         "columns_zh": list(df.columns),
         "rows": rows,
         "total": total,

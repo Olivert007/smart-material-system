@@ -107,6 +107,7 @@ FIELD_ZH = {
 # 溯源/解析/治理类技术字段：业务表格与导出中隐藏（zh=0 可还原）
 TECHNICAL_FIELDS = {
     "source_release_id",
+    "row_key",
     "source_era",
     "color_flag",
     "delete_flag",

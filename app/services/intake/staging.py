@@ -144,6 +144,13 @@ def create_staging(
                 }
             )
 
+    raw_snapshot_path = None
+    if payload_kind == "tabular":
+        staging_dir = config.STAGING / file_id
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        raw_snapshot_path = staging_dir / f"{config_version}_{target_domain}_raw.parquet"
+        df.to_parquet(raw_snapshot_path, index=False)
+
     if payload_kind == "tabular" and target_domain != "generic" and col_map:
         from app.services.value_validator import apply_checks, clean_ledger_qtys
 
@@ -235,6 +242,7 @@ def create_staging(
     dry_run = {
         "mutates_state": False,
         "payload_kind": payload_kind,
+        "raw_payload_path": str(raw_snapshot_path) if raw_snapshot_path else None,
         "column_mapping": col_map,
         "projected_clean_rows": projected_clean,
         "projected_blocked_rows": int(len(blocked)),

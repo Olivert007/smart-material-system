@@ -349,7 +349,10 @@ def init_meta() -> None:
                 hits INTEGER DEFAULT 1,
                 source TEXT,
                 confirmed_by TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                changed_by TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(header, business_domain, std_field)
             );
 
@@ -362,6 +365,7 @@ def init_meta() -> None:
                 candidates_json TEXT,
                 reason TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
+                version INTEGER NOT NULL DEFAULT 1,
                 business_domain TEXT NOT NULL DEFAULT 'default',
                 actor TEXT,
                 note TEXT,
@@ -390,6 +394,7 @@ def init_meta() -> None:
                 parse_level TEXT,
                 suggested_json TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
+                version INTEGER NOT NULL DEFAULT 1,
                 conflict INTEGER DEFAULT 0,
                 llm_state TEXT NOT NULL DEFAULT 'none',
                 llm_role TEXT,
@@ -407,6 +412,7 @@ def init_meta() -> None:
                 score REAL,
                 match_kind TEXT,
                 status TEXT NOT NULL DEFAULT 'proposed',
+                version INTEGER NOT NULL DEFAULT 1,
                 note TEXT,
                 actor TEXT,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -428,6 +434,7 @@ def init_meta() -> None:
                 conflict_type TEXT,
                 candidates_json TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
+                version INTEGER NOT NULL DEFAULT 1,
                 decided_by TEXT,
                 decided_at TEXT,
                 note TEXT,
@@ -591,6 +598,10 @@ def init_meta() -> None:
             con.execute("ALTER TABLE flow_pending ADD COLUMN llm_role TEXT")
         if "llm_error" not in cols:
             con.execute("ALTER TABLE flow_pending ADD COLUMN llm_error TEXT")
+        if "version" not in cols:
+            con.execute(
+                "ALTER TABLE flow_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            )
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_flow_pending_llm ON flow_pending(status, llm_state)"
         )
@@ -614,6 +625,48 @@ def init_meta() -> None:
             )
         if "data_check_sql" not in md_cols:
             con.execute("ALTER TABLE metric_dict ADD COLUMN data_check_sql TEXT")
+        # pending board optimistic concurrency (optv1/08): version columns
+        mp_cols = {
+            r[1]
+            for r in con.execute("PRAGMA table_info(map_pending)").fetchall()
+        }
+        if "version" not in mp_cols:
+            con.execute(
+                "ALTER TABLE map_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            )
+        ma_cols = {
+            r[1]
+            for r in con.execute("PRAGMA table_info(material_align)").fetchall()
+        }
+        if "version" not in ma_cols:
+            con.execute(
+                "ALTER TABLE material_align ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            )
+        mdp_cols = {
+            r[1]
+            for r in con.execute("PRAGMA table_info(master_pending)").fetchall()
+        }
+        if "version" not in mdp_cols:
+            con.execute(
+                "ALTER TABLE master_pending ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            )
+        # rule_dict status cols (optv1/04 规则资产: 启用/停用/预演)
+        rd_cols = {
+            r[1]
+            for r in con.execute("PRAGMA table_info(rule_dict)").fetchall()
+        }
+        if "status" not in rd_cols:
+            con.execute(
+                "ALTER TABLE rule_dict ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"
+            )
+        if "changed_by" not in rd_cols:
+            con.execute("ALTER TABLE rule_dict ADD COLUMN changed_by TEXT")
+        if "updated_at" not in rd_cols:
+            # SQLite ADD COLUMN 不允许非常量默认值；先加可空列再回填
+            con.execute("ALTER TABLE rule_dict ADD COLUMN updated_at TEXT")
+            con.execute(
+                "UPDATE rule_dict SET updated_at = datetime('now') WHERE updated_at IS NULL"
+            )
         # Ensure new tables exist on older DBs (CREATE IF NOT EXISTS already in block;
         # re-run key DDLs defensively for DBs created before this revision)
         for ddl in (

@@ -373,6 +373,25 @@ export async function getIntakeQuality(fileId: string) {
   return apiJson<QualityReport>(`/intake/quality/${fileId}`)
 }
 
+export type IntakeConclusion = {
+  file_id: string
+  status: string
+  conclusion:
+    | 'failed'
+    | 'parsing'
+    | 'published'
+    | 'standardized'
+    | 'structure_work'
+    | 'field_work'
+    | 'staging_ready'
+  reason_codes: string[]
+  hint: string
+}
+
+export async function getIntakeConclusion(fileId: string) {
+  return apiJson<IntakeConclusion>(`/intake/conclusion/${fileId}`)
+}
+
 export type IntakePlan = {
   report_id: string | null
   file_id: string
@@ -481,7 +500,12 @@ export type AskResult = {
   source?: string
   metric_id?: string
   metric_name?: string
+  metric_version?: number | string | null
+  data_scope?: string
   hint?: string
+  degraded?: boolean
+  available_capabilities?: string[]
+  suggested_examples?: string[]
 }
 
 export async function askQuestion(question: string) {
@@ -582,6 +606,104 @@ export async function confirmMapPending(body: {
   })
 }
 
+export type GovernTodoSummary = {
+  state?: 'no_data' | 'parsing' | 'blocked' | 'needs_standardization' | 'ready' | 'published' | string
+  state_message?: string
+  map_pending_count: number
+  unit_pending_count?: number
+  material_pending_count: number
+  master_pending_count: number
+  material_align_count: number
+  flow_pending_count: number
+  exception_pending_count: number
+  ai_suggestion_pending_count: number
+  rule_conflict_count: number
+  correction_count: number
+  release_blocker_count: number
+  blocked_rows: number
+  estimated_releasable_rows?: number
+  file_count: number
+  staging_count?: number
+  release_count?: number
+  total: number
+  gate: { ready?: boolean; missing?: string[] }
+  empty_reason?: string | null
+  next_actions: Array<{ code: string; label: string; path: string }>
+}
+
+export type GovernTodoItem = {
+  todo_id: string
+  todo_type: string
+  title: string
+  status: string
+  priority?: string
+  affected_rows?: number
+  source_file?: string | null
+  source_sheet?: string | null
+  suggestion?: string
+  confidence?: number | null
+  actions?: string[]
+  requires_review?: boolean
+  forms_rule?: boolean
+  version?: number
+  raw_ref?: Record<string, unknown>
+  suggestion_source?: string
+  suggestion_kind?: string
+  source_label?: string
+  kind_label?: string
+  review_status?: string
+  review_label?: string
+}
+
+export async function governTodoSummary() {
+  return apiJson<GovernTodoSummary>('/govern/standardization/summary')
+}
+
+export async function governTodoList(opts?: {
+  limit?: number
+  offset?: number
+  todo_type?: string
+  sort?: string
+}) {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts?.limit ?? 50))
+  q.set('offset', String(opts?.offset ?? 0))
+  q.set('sort', opts?.sort ?? 'impact')
+  if (opts?.todo_type) q.set('todo_type', opts.todo_type)
+  return apiJson<{ total: number; limit: number; offset: number; items: GovernTodoItem[] }>(
+    `/govern/todos?${q}`,
+  )
+}
+
+export async function governTodoDecision(
+  todoId: string,
+  body: {
+    decision: 'accept' | 'amend' | 'reject' | 'ignore'
+    amended_value?: Record<string, unknown>
+    note?: string
+    expected_version?: number
+    idempotency_key?: string
+    dry_run?: boolean
+  },
+) {
+  return apiJson<{
+    ok: boolean
+    dry_run?: boolean
+    todo_id: string
+    todo_type?: string
+    decision?: string
+    affected_rows?: number
+    forms_rule?: boolean
+    suggestion?: string
+    warning?: string | null
+    idempotent?: boolean
+    result?: Record<string, unknown>
+  }>(`/govern/todos/${encodeURIComponent(todoId)}/decision`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export type MasterPendingItem = {
   pending_id: string
   material_id?: string | null
@@ -664,8 +786,59 @@ export async function listRuleDict(limit = 50, offset = 0) {
       source?: string
       confirmed_by?: string
       created_at: string
+      status?: string
+      changed_by?: string
+      updated_at?: string
+      pending_map_hits?: number
+      pending_blocked_hits?: number
     }>
   }>(`/assets/rule-dict?limit=${limit}&offset=${offset}`)
+}
+
+export type RuleDictPreview = {
+  ok: boolean
+  dry_run: boolean
+  rule_id: number
+  header: string
+  std_field: string
+  business_domain: string
+  current_status: string
+  next_status: string
+  action: string
+  affected_rows: number
+  rebuild_needed: boolean
+  warning: string
+}
+
+export async function ruleDictPreview(ruleId: number, action: 'enable' | 'disable' = 'enable') {
+  return apiJson<RuleDictPreview>(`/assets/rule-dict/${ruleId}/preview`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  })
+}
+
+export async function ruleDictConfirm(
+  ruleId: number,
+  body: { action: 'enable' | 'disable'; note?: string; idempotency_key?: string },
+) {
+  return apiJson<RuleDictPreview & { idempotent?: boolean; idempotency_replay?: boolean }>(
+    `/assets/rule-dict/${ruleId}/confirm`,
+    { method: 'POST', body: JSON.stringify(body) },
+  )
+}
+
+export async function ruleDictConflicts() {
+  return apiJson<{
+    ok: boolean
+    conflict_count: number
+    conflicts: Array<{
+      header: string
+      business_domain: string
+      fields: string[]
+      rule_ids: number[]
+      statuses: string[]
+    }>
+  }>('/assets/rule-dict/conflicts')
 }
 
 export type FlowPendingItem = {
@@ -988,9 +1161,17 @@ export async function listRuleLearnCandidates(limit = 50) {
 
 export async function confirmRuleLearn(
   confirmId: number,
-  body: { decision: string; std_field?: string },
+  body: { decision: string; std_field?: string; dry_run?: boolean },
 ) {
-  return apiJson<{ ok: boolean }>(`/govern/rule-learn/${confirmId}/confirm`, {
+  return apiJson<{
+    ok: boolean
+    dry_run?: boolean
+    affected_rows?: number
+    will_write?: string | null
+    warning?: string
+    decision?: string
+    applied?: Record<string, unknown> | null
+  }>(`/govern/rule-learn/${confirmId}/confirm`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -1049,6 +1230,11 @@ export async function runReport(reportId: string, params?: Record<string, unknow
     run_id: string
     row_count: number
     artifact_path?: string
+    data_scope?: string
+    formal_publish?: boolean
+    note?: string
+    source_release_ids?: string[]
+    metric_versions?: Array<{ metric_id: string; version?: number | string }>
   }>(`/reports/${encodeURIComponent(reportId)}/run`, {
     method: 'POST',
     body: hasParams ? JSON.stringify({ params }) : undefined,
@@ -1207,8 +1393,48 @@ export async function createBackup() {
     tag?: string
     files?: string[]
     created_at?: string
+    backup_id?: string
     [k: string]: unknown
   }>('/ops/backup', { method: 'POST' })
+}
+
+export async function listBackups(limit = 20) {
+  return apiJson<{
+    total: number
+    items: Array<{ backup_id: string; path: string; created_at?: string; files?: number | null }>
+    backup_root?: string
+  }>(`/ops/backups?limit=${limit}`)
+}
+
+export async function getRestoreDrill() {
+  return apiJson<{
+    recorded: boolean
+    message: string
+    record: null | {
+      recorded_at?: string
+      actor?: string
+      note?: string
+      result?: string
+      backup_id?: string | null
+      disclaimer?: string
+    }
+  }>('/ops/restore-drill')
+}
+
+export async function recordRestoreDrill(body?: {
+  note?: string
+  result?: string
+  backup_id?: string
+}) {
+  const q = new URLSearchParams()
+  if (body?.note) q.set('note', body.note)
+  if (body?.result) q.set('result', body.result)
+  if (body?.backup_id) q.set('backup_id', body.backup_id)
+  const qs = q.toString()
+  return apiJson<{ ok: boolean; record: Record<string, unknown> }>(
+    `/ops/restore-drill${qs ? `?${qs}` : ''}`,
+    { method: 'POST' },
+  )
 }
 
 export type StatsOverview = {
@@ -1227,6 +1453,25 @@ export type StatsOverview = {
     top_by_category?: Array<{ name: string; value: number }>
     top_by_location?: Array<{ name: string; value: number }>
     top_by_unit?: Array<{ name: string; value: number }>
+  }
+  quality?: {
+    clean_rows: number
+    blocked_rows: number
+  }
+  estimated_releasable_rows?: number
+  todos?: {
+    map_pending: number
+    master_pending: number
+    flow_pending: number
+    material_align: number
+    ai_suggestion_pending?: number
+    total: number
+  }
+  next_action?: {
+    code: string
+    label: string
+    path: string
+    reason: string
   }
   flow: {
     published_total?: number
@@ -1322,15 +1567,35 @@ export async function opsLlmCost(days = 7) {
   }>(`/ops/llm-cost?days=${days}`)
 }
 
-export async function auditTimeline(params?: { limit?: number; offset?: number; source?: string; actor?: string }) {
+export async function auditTimeline(params?: {
+  limit?: number
+  offset?: number
+  source?: string
+  actor?: string
+  release_id?: string
+  file_id?: string
+  q?: string
+}) {
   const q = new URLSearchParams()
   if (params?.limit) q.set('limit', String(params.limit))
   if (params?.offset) q.set('offset', String(params.offset))
   if (params?.source) q.set('source', params.source)
   if (params?.actor) q.set('actor', params.actor)
+  if (params?.release_id) q.set('release_id', params.release_id)
+  if (params?.file_id) q.set('file_id', params.file_id)
+  if (params?.q) q.set('q', params.q)
   const qs = q.toString()
   return apiJson<{
-    items: Array<{ ts: string; kind: string; source: string; action: string; actor: string; detail: string }>
+    items: Array<{
+      ts: string
+      kind: string
+      source: string
+      action: string
+      actor: string
+      detail: string
+      release_id?: string | null
+      file_id?: string | null
+    }>
     total: number
   }>(`/audit/timeline${qs ? `?${qs}` : ''}`)
 }
@@ -1356,6 +1621,8 @@ export function reportRunFileUrl(runId: string) {
 
 export type BrowseResult = {
   table: string
+  mode?: string
+  data_scope?: string
   columns_zh: string[]
   rows: Record<string, unknown>[]
   total: number
@@ -1366,6 +1633,41 @@ export type BrowseResult = {
 /** 台账在线分页浏览（后端 /api/v1/browse/{table}，LB-1）。 */
 export async function browseTable(table: string, limit = 100, offset = 0) {
   return apiJson<BrowseResult>(`/browse/${encodeURIComponent(table)}?limit=${limit}&offset=${offset}`)
+}
+
+export type RowEvidence = {
+  ok: boolean
+  release_id: string
+  row_key: string
+  domain: string
+  source_file: string
+  source_sheet?: string | null
+  source_row?: number | string | null
+  source_file_id: string
+  release: Record<string, unknown>
+  staging: Record<string, unknown>
+  task: Record<string, unknown> | null
+  material: Record<string, unknown>
+  mapping: Array<{ std_field: string; source_header: string }>
+  rule_hits: Array<Record<string, unknown>>
+  confirms: Array<Record<string, unknown>>
+  audit: Array<Record<string, unknown>>
+  compare: Array<{
+    field: string
+    field_zh: string
+    source_header?: string | null
+    raw_value?: unknown
+    clean_value?: unknown
+    changed?: boolean | null
+  }>
+  note: string
+}
+
+/** 行级证据：发布结果行 → 来源原始值 + 规整值 + 血缘链条（optv1/05 Q11）。 */
+export async function getRowEvidence(releaseId: string, rowKey: string) {
+  return apiJson<RowEvidence>(
+    `/govern/lineage/row?release_id=${encodeURIComponent(releaseId)}&row_key=${encodeURIComponent(rowKey)}`,
+  )
 }
 
 /** 触发浏览器下载 Blob。 */

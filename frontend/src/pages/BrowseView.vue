@@ -1,15 +1,35 @@
 <template>
   <div class="browse">
+    <el-alert
+      :type="mode === 'staged' ? 'info' : 'success'"
+      :closable="false"
+      show-icon
+      :title="mode === 'staged' ? '规整后明细（业务库视图）' : '可用数据（候选）'"
+      :description="
+        mode === 'staged'
+          ? '状态：规整。展示已写入或可浏览的规整结构数据；仍可能含需继续治理的项。非正式发布。'
+          : '状态：可用。通过当前门禁、可浏览/导出/问数的可用候选。不等于正式发布，也不等于库存事实。'
+      "
+      style="margin-bottom: 12px"
+    />
     <el-card shadow="never">
       <template #header>
         <div class="head">
           <el-space wrap>
-            <el-select v-model="table" style="width: 200px" @change="onTableChange">
-              <el-option v-for="t in TABLES" :key="t.table" :label="t.label" :value="t.table" />
+            <el-select v-model="table" style="width: 180px" @change="onTableChange">
+              <el-option
+                v-for="t in TABLES"
+                :key="t.table"
+                :label="t.label"
+                :value="t.table"
+              />
             </el-select>
+            <el-tag size="small" :type="dataStateTagType(modeState)">
+              {{ dataStateLabel(modeState) }}
+            </el-tag>
+            <el-tag size="small" type="warning">非正式发布</el-tag>
             <el-button :loading="loading" @click="load">刷新</el-button>
-            <el-button @click="openBrowse">在线浏览</el-button>
-            <el-button @click="exportCsv">导出 CSV</el-button>
+            <el-button type="primary" plain @click="exportCsv">导出 {{ exportLabel }}</el-button>
           </el-space>
         </div>
       </template>
@@ -24,13 +44,18 @@
       >
         <el-table :data="result?.rows || []" v-loading="loading" border size="small" max-height="560">
           <el-table-column
-            v-for="c in result?.columns_zh || []"
+            v-for="c in displayColumns"
             :key="c"
             :prop="c"
             :label="c"
             min-width="120"
             show-overflow-tooltip
           />
+          <el-table-column label="追溯" width="90" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="goTrace(row)">追溯</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </PagedTable>
     </el-card>
@@ -43,6 +68,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import PagedTable from '@/components/PagedTable.vue'
 import { browseTable, formatApiError, tableExportUrl, type BrowseResult } from '@/api/client'
+import { dataStateLabel, dataStateTagType } from '@/utils/dataStates'
+
+const props = withDefaults(defineProps<{ mode?: 'available' | 'staged' }>(), { mode: 'available' })
 
 const TABLES = [
   { table: 'dim_material', label: '主数据' },
@@ -64,7 +92,17 @@ const pageSize = ref(20)
 const loading = ref(false)
 const result = ref<BrowseResult | null>(null)
 
-const emptyText = computed(() => '暂无数据，请先在「接入与任务」上传并确认发布')
+const modeState = computed(() => (props.mode === 'staged' ? 'standardized' : 'available'))
+const emptyText = computed(() => '暂无数据，请先在「数据接入」上传并完成规整确认')
+const exportLabel = computed(() =>
+  props.mode === 'staged' ? '规整快照' : '可用数据',
+)
+/** 展示列：隐藏溯源英文键（仍保留在 row 上供追溯）。 */
+const displayColumns = computed(() =>
+  (result.value?.columns_zh || []).filter(
+    (c) => c !== 'source_release_id' && c !== '发布ID' && c !== 'row_key' && c !== '行键',
+  ),
+)
 
 async function load() {
   loading.value = true
@@ -83,12 +121,32 @@ function onTableChange() {
   load()
 }
 
-function openBrowse() {
-  load()
+function exportCsv() {
+  ElMessage.info(`即将导出：${exportLabel.value}（非正式发布）`)
+  window.open(tableExportUrl(table.value, 100000, 'business'), '_blank')
 }
 
-function exportCsv() {
-  window.open(tableExportUrl(table.value, 100000, 'business'), '_blank')
+function goTrace(row: Record<string, unknown>) {
+  const releaseId = String(row.source_release_id || row.release_id || '')
+  const sourceFile = String(
+    row.source_file || row['来源文件'] || row.file_id || '',
+  )
+  const rowKey = String(row.row_key || '')
+  router.push({
+    path: '/trace',
+    query: {
+      tab: 'lineage',
+      ...(releaseId && releaseId !== 'null' && releaseId !== 'undefined'
+        ? { release_id: releaseId }
+        : {}),
+      ...(sourceFile && sourceFile !== 'null' && sourceFile !== 'undefined'
+        ? { source_file: sourceFile, file_id: sourceFile }
+        : {}),
+      ...(rowKey && rowKey !== 'null' && rowKey !== 'undefined'
+        ? { row_key: rowKey }
+        : {}),
+    },
+  })
 }
 
 watch(
@@ -106,6 +164,6 @@ onMounted(load)
 </script>
 
 <style scoped>
-.browse { display: flex; flex-direction: column; gap: 16px; }
+.browse { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .head { display: flex; align-items: center; justify-content: space-between; }
 </style>

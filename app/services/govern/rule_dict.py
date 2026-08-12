@@ -2,6 +2,7 @@
 """rule_dict self-learning lookups (docs/04 §6) — read path for map-suggest / resolve_columns."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.repositories import meta_conn, meta_tx
@@ -70,7 +71,7 @@ def _fetch_rules(business_domain: str | None = None) -> list[dict[str, Any]]:
                 """
                 SELECT header, std_field, business_domain, hits, source, confirmed_by, created_at
                 FROM rule_dict
-                WHERE business_domain IN (?, 'default')
+                WHERE status='active' AND business_domain IN (?, 'default')
                 ORDER BY hits DESC, created_at DESC, rule_id DESC
                 """,
                 [business_domain],
@@ -80,6 +81,7 @@ def _fetch_rules(business_domain: str | None = None) -> list[dict[str, Any]]:
                 """
                 SELECT header, std_field, business_domain, hits, source, confirmed_by, created_at
                 FROM rule_dict
+                WHERE status='active'
                 ORDER BY hits DESC, created_at DESC, rule_id DESC
                 """
             ).fetchall()
@@ -190,3 +192,158 @@ def apply_rule_overrides(
         mapping[target] = col
         used_cols.add(col)
     return mapping
+
+
+def _rule_affected_rows(rule_id: int) -> int:
+    """待处理影响行数：未确认字段待办 + 阻塞明细中同名表头的行数。"""
+    con = meta_conn()
+    try:
+        row = con.execute(
+            "SELECT header FROM rule_dict WHERE rule_id=?", [rule_id]
+        ).fetchone()
+        if not row:
+            raise KeyError("rule not found")
+        header = str(row["header"] or "")
+        mp = con.execute(
+            "SELECT COUNT(*) AS c FROM map_pending WHERE header=? AND status='pending'",
+            [header],
+        ).fetchone()["c"]
+        sb = con.execute(
+            "SELECT COUNT(*) AS c FROM staging_blocked WHERE header=?",
+            [header],
+        ).fetchone()["c"]
+        return int(mp or 0) + int(sb or 0)
+    finally:
+        con.close()
+
+
+def set_rule_status(
+    *,
+    rule_id: int,
+    action: str,
+    actor: str,
+    dry_run: bool = False,
+    note: str = "",
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """启用/停用规则。变更前 dry_run 返回影响预演；真实变更写审计（仅追加）。"""
+    action = (action or "").strip().lower()
+    if action not in ("enable", "disable"):
+        raise ValueError("action must be enable|disable")
+
+    from app.services import idempotency as idem
+
+    scope = "rule_dict_status"
+    if idempotency_key and not dry_run:
+        cached = idem.get(scope, idempotency_key)
+        if cached:
+            return {**cached, "idempotent": True, "idempotency_replay": True}
+
+    con = meta_conn()
+    try:
+        row = con.execute(
+            """
+            SELECT rule_id, header, std_field, business_domain, hits, status, created_at
+            FROM rule_dict WHERE rule_id=?
+            """,
+            [rule_id],
+        ).fetchone()
+    finally:
+        con.close()
+    if not row:
+        raise KeyError("rule not found")
+
+    d = dict(row)
+    affected = _rule_affected_rows(rule_id)
+    next_status = "active" if action == "enable" else "disabled"
+    warning = "规则变更仅影响后续规整与映射命中；已写入业务库的历史行不会自动回刷。"
+    preview = {
+        "ok": True,
+        "dry_run": True,
+        "rule_id": rule_id,
+        "header": d["header"],
+        "std_field": d["std_field"],
+        "business_domain": d["business_domain"],
+        "current_status": d["status"],
+        "next_status": next_status,
+        "action": action,
+        "affected_rows": affected,
+        "rebuild_needed": False,
+        "warning": warning,
+    }
+    if dry_run:
+        return preview
+    if d["status"] == next_status:
+        raise RuntimeError(f"already_{next_status}")
+
+    detail = json.dumps(
+        {
+            "rule_id": rule_id,
+            "header": d["header"],
+            "std_field": d["std_field"],
+            "business_domain": d["business_domain"],
+            "affected_rows": affected,
+            "rebuild_needed": False,
+        },
+        ensure_ascii=False,
+    )
+    with meta_tx() as con:
+        con.execute(
+            """
+            UPDATE rule_dict
+            SET status=?, changed_by=?, updated_at=datetime('now')
+            WHERE rule_id=?
+            """,
+            [next_status, actor, rule_id],
+        )
+        con.execute(
+            """
+            INSERT INTO govern_confirm (source, detail, decision, note, actor)
+            VALUES ('rule_dict_status', ?, ?, ?, ?)
+            """,
+            [detail, action, (note or "")[:200] or warning[:200], actor],
+        )
+    out = {**preview, "dry_run": False}
+    if idempotency_key:
+        idem.put(scope, idempotency_key, out)
+    return out
+
+
+def list_rule_conflicts() -> dict[str, Any]:
+    """同一表头在同一域下映射到多个不同标准字段 → 冲突（含停用项提示）。"""
+    con = meta_conn()
+    try:
+        rows = con.execute(
+            """
+            SELECT rule_id, header, std_field, business_domain, status
+            FROM rule_dict
+            ORDER BY header, business_domain
+            """
+        ).fetchall()
+    finally:
+        con.close()
+
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for r in rows:
+        key = (str(r["header"] or "").strip().lower(), str(r["business_domain"] or "default"))
+        groups.setdefault(key, []).append(dict(r))
+
+    conflicts: list[dict[str, Any]] = []
+    for (_, domain), items in groups.items():
+        non_ignore = [it for it in items if str(it.get("std_field") or "") != "ignore"]
+        fields = {str(it["std_field"]) for it in non_ignore}
+        if len(fields) > 1:
+            conflicts.append(
+                {
+                    "header": items[0]["header"],
+                    "business_domain": domain,
+                    "fields": sorted(fields),
+                    "rule_ids": [int(it["rule_id"]) for it in items],
+                    "statuses": [str(it.get("status") or "active") for it in items],
+                }
+            )
+    return {
+        "ok": len(conflicts) == 0,
+        "conflict_count": len(conflicts),
+        "conflicts": conflicts,
+    }

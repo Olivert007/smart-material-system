@@ -325,7 +325,8 @@ def confirm_pending(
         con.execute(
             """
             UPDATE master_pending
-            SET status=?, decided_by=?, decided_at=datetime('now'), note=?, updated_at=datetime('now')
+            SET status=?, decided_by=?, decided_at=datetime('now'), note=?,
+                version=version+1, updated_at=datetime('now')
             WHERE pending_id=?
             """,
             [new_status, actor, (note or "")[:200], pending_id],

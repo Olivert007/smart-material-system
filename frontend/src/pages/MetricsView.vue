@@ -204,6 +204,7 @@ import {
   upsertMetric,
   type MetricItem,
 } from '@/api/client'
+import { gateLabel } from '@/utils/gateLabels'
 
 const props = withDefaults(defineProps<{ editable?: boolean }>(), { editable: true })
 
@@ -242,28 +243,28 @@ function statusLabel(s: string) {
 }
 
 const GATE_CHECK_LABELS: Record<string, string> = {
-  rule_path_has_published_rows: '规则链路已发布',
-  l1_l2_l3_stats_available: 'L1/L2/L3 统计',
+  rule_path_has_published_rows: '已发布出入库流水',
+  l1_l2_l3_stats_available: '出入库分级统计可用',
   no_year_as_quantity: '无年份脏数据',
-  reconcile_runnable: '勾稽可运行',
+  reconcile_runnable: '库存对账可运行',
   fixture_tests_passed: '夹具测试',
   lineage_rebuild_clean: '血缘重建干净',
 }
 
 function gateCheckLabel(key: string) {
-  return GATE_CHECK_LABELS[key] || key
+  return GATE_CHECK_LABELS[key] || gateLabel(key)
 }
 
 function gateCheckHint(key: string) {
   const hints: Record<string, string> = {
-    rule_path_has_published_rows: '规则链路已有发布流水',
-    l1_l2_l3_stats_available: '已发布流水按 L1/L2/L3 统计可用',
+    rule_path_has_published_rows: '当前没有已发布的出入库流水，库存对账相关指标暂不可用',
+    l1_l2_l3_stats_available: '已发布流水按分级统计可用',
     no_year_as_quantity: '无"年份当数量"脏数据',
-    reconcile_runnable: '勾稽差异可运行',
+    reconcile_runnable: '库存对账可运行',
     fixture_tests_passed: '内置夹具测试全部通过',
     lineage_rebuild_clean: '血缘审计后重建干净',
   }
-  return hints[key] || key
+  return hints[key] || gateLabel(key)
 }
 
 const editVisible = ref(false)
@@ -411,8 +412,8 @@ async function doActivate() {
   }
   try {
     await ElMessageBox.confirm(
-      '确认将流水指标设为启用？须门禁全绿；不会自动改业务库数据。',
-      '激活流水指标',
+      '确认将流水指标设为启用？\n影响预演：启用后问数/报表将按新口径求值；须门禁全绿；不会自动改业务库历史数据。',
+      '指标口径变更预演',
       { type: 'warning' },
     )
   } catch {
@@ -524,7 +525,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.metrics { display: flex; flex-direction: column; gap: 16px; max-width: 1200px; }
+.metrics { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }

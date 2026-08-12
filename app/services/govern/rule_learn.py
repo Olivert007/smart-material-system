@@ -138,8 +138,12 @@ def confirm_candidate(
     decision: str,
     actor: str,
     std_field: str | None = None,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Accept/reject a rule_learn candidate. Accept may write rule_dict or value_rule."""
+    """Accept/reject a rule_learn candidate. Accept may write rule_dict or value_rule.
+
+    dry_run=True returns impact preview without writing.
+    """
     decision = (decision or "").strip().lower()
     if decision not in ("accepted", "rejected"):
         raise ValueError("decision must be accepted|rejected")
@@ -156,9 +160,40 @@ def confirm_candidate(
             proposal = json.loads(row["detail"] or "{}")
         except Exception:
             proposal = {}
+
+        kind = proposal.get("kind")
+        affected = int(proposal.get("count") or 0)
+        will_write = None
+        if decision == "accepted":
+            if kind == "map_alias":
+                will_write = "rule_dict"
+            elif kind == "value_rule":
+                will_write = "value_rule"
+        warning = (
+            "规则变更仅影响后续规整与映射命中；已写入业务库的历史行不会自动回刷。"
+            if decision == "accepted"
+            else "拒绝后不会写入规则。"
+        )
+        preview = {
+            "ok": True,
+            "dry_run": True,
+            "id": confirm_id,
+            "decision": decision,
+            "kind": kind,
+            "affected_rows": affected,
+            "will_write": will_write,
+            "warning": warning,
+            "proposal": {
+                "header": proposal.get("header"),
+                "std_field": std_field or proposal.get("suggested_std_field") or proposal.get("std_field"),
+                "domain": proposal.get("domain"),
+            },
+        }
+        if dry_run:
+            return preview
+
         applied = None
         if decision == "accepted":
-            kind = proposal.get("kind")
             domain = proposal.get("domain") or "inventory"
             if kind == "map_alias":
                 header = (proposal.get("header") or "").strip()
@@ -204,4 +239,13 @@ def confirm_candidate(
             """,
             [decision, json.dumps(applied or {}, ensure_ascii=False), actor, confirm_id],
         )
-    return {"ok": True, "id": confirm_id, "decision": decision, "applied": applied}
+    return {
+        "ok": True,
+        "dry_run": False,
+        "id": confirm_id,
+        "decision": decision,
+        "applied": applied,
+        "affected_rows": affected,
+        "will_write": will_write,
+        "warning": warning,
+    }

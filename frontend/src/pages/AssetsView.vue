@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="自学习资产"
-      description="每次确认都让系统更准：表头映射 / 流水拆解 / SQL 修正确认后回写，下次同输入自动命中、不耗大模型。本页只读浏览这些资产。"
+      description="每次确认都让系统更准：表头映射 / 流水拆解 / SQL 修正确认后回写，下次同输入自动命中、不耗本地模型。本页只读浏览这些资产。"
     />
 
     <el-tabs v-model="tab" @tab-change="onTab">
@@ -22,12 +22,13 @@
             <span>表头映射规则</span>
             <el-space>
               <el-input v-model="q" clearable placeholder="筛选表头 / 字段" style="width: 220px" />
+              <el-button :loading="conflictLoading" @click="checkConflicts">冲突检查</el-button>
               <el-button :loading="loading" @click="loadRules">刷新</el-button>
             </el-space>
           </div>
         </template>
         <p class="hint" style="margin: 0 0 10px">
-          命中 = 该表头被自动命中的次数，命中一次即省一次大模型调用。
+          命中 = 该表头被自动命中的次数，命中一次即省一次本地模型调用。
         </p>
         <PagedTable
           v-model:page="rulesPage"
@@ -40,9 +41,39 @@
             <el-table-column prop="std_field" label="标准字段" width="140" />
             <el-table-column prop="business_domain" label="域" width="100" />
             <el-table-column prop="hits" label="命中" width="70" />
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.status === 'disabled' ? 'info' : 'success'">
+                  {{ row.status === 'disabled' ? '停用' : '启用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="待处理命中" width="100">
+              <template #default="{ row }">
+                {{ (Number(row.pending_map_hits) || 0) + (Number(row.pending_blocked_hits) || 0) }}
+              </template>
+            </el-table-column>
             <el-table-column prop="source" label="来源" width="120" />
-            <el-table-column prop="confirmed_by" label="确认人" width="120" />
-            <el-table-column prop="created_at" label="时间" width="170" />
+            <el-table-column prop="confirmed_by" label="确认人" width="100" />
+            <el-table-column prop="created_at" label="时间" width="160" />
+            <el-table-column label="操作" width="170" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openPreview(row)">
+                  预演
+                </el-button>
+                <el-button
+                  v-if="row.status !== 'disabled'"
+                  link
+                  type="warning"
+                  @click="openPreview(row, 'disable')"
+                >
+                  停用
+                </el-button>
+                <el-button v-else link type="success" @click="openPreview(row, 'enable')">
+                  启用
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </PagedTable>
       </el-card>
@@ -57,7 +88,7 @@
           </div>
         </template>
         <p class="hint" style="margin: 0 0 10px">
-          命中 = 该原文被直接复用的次数，复用即不耗大模型。
+          命中 = 该原文被直接复用的次数，复用即不耗本地模型。
         </p>
         <PagedTable
           v-model:page="flowPage"
@@ -122,7 +153,7 @@
           </div>
         </template>
         <p class="hint" style="margin: 0 0 10px">
-          命中 = 该示例被选为问答模板的次数，模板命中即不调大模型生成 SQL。
+          命中 = 该示例被选为问答模板的次数，模板命中即不调本地模型生成 SQL。
         </p>
         <el-alert
           v-if="fewshotNote"
@@ -146,12 +177,71 @@
         </PagedTable>
       </el-card>
     </template>
+
+    <el-dialog
+      v-model="previewVisible"
+      :title="`规则变更预演：${previewData?.header || ''}`"
+      width="540px"
+      destroy-on-close
+    >
+      <template v-if="previewData">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="规则">
+            「{{ previewData.header }}」→ {{ previewData.std_field }}（{{ previewData.business_domain }}）
+          </el-descriptions-item>
+          <el-descriptions-item label="变更">
+            {{ previewData.current_status === 'active' ? '启用' : '停用' }} → {{ previewData.next_status === 'active' ? '启用' : '停用' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="影响数据">
+            {{ previewData.affected_rows }} 行待处理记录（未确认字段待办 + 阻塞明细同表头）
+          </el-descriptions-item>
+          <el-descriptions-item label="是否需要重建">
+            {{ previewData.rebuild_needed ? '是' : '否' }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-alert
+          :title="previewData.warning"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-top: 10px"
+        />
+      </template>
+      <template #footer>
+        <el-button @click="previewVisible = false">取消</el-button>
+        <el-button type="primary" :loading="confirmBusy" @click="confirmStatus">
+          确认{{ previewData?.action === 'enable' ? '启用' : '停用' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="conflictsVisible" title="规则冲突检查" width="640px" destroy-on-close>
+      <el-alert
+        v-if="conflictHint"
+        :type="conflicts.length ? 'warning' : 'success'"
+        :closable="false"
+        show-icon
+        :title="conflictHint"
+        style="margin-bottom: 10px"
+      />
+      <el-table v-if="conflicts.length" :data="conflicts" border size="small" max-height="320">
+        <el-table-column prop="header" label="表头" min-width="140" />
+        <el-table-column prop="business_domain" label="域" width="100" />
+        <el-table-column label="冲突字段" min-width="180">
+          <template #default="{ row }">{{ (row.fields || []).join(' / ') }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">{{ (row.statuses || []).join(', ') }}</template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="无冲突" :image-size="56" />
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PagedTable from '@/components/PagedTable.vue'
 import {
   formatApiError,
@@ -159,6 +249,10 @@ import {
   listAssetFewshot,
   listFlowExamples,
   listRuleDict,
+  ruleDictConflicts,
+  ruleDictConfirm,
+  ruleDictPreview,
+  type RuleDictPreview,
 } from '@/api/client'
 
 const tab = ref('rules')
@@ -169,6 +263,14 @@ const rules = ref<Array<Record<string, unknown>>>([])
 const rulesTotal = ref(0)
 const rulesPage = ref(1)
 const rulesPageSize = ref(20)
+
+const previewVisible = ref(false)
+const previewData = ref<RuleDictPreview | null>(null)
+const confirmBusy = ref(false)
+const conflictsVisible = ref(false)
+const conflicts = ref<Array<Record<string, unknown>>>([])
+const conflictLoading = ref(false)
+const conflictHint = ref('')
 
 const flowItems = ref<Array<Record<string, unknown>>>([])
 const flowTotal = ref(0)
@@ -282,11 +384,84 @@ async function onTab(name: string | number) {
   else await loadFewshot()
 }
 
+function needOpsToken(): boolean {
+  if (!localStorage.getItem('ops_token')) {
+    ElMessage.warning('请先在设置页填写操作令牌')
+    return false
+  }
+  return true
+}
+
+async function openPreview(row: Record<string, unknown>, action?: 'enable' | 'disable') {
+  const rid = Number(row.rule_id)
+  if (!rid) return
+  const target: 'enable' | 'disable' =
+    action || (row.status === 'disabled' ? 'enable' : 'disable')
+  try {
+    previewData.value = await ruleDictPreview(rid, target)
+    previewVisible.value = true
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  }
+}
+
+async function confirmStatus() {
+  const p = previewData.value
+  if (!p) return
+  if (!needOpsToken()) return
+  try {
+    await ElMessageBox.confirm(
+      `确认${p.action === 'enable' ? '启用' : '停用'}规则「${p.header}」？\n` +
+        `影响约 ${p.affected_rows} 行；${p.rebuild_needed ? '需要重建' : '不需要重建'}。\n${p.warning}`,
+      '规则变更确认',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  confirmBusy.value = true
+  const key =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `rule_${Date.now()}`
+  try {
+    await ruleDictConfirm(p.rule_id, {
+      action: p.action as 'enable' | 'disable',
+      note: '规则资产页面确认',
+      idempotency_key: key,
+    })
+    ElMessage.success(p.action === 'enable' ? '已启用规则' : '已停用规则')
+    previewVisible.value = false
+    await loadRules()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    confirmBusy.value = false
+  }
+}
+
+async function checkConflicts() {
+  conflictLoading.value = true
+  try {
+    const res = await ruleDictConflicts()
+    conflicts.value = (res.conflicts || []) as Array<Record<string, unknown>>
+    conflictHint.value = res.ok
+      ? '无规则冲突'
+      : `发现 ${res.conflict_count} 组冲突（同一表头映射到多个标准字段，须人工处理）`
+    conflictsVisible.value = true
+    ElMessage[res.ok ? 'success' : 'warning'](conflictHint.value)
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    conflictLoading.value = false
+  }
+}
+
 onMounted(loadRules)
 </script>
 
 <style scoped>
-.assets { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; }
+.assets { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }

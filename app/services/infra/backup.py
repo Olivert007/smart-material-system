@@ -81,3 +81,85 @@ def create_backup(tag: str | None = None) -> dict:
     finally:
         resume_writer()
         assert not writer_is_paused()
+
+
+def list_backups(*, limit: int = 20) -> dict:
+    root = config.BACKUP
+    root.mkdir(parents=True, exist_ok=True)
+    items: list[dict] = []
+    for p in sorted(root.iterdir(), key=lambda x: x.name, reverse=True):
+        if not p.is_dir():
+            continue
+        if p.name.startswith("."):
+            continue
+        manifest_path = p / "MANIFEST.json"
+        created_at = None
+        files_n = None
+        if manifest_path.exists():
+            try:
+                man = json.loads(manifest_path.read_text(encoding="utf-8"))
+                created_at = man.get("created_at")
+                files_n = len(man.get("files") or [])
+            except Exception:
+                pass
+        items.append(
+            {
+                "backup_id": p.name,
+                "path": str(p),
+                "created_at": created_at or p.name.split("_")[0],
+                "files": files_n,
+            }
+        )
+        if len(items) >= max(1, min(limit, 100)):
+            break
+    return {"total": len(items), "items": items, "backup_root": str(root)}
+
+
+def _drill_path() -> Path:
+    config.BACKUP.mkdir(parents=True, exist_ok=True)
+    return config.BACKUP / "restore_drill.json"
+
+
+def get_restore_drill() -> dict:
+    path = _drill_path()
+    if not path.exists():
+        return {
+            "recorded": False,
+            "message": "尚未登记恢复演练；未演练前不承诺生产级备份恢复能力。",
+            "record": None,
+        }
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {
+            "recorded": False,
+            "message": f"演练记录损坏：{e}",
+            "record": None,
+        }
+    return {
+        "recorded": True,
+        "message": "已登记恢复演练记录（人工确认，非自动恢复执行）。",
+        "record": record,
+    }
+
+
+def record_restore_drill(
+    *,
+    actor: str,
+    note: str = "",
+    result: str = "ok",
+    backup_id: str | None = None,
+) -> dict:
+    """Append-only style: overwrite single latest drill record (explicit UI action)."""
+    path = _drill_path()
+    record = {
+        "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "actor": actor,
+        "note": note or "人工确认已完成恢复演练",
+        "result": result,
+        "backup_id": backup_id,
+        "auto_restore": False,
+        "disclaimer": "本记录仅证明演练登记，不执行自动全量恢复。",
+    }
+    path.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"ok": True, "record": record}

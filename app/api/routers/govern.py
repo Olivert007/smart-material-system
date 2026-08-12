@@ -40,6 +40,7 @@ from app.api.routers._schemas import (
     ReleaseSupersedeBody,
     RuleLearnConfirmBody,
     RuleLearnProposeBody,
+    TodoDecisionBody,
     ValueRuleBody,
     ValueRuleConfirmBody,
     json_dumps_safe,
@@ -346,6 +347,17 @@ def lineage_releases(limit: int = 50, offset: int = 0, domain: str | None = None
     return writer_svc.list_releases(limit=limit, offset=offset, domain=domain)
 
 
+@router.get("/govern/lineage/row")
+def govern_lineage_row(release_id: str, row_key: str):
+    """行级证据：发布结果行 → 来源原始值 + 规整值 + 血缘链条（optv1/05 Q11）。"""
+    from app.services.govern import row_evidence as row_ev
+
+    try:
+        return row_ev.row_evidence(release_id=release_id, row_key=row_key)
+    except KeyError as e:
+        raise HTTPException(404, detail={"code": "NOT_FOUND", "message": str(e)})
+
+
 @router.post("/govern/lineage/rebuild")
 def lineage_rebuild(body: LineageRebuildBody, actor: str = Depends(require_ops)):
     """D6 generic lineage revoke/rebuild for inventory|demand|asset|stock_flow."""
@@ -465,6 +477,7 @@ def govern_rule_learn_confirm(
             decision=body.decision,
             actor=actor,
             std_field=body.std_field,
+            dry_run=bool(body.dry_run),
         )
     except KeyError:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "candidate not found"})
@@ -511,4 +524,73 @@ def govern_corrections_decide(
     except KeyError:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "correction not found"})
     except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, detail={"code": "BAD_REQUEST", "message": str(e)})
+
+
+@router.get("/govern/todo-summary")
+def govern_todo_summary():
+    """Unified govern todo counts for workbench / 数据规整 (optv1 P3/4)."""
+    from app.services import todo_board as todo_board_svc
+
+    return todo_board_svc.todo_summary()
+
+
+@router.get("/govern/todo-list")
+def govern_todo_list(
+    limit: int = 50,
+    offset: int = 0,
+    todo_type: str | None = None,
+    sort: str = "impact",
+):
+    """Unified pending queue sorted by impact (optv1 P3/4)."""
+    from app.services import todo_board as todo_board_svc
+
+    _ = sort  # currently only impact ordering
+    return todo_board_svc.todo_list(limit=limit, offset=offset, todo_type=todo_type)
+
+@router.get("/govern/standardization/summary")
+def govern_standardization_summary():
+    """optv1/08 contract alias → todo_summary."""
+    return govern_todo_summary()
+
+
+@router.get("/govern/todos")
+def govern_todos(
+    limit: int = 50,
+    offset: int = 0,
+    todo_type: str | None = None,
+    sort: str = "impact",
+):
+    """optv1/08 contract alias → todo_list."""
+    return govern_todo_list(limit=limit, offset=offset, todo_type=todo_type, sort=sort)
+
+
+@router.post("/govern/todos/{todo_id}/decision")
+def govern_todo_decision(
+    todo_id: str,
+    body: TodoDecisionBody,
+    actor: str = Depends(require_ops),
+):
+    """Unified todo decision facade (optv1/08). Supports dry_run preview."""
+    from app.services import todo_board as todo_board_svc
+
+    try:
+        return todo_board_svc.decide_todo(
+            todo_id=todo_id,
+            decision=body.decision,
+            actor=actor,
+            amended_value=body.amended_value,
+            note=body.note or "",
+            expected_version=body.expected_version,
+            idempotency_key=body.idempotency_key,
+            dry_run=bool(body.dry_run),
+        )
+    except KeyError:
+        raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "todo not found"})
+    except RuntimeError as e:
+        msg = str(e)
+        if "todo_conflict" in msg or "invalid status" in msg:
+            raise HTTPException(409, detail={"code": "CONFLICT", "message": msg})
+        raise HTTPException(400, detail={"code": "BAD_REQUEST", "message": msg})
+    except ValueError as e:
         raise HTTPException(400, detail={"code": "BAD_REQUEST", "message": str(e)})

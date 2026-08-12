@@ -99,7 +99,7 @@ def confirm_pending(
         flow_json = json.dumps([final], ensure_ascii=False, default=str)
         if existing and existing["flow_json"] != flow_json and decision != "ignore" and not overwrite:
             con.execute(
-                "UPDATE flow_pending SET conflict=1, status='conflict', updated_at=datetime('now') WHERE pending_id=?",
+                "UPDATE flow_pending SET conflict=1, status='conflict', version=version+1, updated_at=datetime('now') WHERE pending_id=?",
                 [pending_id],
             )
             return {
@@ -133,7 +133,7 @@ def confirm_pending(
         con.execute(
             """
             UPDATE flow_pending
-            SET status=?, suggested_json=?, conflict=0, updated_at=datetime('now')
+            SET status=?, suggested_json=?, conflict=0, version=version+1, updated_at=datetime('now')
             WHERE pending_id=?
             """,
             [new_status, flow_json, pending_id],

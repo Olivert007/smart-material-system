@@ -251,7 +251,7 @@ def _write_release(
                 )
                 cols_by_table = {
                     "fact_inventory": [
-                        "inventory_id", "material_id", "region", "category", "source_file",
+                        "inventory_id", "material_id", "row_key", "region", "category", "source_file",
                         "source_era", "color_flag", "stock_qty", "opening_qty", "quota_qty",
                         "min_qty", "temp_qty", "company_wh_qty", "age_days", "unit_cost",
                         "stock_value", "unit", "location", "custodian",
@@ -263,12 +263,12 @@ def _write_release(
                         "source_sheet", "source_release_id",
                     ],
                     "fact_demand": [
-                        "demand_id", "material_id", "demand_period", "quantity", "unit_price",
+                        "demand_id", "material_id", "row_key", "demand_period", "quantity", "unit_price",
                         "total_price", "unit", "reporter", "remark", "source_file",
                         "source_release_id",
                     ],
                     "fact_asset": [
-                        "asset_code", "asset_name", "company", "domain", "user_name", "manager",
+                        "asset_code", "asset_name", "row_key", "company", "domain", "user_name", "manager",
                         "location", "purchase_date", "status", "check_result",
                         # T1: ledger-export-plan §7.2 (LD-1/LD-2 锁定 2026-08-10)
                         "material_code", "asset_qty", "unit", "is_instrument", "replace_cycle",
@@ -277,13 +277,13 @@ def _write_release(
                         "source_file", "color_flag", "source_sheet", "source_release_id",
                     ],
                     "fact_stock_flow": [
-                        "flow_id", "material_id", "flow_type", "flow_date", "quantity", "unit",
+                        "flow_id", "material_id", "row_key", "flow_type", "flow_date", "quantity", "unit",
                         "person", "purpose", "remark", "parse_level", "parse_source",
                         "source_file", "source_sheet", "source_row", "source_segment",
                         "source_release_id",
                     ],
                     "fact_quota_adjust": [
-                        "quota_id", "material_id", "adjust_type", "material_code",
+                        "quota_id", "material_id", "row_key", "adjust_type", "material_code",
                         "material_name", "installed_qty", "accident_quota", "reserve_quota",
                         "verified_quota", "device_name", "reason", "delete_flag",
                         "source_file", "source_release_id",
@@ -303,11 +303,22 @@ def _write_release(
                 )
                 for i, rec in enumerate(mapped):
                     row_key = rec.get("_row_key")
+                    if not row_key:
+                        if table == "fact_stock_flow":
+                            row_key = (
+                                f"{rec.get('source_file')}|{rec.get('source_sheet')}|"
+                                f"{rec.get('source_row')}|{rec.get('source_segment')}|"
+                                f"{rec.get('flow_type')}"
+                            )
+                        else:
+                            mid = rec.get("material_id") or rec.get("asset_code") or f"r{i}"
+                            row_key = f"{rec.get('source_file')}|{domain}|{mid}|{i}"
                     # strip helper keys
                     name = rec.pop("_material_name", None)
                     code = rec.pop("_material_code", None)
                     rec.pop("_spec", None)
                     rec.pop("_row_key", None)
+                    rec["row_key"] = row_key
                     values = [rec.get(c) for c in cols]
                     con.execute(
                         f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders})",
@@ -315,12 +326,6 @@ def _write_release(
                     )
                     inserted += 1
                     if table == "fact_stock_flow":
-                        if not row_key:
-                            row_key = (
-                                f"{rec.get('source_file')}|{rec.get('source_sheet')}|"
-                                f"{rec.get('source_row')}|{rec.get('source_segment')}|"
-                                f"{rec.get('flow_type')}"
-                            )
                         payload = {
                             "flow_id": rec.get("flow_id"),
                             "material_id": rec.get("material_id"),
@@ -334,12 +339,9 @@ def _write_release(
                             "source_row": rec.get("source_row"),
                             "source_segment": rec.get("source_segment"),
                             "parse_level": rec.get("parse_level"),
+                            "row_key": row_key,
                         }
                     else:
-                        # P1-5: inventory/demand/asset 血缘镜像（行键退化：源文件|域|物料|序号）
-                        if not row_key:
-                            mid = rec.get("material_id") or rec.get("asset_code") or f"r{i}"
-                            row_key = f"{rec.get('source_file')}|{domain}|{mid}|{i}"
                         payload = {c: rec.get(c) for c in cols}
                     con.execute(
                         """

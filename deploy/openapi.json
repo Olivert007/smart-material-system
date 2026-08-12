@@ -2734,6 +2734,98 @@
         }
       }
     },
+    "/api/v1/govern/todo-summary": {
+      "get": {
+        "summary": "Govern Todo Summary",
+        "description": "Unified govern todo counts for workbench / 数据规整 (optv1 P3/4).",
+        "operationId": "govern_todo_summary_api_v1_govern_todo_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/govern/todo-list": {
+      "get": {
+        "summary": "Govern Todo List",
+        "description": "Unified pending queue sorted by impact (optv1 P3/4).",
+        "operationId": "govern_todo_list_api_v1_govern_todo_list_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "todo_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Todo Type"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "impact",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/metrics/fixtures": {
       "get": {
         "summary": "Metrics Fixtures",
@@ -3779,7 +3871,7 @@
     "/api/v1/export/table/{table}": {
       "get": {
         "summary": "Export Table",
-        "description": "只读导出标准表为 CSV（表名白名单 + AST 校验 + 行数上限）。\n\n供「规整后数据」导出使用：表名必须存在于业务库目录（防注入），\nSQL 仍走 sql_guard 只读校验，行数受 EXPORT_ROW_LIMIT 约束。\n默认 zh=1：表头汉化、隐藏技术/溯源字段；zh=0 返回原始列名与全字段。",
+        "description": "只读导出标准表为 CSV（表名白名单 + AST 校验 + 行数上限）。\n\n供「规整后数据」导出使用：表名必须存在于业务库目录（防注入），\nSQL 仍走 sql_guard 只读校验，行数受 EXPORT_ROW_LIMIT 约束。\nmode=business（默认）：事实表走 v_browse_* 业务明细视图；mode=raw：物理表直出。\n默认 zh=1：表头汉化、隐藏技术/溯源字段；zh=0 返回原始列名与全字段。",
         "operationId": "export_table_api_v1_export_table__table__get",
         "parameters": [
           {
@@ -3809,6 +3901,16 @@
               "type": "integer",
               "default": 1,
               "title": "Zh"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "business",
+              "title": "Mode"
             }
           }
         ],
@@ -4161,6 +4263,138 @@
         "summary": "Ops Backup",
         "operationId": "ops_backup_api_v1_ops_backup_post",
         "parameters": [
+          {
+            "name": "X-Ops-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ops-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/backups": {
+      "get": {
+        "summary": "Ops Backups",
+        "operationId": "ops_backups_api_v1_ops_backups_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/restore-drill": {
+      "get": {
+        "summary": "Ops Restore Drill Get",
+        "operationId": "ops_restore_drill_get_api_v1_ops_restore_drill_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Ops Restore Drill Post",
+        "operationId": "ops_restore_drill_post_api_v1_ops_restore_drill_post",
+        "parameters": [
+          {
+            "name": "note",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Note"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "ok",
+              "title": "Result"
+            }
+          },
+          {
+            "name": "backup_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Backup Id"
+            }
+          },
           {
             "name": "X-Ops-Token",
             "in": "header",

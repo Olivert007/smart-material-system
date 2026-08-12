@@ -7,27 +7,28 @@
         <li>规则学习：从阻塞明细聚合候选规则</li>
         <li>主数据待审：合并/批准独立物料</li>
         <li>流水解析：确认 L2/L3 拆解</li>
-        <li>勾稽差异：查看差异并补录（允许非零）</li>
+        <li>库存对账：查看差异并补录（允许非零）</li>
       </ol>
       <template #footer>
         <el-button type="primary" @click="closeGuide">知道了</el-button>
       </template>
     </el-dialog>
 
-    <el-tabs v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="表头映射" name="map" />
-      <el-tab-pane label="规则学习" name="rulelearn" />
-      <el-tab-pane label="主数据待审" name="master" />
-      <el-tab-pane label="流水解析" name="flow" />
-      <el-tab-pane label="勾稽差异" name="reconcile" />
+    <el-tabs v-if="!hideOuterTabs" v-model="tab" @tab-change="onTab">
+      <el-tab-pane label="字段规整" name="map" />
+      <el-tab-pane label="规则沉淀" name="rulelearn" />
+      <el-tab-pane label="物资规整" name="master" />
+      <el-tab-pane label="出入库记录处理" name="flow" />
+      <el-tab-pane label="库存对账" name="reconcile" />
     </el-tabs>
 
     <el-alert
+      v-if="!hideOuterTabs"
       type="info"
       :closable="false"
       show-icon
-      title="治理中心"
-      description="机器不确定的项进队列，人工确认后才写入规则与业务库。大模型只提案、不自动发布。"
+      title="数据规整待确认"
+      description="机器不确定的项进队列，人工确认后才写入规则与业务库。本地模型只提案、不自动发布。"
     />
 
     <template v-if="tab === 'rulelearn'">
@@ -36,7 +37,7 @@
         :closable="false"
         show-icon
         title="规则学习候选（只提案）"
-        description="从阻塞明细聚合高频原因 → 确认历史；确认后才写规则字典 / 值规则。"
+        description="从阻塞明细聚合高频原因 → 确认历史；接受前会预演影响范围，确认后才写规则字典 / 值规则。"
       />
       <el-card shadow="never">
         <template #header>
@@ -51,12 +52,15 @@
         <el-table :data="rlItems" v-loading="rlLoading" border size="small" empty-text="无候选">
           <el-table-column prop="id" label="编号" width="70" />
           <el-table-column prop="decision" label="状态" width="90" />
+          <el-table-column label="影响行数" width="90">
+            <template #default="{ row }">{{ row.proposal?.count ?? '—' }}</template>
+          </el-table-column>
           <el-table-column label="提案" min-width="280">
             <template #default="{ row }">
               <span class="mono">{{ JSON.stringify(row.proposal || {}) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
+          <el-table-column label="操作" width="260" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="row.decision === 'proposed'"
@@ -64,7 +68,7 @@
                 type="primary"
                 @click="acceptRl(row)"
               >
-                接受
+                接受（先预演）
               </el-button>
               <el-button
                 v-if="row.decision === 'proposed'"
@@ -147,7 +151,7 @@
           <el-button @click="headersText = '物资编码\n物资名称\n现有数量\n库位号\n型号规格'">填入库存示例</el-button>
           <el-tag v-if="suggestMeta.state" size="small" type="info">{{ suggestMeta.state }}</el-tag>
           <el-tag v-if="suggestMeta.invoked != null" size="small">
-            大模型 {{ suggestMeta.invoked ? '调用' : '跳过' }}
+            AI {{ suggestMeta.invoked ? '已调用' : '跳过' }}
           </el-tag>
           <el-tag v-if="suggestMeta.latency != null" size="small" type="warning">
             {{ suggestMeta.latency }} ms
@@ -273,7 +277,7 @@
         :closable="false"
         show-icon
         title="流水解析确认（需人工确认）"
-        description="接受/修正/忽略会回写流水拆解示例；不会直接改业务库。大模型建议仅预填，须人工确认。"
+        description="接受/修正/忽略会回写流水拆解示例；不会直接改业务库。AI 建议仅预填，须人工确认。"
       />
 
       <el-card shadow="never">
@@ -332,7 +336,7 @@
                 :disabled="flowStatus !== 'pending'"
                 @click="runFlowSuggestQueue"
               >
-                队列批处理（大模型）
+                队列批处理（AI建议）
               </el-button>
               <el-button
                 type="primary"
@@ -341,7 +345,7 @@
                 :disabled="!selectedPending.length"
                 @click="runFlowSuggestSelected"
               >
-                大模型建议选中
+                生成 AI 建议
               </el-button>
               <el-button
                 type="success"
@@ -384,7 +388,9 @@
             :selectable="() => flowStatus === 'pending' || flowStatus === 'conflict'"
           />
           <el-table-column prop="parse_level" label="级别" width="70" />
-          <el-table-column prop="flow_type" label="方向" width="70" />
+          <el-table-column label="方向" width="70">
+            <template #default="{ row }">{{ flowTypeLabel(row.flow_type) }}</template>
+          </el-table-column>
           <el-table-column prop="source_sheet" label="工作表" width="120" show-overflow-tooltip />
           <el-table-column prop="text_raw" label="原文" min-width="220" show-overflow-tooltip />
           <el-table-column label="建议摘要" min-width="200">
@@ -392,7 +398,7 @@
               <span class="mono">{{ summarizeSuggest(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="llm_state" label="大模型" width="90" />
+          <el-table-column prop="llm_state" label="AI状态" width="90" />
           <el-table-column prop="llm_role" label="角色" width="70" />
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
@@ -450,8 +456,8 @@
           </el-form-item>
           <el-form-item label="方向">
             <el-select v-model="amendForm.flow_type" style="width: 140px">
-              <el-option label="IN" value="IN" />
-              <el-option label="OUT" value="OUT" />
+              <el-option label="入库" value="IN" />
+              <el-option label="出库" value="OUT" />
             </el-select>
           </el-form-item>
           <el-form-item label="日期">
@@ -487,13 +493,13 @@
       </el-dialog>
     </template>
 
-    <!-- —— 勾稽差异 —— -->
+    <!-- —— 库存对账 —— -->
     <template v-else>
       <el-alert
         type="warning"
         :closable="false"
         show-icon
-        title="勾稽差异（允许非零）"
+        title="库存对账（允许非零）"
         :description="reconcileAlertDesc"
       />
       <el-card shadow="never">
@@ -548,7 +554,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { ElLink, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PagedTable from '@/components/PagedTable.vue'
@@ -603,7 +609,12 @@ type Row = {
   candidates: Array<{ std_field: string; score: number }>
 }
 
-const tab = ref('map')
+const props = withDefaults(
+  defineProps<{ initialTab?: string; hideOuterTabs?: boolean }>(),
+  { initialTab: 'map', hideOuterTabs: true },
+)
+
+const tab = ref(props.initialTab || 'map')
 const guideVisible = ref(false)
 
 function closeGuide() {
@@ -750,6 +761,12 @@ function parseHeaders(text: string): string[] {
     .filter(Boolean)
 }
 
+function flowTypeLabel(v?: string | null): string {
+  if (String(v || '').toUpperCase() === 'IN') return '入库'
+  if (String(v || '').toUpperCase() === 'OUT') return '出库'
+  return v || '—'
+}
+
 function summarizeSuggest(row: FlowPendingItem): string {
   const s = (row.suggested || {}) as Record<string, unknown>
   const qty = s.quantity
@@ -816,6 +833,32 @@ async function acceptRl(row: { id: number; proposal?: Record<string, unknown> })
   if (kind === 'map_alias') {
     std_field = window.prompt('确认映射到 std_field', String(row.proposal?.suggested_std_field || '')) || undefined
     if (!std_field) return
+  }
+  let previewNote = ''
+  try {
+    const preview = await confirmRuleLearn(row.id, {
+      decision: 'accepted',
+      std_field,
+      dry_run: true,
+    })
+    previewNote = [
+      `影响约 ${preview.affected_rows ?? row.proposal?.count ?? 0} 行阻塞样本`,
+      preview.will_write ? `将写入 ${preview.will_write}` : '不写入规则',
+      preview.warning || '',
+    ]
+      .filter(Boolean)
+      .join('；')
+  } catch {
+    previewNote = `影响约 ${row.proposal?.count ?? 0} 行；规则变更不会自动回刷已入库历史行`
+  }
+  try {
+    await ElMessageBox.confirm(
+      `接受该规则候选？\n${previewNote}`,
+      '规则变更影响预演',
+      { type: 'warning' },
+    )
+  } catch {
+    return
   }
   try {
     await confirmRuleLearn(row.id, { decision: 'accepted', std_field })
@@ -1226,7 +1269,7 @@ async function runFlowSuggestSelected() {
       const res = await suggestFlowPending({ pending_id: row.pending_id })
       if (res && (res as { ok?: boolean }).ok) ok += 1
     }
-    ElMessage.success(`大模型建议完成 ${ok}/${selectedPending.value.length}`)
+    ElMessage.success(`AI 建议完成 ${ok}/${selectedPending.value.length}`)
     await loadFlowPending()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1243,7 +1286,7 @@ async function runFlowSuggestQueue() {
   const limit = flowSuggestLimit.value
   try {
     await ElMessageBox.confirm(
-      `对最多 ${limit} 条尚未建议的待确认项运行策略路由（快速模型→升级大模型）？仅写建议，不改业务库。`,
+      `对最多 ${limit} 条尚未建议的待确认项运行策略路由（快速模型→必要时升级）？仅写建议，不改业务库。`,
       '队列批处理',
       { type: 'warning' },
     )
@@ -1428,20 +1471,30 @@ function exportReconcile() {
   URL.revokeObjectURL(url)
 }
 
+watch(
+  () => props.initialTab,
+  async (v) => {
+    if (!v || v === tab.value) return
+    tab.value = v
+    await onTab(v)
+  },
+)
+
 onMounted(async () => {
-  if (!localStorage.getItem('govern_guide_seen')) guideVisible.value = true
+  if (!props.hideOuterTabs && !localStorage.getItem('govern_guide_seen')) guideVisible.value = true
   try {
     const sf = await listStdFields()
     stdFields.value = sf.fields
   } catch {
     /* keep default */
   }
-  await Promise.all([loadRules(), loadMapPending()])
+  tab.value = props.initialTab || 'map'
+  await onTab(tab.value)
 })
 </script>
 
 <style scoped>
-.govern { display: flex; flex-direction: column; gap: 16px; max-width: 1200px; }
+.govern { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -1450,7 +1503,7 @@ onMounted(async () => {
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .stat-label { color: #909399; font-size: 13px; }
 .stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
-/* HG-3.4 勾稽差异行着色（scoped + :deep 作用于 el-table 行） */
+/* HG-3.4 库存对账行着色（scoped + :deep 作用于 el-table 行） */
 :deep(.gap-inv_only) { background: #fef2f2; }
 :deep(.gap-flow_only) { background: #fffbeb; }
 :deep(.gap-mismatch) { background: #fff7ed; }

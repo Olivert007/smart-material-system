@@ -51,6 +51,8 @@ def test_ask_uses_metric_template_without_llm():
     assert res["source"] == "metric_template"
     assert res["model_invoked"] is False
     assert res["metric_id"] == "INV_QTY_TOTAL"
+    assert res.get("data_scope") == "available_candidate"
+    assert res.get("metric_version") is not None
     assert res["sql"] and "fact_inventory" in res["sql"]
     assert "data" in res
 

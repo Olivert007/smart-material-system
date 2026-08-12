@@ -206,8 +206,10 @@ def ask(question: str) -> dict:
                 "answer": answer,
                 "metric_id": mid,
                 "metric_name": best.get("metric_name"),
+                "metric_version": ev.get("version"),
                 "metric_match": matched,
                 "source": "metric_template",
+                "data_scope": "available_candidate",
                 "model_state": "metric_template_hit",
                 "model_request_attempted": False,
                 "model_invoked": False,
@@ -248,10 +250,45 @@ def ask(question: str) -> dict:
         "fallback_reason": result.fallback_reason,
         "latency_ms": result.latency_ms,
         "source": "llm_text2sql",
+        "data_scope": "available_candidate",
         "metric_match": matched,
     }
     if not result.ok or not result.output_available:
-        return {**base, "ok": False, "error": result.error or "model unavailable", "answer": None}
+        degraded = str(result.model_state or "") in {
+            "local_model_unavailable",
+            "circuit_open",
+            "llm_invocation_failed",
+            "model_unavailable",
+        }
+        return {
+            **base,
+            "ok": False,
+            "error": result.error or "model unavailable",
+            "answer": None,
+            "degraded": degraded,
+            "hint": (
+                "本地模型不可用：复杂问数暂不可用。指标模板类问题仍可回答"
+                "（例如：库存总量是多少、库存表有多少行、按库位统计库存记录数）。"
+                "数据成果浏览与导出不受影响。"
+            )
+            if degraded
+            else None,
+            "available_capabilities": (
+                ["metric_template_ask", "browse", "export", "govern", "trace"]
+                if degraded
+                else None
+            ),
+            "suggested_examples": (
+                [
+                    "库存总量是多少",
+                    "库存表有多少行",
+                    "按库位统计库存记录数，取前10",
+                    "资产台数有多少",
+                ]
+                if degraded
+                else None
+            ),
+        }
 
     sql = _extract_sql(result.text)
     guard = validate_readonly_sql(sql)

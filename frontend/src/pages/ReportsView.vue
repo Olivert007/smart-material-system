@@ -184,9 +184,8 @@ onMounted(load)
 </script>
 
 <style scoped>
-.reports { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; }
+.reports { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
 .muted { color: #909399; font-size: 12px; }
-@media (max-width: 720px) { .reports { max-width: 100%; } }
 </style>

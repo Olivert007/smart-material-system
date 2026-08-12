@@ -26,7 +26,8 @@ def client():
 
 def test_seed_report_run_without_ops_token(client: TestClient):
     ensure_report_seed()
-    rid = next(iter(SEED_REPORT_IDS))
+    # frozenset 遍历顺序随进程哈希随机化；跳过带必填参数的 rpt_inv_filtered
+    rid = next(r for r in SEED_REPORT_IDS if r != "rpt_inv_filtered")
     r = client.post(f"/api/v1/reports/{rid}/run")
     assert r.status_code == 200, r.text
     body = r.json()

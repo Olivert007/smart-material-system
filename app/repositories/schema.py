@@ -25,6 +25,7 @@ STAR_DDL = [
     CREATE TABLE IF NOT EXISTS fact_inventory (
         inventory_id VARCHAR PRIMARY KEY,
         material_id VARCHAR,
+        row_key VARCHAR,
         region VARCHAR,
         category VARCHAR,
         source_file VARCHAR,
@@ -64,6 +65,7 @@ STAR_DDL = [
     CREATE TABLE IF NOT EXISTS fact_asset (
         asset_code VARCHAR PRIMARY KEY,
         asset_name VARCHAR,
+        row_key VARCHAR,
         company VARCHAR,
         domain VARCHAR,
         user_name VARCHAR,
@@ -93,6 +95,7 @@ STAR_DDL = [
     CREATE TABLE IF NOT EXISTS fact_demand (
         demand_id VARCHAR PRIMARY KEY,
         material_id VARCHAR,
+        row_key VARCHAR,
         demand_period VARCHAR,
         quantity DOUBLE,
         unit_price DOUBLE,
@@ -108,6 +111,7 @@ STAR_DDL = [
     CREATE TABLE IF NOT EXISTS fact_quota_adjust (
         quota_id VARCHAR PRIMARY KEY,
         material_id VARCHAR,
+        row_key VARCHAR,
         adjust_type VARCHAR,
         material_code VARCHAR,
         material_name VARCHAR,
@@ -126,6 +130,7 @@ STAR_DDL = [
     CREATE TABLE IF NOT EXISTS fact_stock_flow (
         flow_id VARCHAR PRIMARY KEY,
         material_id VARCHAR,
+        row_key VARCHAR,
         flow_type VARCHAR,
         flow_date VARCHAR,
         quantity DOUBLE,
@@ -198,6 +203,8 @@ def ensure_biz_schema(con: duckdb.DuckDBPyConnection) -> None:
         }
         if "source_release_id" not in cols:
             con.execute(f"ALTER TABLE {table} ADD COLUMN source_release_id VARCHAR")
+        if "row_key" not in cols:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN row_key VARCHAR")
     # fact_stock_flow column upgrades (docs/12 §2)
     flow_cols = {
         r[0]
@@ -322,7 +329,7 @@ def ensure_biz_schema(con: duckdb.DuckDBPyConnection) -> None:
                i.consumption_plan, i.material_source, i.group_code, i.is_frame_material,
                i.agreement_supplier, i.frame_material_code, i.frame_material_name,
                i.frame_material_spec, i.frame_material_supplier, i.emergency_supplier,
-               i.material_id, i.source_file
+               i.material_id, i.source_file, i.source_release_id, i.row_key
         FROM fact_inventory i
         LEFT JOIN dim_material m USING (material_id)
         """
@@ -332,7 +339,7 @@ def ensure_biz_schema(con: duckdb.DuckDBPyConnection) -> None:
         CREATE OR REPLACE VIEW v_browse_stock_flow AS
         SELECT m.material_name, m.spec, m.unit,
                f.flow_type, f.flow_date, f.quantity, f.person, f.purpose, f.remark,
-               f.material_id, f.source_file
+               f.material_id, f.source_file, f.source_release_id, f.row_key
         FROM fact_stock_flow f
         LEFT JOIN dim_material m USING (material_id)
         """
@@ -342,7 +349,7 @@ def ensure_biz_schema(con: duckdb.DuckDBPyConnection) -> None:
         CREATE OR REPLACE VIEW v_browse_demand AS
         SELECT m.material_name, m.spec, m.unit,
                d.demand_period, d.quantity, d.unit_price, d.total_price, d.reporter, d.remark,
-               d.material_id, d.source_file
+               d.material_id, d.source_file, d.source_release_id, d.row_key
         FROM fact_demand d
         LEFT JOIN dim_material m USING (material_id)
         """
@@ -353,7 +360,8 @@ def ensure_biz_schema(con: duckdb.DuckDBPyConnection) -> None:
         SELECT a.asset_name, a.asset_code, a.material_code, a.asset_qty, a.unit, a.status,
                a.check_result, a.user_name, a.manager, a.location, a.domain, a.company,
                a.purchase_date, a.is_instrument, a.replace_cycle, a.check_cycle,
-               a.tool_source, a.asset_quota_qty, a.consumption_plan, a.remark, a.source_file
+               a.tool_source, a.asset_quota_qty, a.consumption_plan, a.remark,
+               a.source_file, a.source_release_id, a.row_key
         FROM fact_asset a
         """
     )

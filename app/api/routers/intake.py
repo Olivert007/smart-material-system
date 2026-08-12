@@ -69,6 +69,17 @@ def intake_report_bundle(file_id: str):
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "file not found"})
 
 
+@router.get("/intake/conclusion/{file_id}")
+def intake_conclusion(file_id: str):
+    """上传完成后的业务结论：可进入规整 / 需字段处理 / 需结构确认 / 无法接入。"""
+    from app.services.intake import conclusion as conclusion_svc
+
+    try:
+        return conclusion_svc.file_conclusion(file_id)
+    except KeyError:
+        raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "file not found"})
+
+
 @router.get("/intake/profile/{file_id}")
 def get_intake_profile(file_id: str):
     """Step1 rule workbook/sheet profile (docs/03 §1.2)."""

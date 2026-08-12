@@ -5,7 +5,15 @@
       :closable="false"
       show-icon
       title="流水分析（只读）"
-      description="出入库按月趋势、Top 物资、L1/L2/L3 占比；口径与种子报表一致，可互验。"
+      description="出入库按月趋势、Top 物资、L1/L2/L3 占比；基于可用候选数据，非正式发布报表。"
+    />
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      title="数据范围：可用 · 非正式发布"
+      description="状态：可用。下载或截图不等于正式发布；请核对口径与来源版本。"
+      style="margin-bottom: 8px"
     />
     <el-card shadow="never">
       <template #header>

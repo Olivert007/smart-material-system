@@ -181,12 +181,192 @@ def business_snapshot(*, top_n: int = 5) -> dict[str, Any]:
         con.close()
 
 
+def _meta_count(sql: str, params: list[Any] | None = None) -> int:
+    con = meta_conn()
+    try:
+        row = con.execute(sql, params or []).fetchone()
+        return int(row[0] if row else 0)
+    except Exception:
+        return 0
+    finally:
+        con.close()
+
+
+def _quality_totals() -> dict[str, int]:
+    """Sum clean/blocked from latest staging per file; fall back to release_manifest."""
+    con = meta_conn()
+    try:
+        row = con.execute(
+            """
+            SELECT
+              COALESCE(SUM(s.clean_rows), 0) AS clean_rows,
+              COALESCE(SUM(s.blocked_rows), 0) AS blocked_rows
+            FROM staging_record s
+            INNER JOIN (
+              SELECT file_id, MAX(updated_at) AS max_updated
+              FROM staging_record
+              GROUP BY file_id
+            ) latest
+              ON s.file_id = latest.file_id AND s.updated_at = latest.max_updated
+            """
+        ).fetchone()
+        clean = int(row["clean_rows"] if row else 0)
+        blocked = int(row["blocked_rows"] if row else 0)
+        if clean or blocked:
+            return {"clean_rows": clean, "blocked_rows": blocked}
+        # superseded_by may be missing on very old DBs — try/except below
+        try:
+            row2 = con.execute(
+                """
+                SELECT
+                  COALESCE(SUM(clean_rows), 0) AS clean_rows,
+                  COALESCE(SUM(blocked_rows), 0) AS blocked_rows
+                FROM release_manifest
+                WHERE COALESCE(status, 'released') = 'released'
+                  AND (superseded_by IS NULL OR superseded_by = '')
+                """
+            ).fetchone()
+        except Exception:
+            row2 = con.execute(
+                """
+                SELECT
+                  COALESCE(SUM(clean_rows), 0) AS clean_rows,
+                  COALESCE(SUM(blocked_rows), 0) AS blocked_rows
+                FROM release_manifest
+                WHERE COALESCE(status, 'released') = 'released'
+                """
+            ).fetchone()
+        return {
+            "clean_rows": int(row2["clean_rows"] if row2 else 0),
+            "blocked_rows": int(row2["blocked_rows"] if row2 else 0),
+        }
+    except Exception:
+        try:
+            row = con.execute(
+                """
+                SELECT
+                  COALESCE(SUM(clean_rows), 0) AS clean_rows,
+                  COALESCE(SUM(blocked_rows), 0) AS blocked_rows
+                FROM staging_record
+                """
+            ).fetchone()
+            return {
+                "clean_rows": int(row["clean_rows"] if row else 0),
+                "blocked_rows": int(row["blocked_rows"] if row else 0),
+            }
+        except Exception:
+            return {"clean_rows": 0, "blocked_rows": 0}
+    finally:
+        con.close()
+
+
+def _todo_counts(*, flow_pending: int) -> dict[str, int]:
+    map_pending = _meta_count(
+        "SELECT COUNT(*) FROM map_pending WHERE status='pending'"
+    )
+    master_pending = _meta_count(
+        "SELECT COUNT(*) FROM master_pending WHERE status='pending'"
+    )
+    material_align = _meta_count(
+        "SELECT COUNT(*) FROM material_align WHERE status='proposed'"
+    )
+    flow_n = int(flow_pending or 0)
+    return {
+        "map_pending": map_pending,
+        "master_pending": master_pending,
+        "flow_pending": flow_n,
+        "material_align": material_align,
+        "ai_suggestion_pending": map_pending + master_pending + material_align + flow_n,
+        "total": map_pending + master_pending + flow_n + material_align,
+    }
+
+
+def _next_action(
+    *,
+    recent_files: list[dict[str, Any]],
+    quality: dict[str, int],
+    todos: dict[str, int],
+    gate_ready: bool | None,
+) -> dict[str, str]:
+    """Heuristic CTA for workbench first screen (product language)."""
+    if not recent_files:
+        return {
+            "code": "intake",
+            "label": "上传物资文件",
+            "path": "/intake",
+            "reason": "尚未接入文件，请先上传原始数据。",
+        }
+    if int(todos.get("total") or 0) > 0:
+        parts = []
+        if todos.get("map_pending"):
+            parts.append(f"待确认字段 {todos['map_pending']}")
+        if todos.get("master_pending"):
+            parts.append(f"待匹配物资 {todos['master_pending']}")
+        if todos.get("flow_pending"):
+            parts.append(f"流水待确认 {todos['flow_pending']}")
+        if todos.get("material_align"):
+            parts.append(f"物资对齐 {todos['material_align']}")
+        return {
+            "code": "ai_review",
+            "label": "审核 AI 建议",
+            "path": "/ai-review",
+            "reason": "；".join(parts) + "。AI 建议须人工确认后才会进入可用数据。",
+        }
+    if int(quality.get("blocked_rows") or 0) > 0:
+        return {
+            "code": "govern_blocked",
+            "label": "查看阻塞数据",
+            "path": "/todos?type=exception",
+            "reason": f"当前有 {quality['blocked_rows']} 条阻塞记录，需处理后方可进入可用结果。",
+        }
+    if gate_ready is False:
+        return {
+            "code": "gate",
+            "label": "继续数据规整",
+            "path": "/govern",
+            "reason": "数据门禁尚未就绪，规整完成前问数与报表仅供参考。",
+        }
+    if int(quality.get("clean_rows") or 0) > 0:
+        return {
+            "code": "data",
+            "label": "查看数据成果",
+            "path": "/data",
+            "reason": "当前有可用候选数据，可浏览明细或导出（不等于正式发布）。",
+        }
+    return {
+        "code": "intake_continue",
+        "label": "继续数据接入",
+        "path": "/intake",
+        "reason": "暂无可用候选数据，请确认接入与规整流程。",
+    }
+
+
 def overview(*, recent_limit: int = 5) -> dict[str, Any]:
     import asyncio
 
     tables = _table_counts()
     flow = flow_gov_svc.parse_stats()
     gate = metrics_svc.flow_activation_gate()
+    recent_files = _recent_files(recent_limit)
+    flow_pending = (
+        flow.get("pending") if flow.get("pending") is not None else _pending_count()
+    )
+    quality = _quality_totals()
+    todos = _todo_counts(flow_pending=int(flow_pending or 0))
+    next_action = _next_action(
+        recent_files=recent_files,
+        quality=quality,
+        todos=todos,
+        gate_ready=gate.get("ready"),
+    )
+    try:
+        from app.services.govern import todo_board as todo_board_svc
+
+        estimated_releasable = todo_board_svc.estimated_releasable_rows(
+            blocked=int(quality.get("blocked_rows") or 0)
+        )
+    except Exception:
+        estimated_releasable = int(quality.get("blocked_rows") or 0) if int(todos.get("total") or 0) > 0 else 0
 
     async def _probe_all() -> tuple[dict, dict, dict]:
         return await asyncio.gather(
@@ -203,17 +383,21 @@ def overview(*, recent_limit: int = 5) -> dict[str, Any]:
         "tables": tables,
         "dim_material": tables.get("dim_material", 0),
         "business": biz,
+        "quality": quality,
+        "estimated_releasable_rows": estimated_releasable,
+        "todos": todos,
+        "next_action": next_action,
         "flow": {
             "published_total": flow.get("published_total"),
             "published_by_level": flow.get("published_by_level"),
             "l1_ratio": flow.get("l1_ratio"),
-            "pending": flow.get("pending") if flow.get("pending") is not None else _pending_count(),
+            "pending": flow_pending,
         },
         "gate": {
             "ready": gate.get("ready"),
             "missing": gate.get("missing"),
         },
-        "recent_files": _recent_files(recent_limit),
+        "recent_files": recent_files,
         "metrics_active": [
             {
                 "metric_id": m.get("metric_id"),

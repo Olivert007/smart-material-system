@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="head">
-          <span>定稿报表</span>
+          <span>汇总报表（候选快照）</span>
           <el-button link type="primary" :loading="loading" @click="load">刷新</el-button>
         </div>
       </template>
@@ -44,11 +44,37 @@
     <el-card v-if="lastRun" shadow="never">
       <template #header>最近运行结果</template>
       <el-alert
-        type="success"
+        type="warning"
         :closable="false"
-        :title="`共 ${lastRun.row_count} 行`"
+        show-icon
+        :title="`共 ${lastRun.row_count} 行 · 状态：${dataStateLabel('available')} · 非正式发布`"
         :description="lastRun.note"
       />
+      <el-descriptions :column="1" border size="small" style="margin-top: 10px">
+        <el-descriptions-item label="运行编号">{{ lastRun.run_id }}</el-descriptions-item>
+        <el-descriptions-item label="来源版本">
+          {{
+            lastRun.source_release_ids?.length
+              ? lastRun.source_release_ids.join('、')
+              : '无发布清单'
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="指标口径版本">
+          <template v-if="lastRun.metric_versions?.length">
+            {{
+              lastRun.metric_versions
+                .slice(0, 8)
+                .map((m) => `${m.metric_id}@v${m.version ?? '?'}`)
+                .join('；')
+            }}
+            <span v-if="lastRun.metric_versions.length > 8">
+              …共 {{ lastRun.metric_versions.length }} 项
+            </span>
+          </template>
+          <template v-else>无启用口径</template>
+        </el-descriptions-item>
+        <el-descriptions-item label="数据范围">可用候选（非正式发布）</el-descriptions-item>
+      </el-descriptions>
     </el-card>
 
     <el-dialog v-model="paramVisible" :title="`运行：${paramReport?.name ?? ''}`" width="480px" destroy-on-close>
@@ -75,6 +101,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatApiError, listReports, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
+import { dataStateLabel } from '@/utils/dataStates'
 
 type ParamDecl = { name: string; label?: string; type?: 'text' | 'number' }
 
@@ -86,6 +113,8 @@ const lastRun = ref<{
   run_id: string
   row_count: number
   note: string
+  source_release_ids?: string[]
+  metric_versions?: Array<{ metric_id: string; version?: number | string }>
 } | null>(null)
 
 const paramVisible = ref(false)
@@ -130,7 +159,11 @@ async function doRun(id: string, params?: Record<string, unknown>) {
       report_id: id,
       run_id: out.run_id,
       row_count: out.row_count,
-      note: `运行编号 ${out.run_id}，可下载 CSV/Parquet 产物`,
+      source_release_ids: out.source_release_ids,
+      metric_versions: out.metric_versions,
+      note:
+        out.note ||
+        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载 CSV/Parquet 产物`,
     }
     ElMessage.success(`完成 ${out.row_count} 行`)
     return true

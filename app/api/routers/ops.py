@@ -170,3 +170,25 @@ def ops_llm_cost(days: int = 7):
 @router.post("/ops/backup")
 def ops_backup(actor: str = Depends(require_ops)):
     return backup_svc.create_backup(tag="manual")
+
+
+@router.get("/ops/backups")
+def ops_backups(limit: int = 20):
+    return backup_svc.list_backups(limit=limit)
+
+
+@router.get("/ops/restore-drill")
+def ops_restore_drill_get():
+    return backup_svc.get_restore_drill()
+
+
+@router.post("/ops/restore-drill")
+def ops_restore_drill_post(
+    note: str = "",
+    result: str = "ok",
+    backup_id: str | None = None,
+    actor: str = Depends(require_ops),
+):
+    return backup_svc.record_restore_drill(
+        actor=actor, note=note, result=result, backup_id=backup_id
+    )

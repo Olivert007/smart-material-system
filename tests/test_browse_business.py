@@ -43,10 +43,11 @@ def _seed():
                 """
                 INSERT INTO fact_inventory
                   (inventory_id, material_id, region, category, source_file, source_sheet,
-                   stock_qty, opening_qty, unit, location, custodian, remark, belong_system)
-                VALUES (?, ?, '川云', '电缆', 'browse.xlsx', '维护材料', ?, ?, '米', 'A1', '张三', '备注', '系统X')
+                   stock_qty, opening_qty, unit, location, custodian, remark, belong_system,
+                   source_release_id)
+                VALUES (?, ?, '川云', '电缆', 'browse.xlsx', '维护材料', ?, ?, '米', 'A1', '张三', '备注', '系统X', ?)
                 """,
-                [f"INV-B-{i}", "M-1", 10 + i, i],
+                [f"INV-B-{i}", "M-1", 10 + i, i, f"rel-browse-{i}"],
             )
         con.execute(
             """
@@ -76,6 +77,12 @@ def test_browse_business_joins_material(client):
     assert row["物资名称"] == "电力电缆"
     assert row["规格型号"] == "YJV-0.6/1kV"
     assert data["total"] == 2
+    assert data.get("data_scope") == "available_candidate"
+    # 溯源键保留在行内，但不进入展示列
+    assert "source_release_id" in row
+    assert row["source_release_id"]
+    assert "source_release_id" not in cols
+    assert "发布ID" not in cols
 
 
 def test_browse_default_mode_is_business(client):

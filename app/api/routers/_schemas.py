@@ -44,6 +44,12 @@ class GovernBody(BaseModel):
     note: str = ""
 
 
+class RuleDictStatusBody(BaseModel):
+    action: str  # enable | disable
+    note: str = ""
+    idempotency_key: str | None = None
+
+
 class MapSuggestBody(BaseModel):
     headers: list[str]
     business_domain: str | None = None
@@ -188,6 +194,7 @@ class RuleLearnProposeBody(BaseModel):
 class RuleLearnConfirmBody(BaseModel):
     decision: str = "accepted"  # accepted|rejected
     std_field: str | None = None
+    dry_run: bool = False
 
 
 class CorrectionProposeBody(BaseModel):
@@ -200,6 +207,15 @@ class CorrectionProposeBody(BaseModel):
 
 class CorrectionDecideBody(BaseModel):
     action: str = "apply"  # apply|decline
+
+
+class TodoDecisionBody(BaseModel):
+    decision: str  # accept | amend | reject | ignore
+    amended_value: dict | None = None
+    note: str = ""
+    expected_version: int | None = None
+    idempotency_key: str | None = None
+    dry_run: bool = False
 
 
 def json_dumps_safe(obj) -> str:

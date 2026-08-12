@@ -212,7 +212,8 @@ def confirm_pending(
         con.execute(
             """
             UPDATE map_pending
-            SET status=?, suggested_field=?, actor=?, note=?, updated_at=datetime('now')
+            SET status=?, suggested_field=?, actor=?, note=?,
+                version=version+1, updated_at=datetime('now')
             WHERE pending_id=?
             """,
             [new_status, field, actor, (note or "")[:200], pending_id],

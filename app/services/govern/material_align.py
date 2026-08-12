@@ -318,7 +318,7 @@ def confirm_alignment(
         con.execute(
             """
             UPDATE material_align
-            SET status=?, note=?, actor=?, updated_at=datetime('now')
+            SET status=?, note=?, actor=?, version=version+1, updated_at=datetime('now')
             WHERE align_id=?
             """,
             [new_status, (note or row.get("note") or "")[:200], actor, row["align_id"]],
