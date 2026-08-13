@@ -68,8 +68,8 @@
           <el-button type="primary" @click="$router.push(nextAction.path || '/intake')">
             {{ nextAction.label || '继续' }}
           </el-button>
-          <el-button v-if="(todos.total || 0) > 0" @click="$router.push('/todos')">治理待办</el-button>
-          <el-button v-if="aiSuggestionPending > 0" @click="$router.push('/ai-review')">审核AI建议</el-button>
+          <el-button v-if="(todos.total || 0) > 0 && nextAction.path !== '/todos'" @click="$router.push('/todos')">治理待办</el-button>
+          <el-button v-if="aiSuggestionPending > 0 && nextAction.path !== '/ai-review'" @click="$router.push('/ai-review')">审核AI建议</el-button>
           <el-button @click="$router.push('/data')">查看数据成果</el-button>
           <el-button @click="$router.push('/ask')">问数助手</el-button>
         </div>
@@ -365,7 +365,7 @@ const statusDesc = computed(() => {
     parts.push(`处理后预计释放 ${fmt(releasableRows.value)} 条`)
   }
   if (gate && gate.ready === false && gate.missing?.length) {
-    parts.push(`门禁未就绪：${gate.missing.join('、')}`)
+    parts.push('门禁未就绪，需先完成数据接入与发布')
   }
   return parts.join(' · ')
 })
