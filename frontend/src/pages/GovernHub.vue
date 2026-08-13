@@ -292,7 +292,8 @@ async function closeDetail() {
   await loadAll()
 }
 
-onMounted(async () => {
+/** 按当前 URL query 展开对应详情/高级能力（首次加载与 SPA 内 query 变化共用）。 */
+function applyRouteQuery() {
   const qTab = String(route.query.tab || '')
   const qDetail = typeof route.query.detail === 'string' ? route.query.detail : ''
   const qType = typeof route.query.type === 'string' ? route.query.type : ''
@@ -322,7 +323,16 @@ onMounted(async () => {
     detailType.value = qType
     detailOpen.value = true
   }
+}
 
+/** SPA 内 query 变化（如 next_action「去处理」跳 /govern?tab=map）也要即时展开详情。 */
+watch(
+  () => [route.query.tab, route.query.detail, route.query.type] as const,
+  () => applyRouteQuery(),
+)
+
+onMounted(async () => {
+  applyRouteQuery()
   await loadAll()
 })
 </script>
