@@ -19,11 +19,13 @@
     <el-card shadow="never" v-show="wizardStep === 0">
       <template #header>① 选择文件</template>
       <el-upload
+        ref="uploadRef"
         drag
         :auto-upload="false"
         :show-file-list="true"
         :limit="5"
         :on-change="onChange"
+        :on-remove="onRemove"
         :on-exceed="() => ElMessage.warning('单次最多 5 个文件')"
       >
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
@@ -33,8 +35,12 @@
         </template>
       </el-upload>
       <div class="actions">
+        <div class="actions-left">
+          <span v-if="pending.length" class="file-count">已选择 {{ pending.length }} 个文件，可开始上传解析</span>
+          <span v-else class="file-count muted">请选择或拖拽文件，选择后才能上传并解析</span>
+        </div>
         <el-button type="primary" :loading="uploading" :disabled="!pending.length" @click="doUpload">
-          上传并开始解析
+          {{ pending.length ? '上传并开始解析' : '请先选择文件' }}
         </el-button>
       </div>
     </el-card>
@@ -107,38 +113,42 @@
           <el-button size="small" :loading="filesLoading" @click="loadFiles">刷新</el-button>
         </div>
       </template>
-      <el-table :data="fileItems" v-loading="filesLoading" border size="small">
-        <el-table-column prop="filename" label="文件名" min-width="180" />
-        <el-table-column label="业务状态" width="120">
-          <template #default="{ row }">
-            <el-tag size="small" :type="fileStatusType(row.status)">{{ fileStatusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="接入时间" width="170" />
-        <el-table-column label="操作" width="140">
-          <template #default="{ row }">
-            <el-button
-              link
-              type="primary"
-              :disabled="!['evidence_done', 'staged', 'released'].includes(row.status)"
-              @click="goStage(row.file_id)"
-            >
-              进入规整
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="table-wrap">
+        <el-table :data="fileItems" v-loading="filesLoading" border size="small">
+          <el-table-column prop="filename" label="文件名" min-width="180" />
+          <el-table-column label="业务状态" width="120">
+            <template #default="{ row }">
+              <el-tag size="small" :type="fileStatusType(row.status)">{{ fileStatusLabel(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="接入时间" width="170" />
+          <el-table-column label="操作" width="140">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="primary"
+                :disabled="!['evidence_done', 'staged', 'released'].includes(row.status)"
+                @click="goStage(row.file_id)"
+              >
+                进入规整
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
       <el-collapse class="adv">
         <el-collapse-item title="高级详情（格式与证据行）" name="files-adv">
-          <el-table :data="fileItems" border size="small">
-            <el-table-column prop="filename" label="文件" min-width="160" />
-            <el-table-column prop="format" label="格式" width="80" />
-            <el-table-column prop="rows" label="证据行" width="90" />
-            <el-table-column label="原始状态" width="120">
-              <template #default="{ row }">{{ fileStatusLabel(row.status) }}</template>
-            </el-table-column>
-            <el-table-column prop="file_id" label="文件编号" min-width="160" show-overflow-tooltip />
-          </el-table>
+          <div class="table-wrap">
+            <el-table :data="fileItems" border size="small">
+              <el-table-column prop="filename" label="文件" min-width="160" />
+              <el-table-column prop="format" label="格式" width="80" />
+              <el-table-column prop="rows" label="证据行" width="90" />
+              <el-table-column label="原始状态" width="120">
+                <template #default="{ row }">{{ fileStatusLabel(row.status) }}</template>
+              </el-table-column>
+              <el-table-column prop="file_id" label="文件编号" min-width="160" show-overflow-tooltip />
+            </el-table>
+          </div>
         </el-collapse-item>
       </el-collapse>
     </el-card>
@@ -148,7 +158,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { UploadFile } from 'element-plus'
+import type { UploadFile, UploadInstance } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import {
@@ -178,6 +188,7 @@ type Job = {
 
 const route = useRoute()
 const router = useRouter()
+const uploadRef = ref<UploadInstance>()
 const pending = ref<File[]>([])
 const uploading = ref(false)
 const jobs = ref<Job[]>([])
@@ -213,6 +224,11 @@ watch(
 
 function onChange(file: UploadFile) {
   if (file.raw) pending.value = [...pending.value.filter((f) => f.name !== file.raw!.name), file.raw]
+}
+
+function onRemove(file: UploadFile) {
+  const name = file.raw?.name || file.name
+  pending.value = pending.value.filter((f) => f.name !== name)
 }
 
 function syncUrl(job?: Job) {
@@ -409,6 +425,7 @@ async function doUpload() {
       startWatch(res.task_id!, res.file_id, res.events_url)
     }
     pending.value = []
+    uploadRef.value?.clearFiles()
     wizardStep.value = 1
     await loadFiles()
   } catch (e: unknown) {
@@ -464,9 +481,27 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.intake { display: flex; flex-direction: column; gap: 16px; max-width: 960px; }
+.intake {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.actions { margin-top: 12px; display: flex; gap: 8px; }
+.actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.actions-left { min-width: 0; }
+.file-count { font-size: 13px; color: #606266; }
+.file-count.muted { color: #909399; }
+.table-wrap { width: 100%; overflow-x: auto; }
 .job-card {
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
@@ -482,5 +517,8 @@ onUnmounted(() => {
 .job-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .adv { margin-top: 4px; }
 .mono { font-family: ui-monospace, monospace; font-size: 12px; color: #909399; word-break: break-all; }
-@media (max-width: 720px) { .intake { max-width: 100%; } }
+@media (max-width: 720px) {
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions .el-button { width: 100%; }
+}
 </style>
