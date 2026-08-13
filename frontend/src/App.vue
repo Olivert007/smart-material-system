@@ -6,8 +6,6 @@
         <el-menu-item index="/">工作台</el-menu-item>
         <el-menu-item index="/intake">数据接入</el-menu-item>
         <el-menu-item index="/govern">数据规整</el-menu-item>
-        <el-menu-item index="/todos">治理待办</el-menu-item>
-        <el-menu-item index="/ai-review">AI建议审核</el-menu-item>
         <el-menu-item index="/data">数据成果</el-menu-item>
         <el-menu-item index="/ask">问数助手</el-menu-item>
         <el-menu-item index="/trace">追溯审计</el-menu-item>
@@ -45,8 +43,6 @@ const isOps = computed(() => opsRole.value === 'ops')
 const activePath = computed(() => {
   const p = route.path
   if (p === '/browse' || p === '/reports') return '/data'
-  if (p === '/todos' || p === '/govern/todos') return '/todos'
-  if (p === '/ai-review' || p === '/suggestions') return '/ai-review'
   if (['/metrics', '/learning'].includes(p)) return '/govern'
   if (['/lineage', '/audit'].includes(p) || p === '/trace') return '/trace'
   if (['/models', '/ops', '/settings'].includes(p)) return '/system'
@@ -59,8 +55,6 @@ const title = computed(() => {
     '/ask': '问数助手',
     '/data': '数据成果',
     '/govern': '数据规整',
-    '/todos': '治理待办',
-    '/ai-review': 'AI建议审核',
     '/system': '系统设置',
     '/intake': '数据接入',
     '/trace': '追溯审计',

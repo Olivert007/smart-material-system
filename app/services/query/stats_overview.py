@@ -309,14 +309,14 @@ def _next_action(
         return {
             "code": "ai_review",
             "label": "审核 AI 建议",
-            "path": "/ai-review",
+            "path": "/govern?tab=map",
             "reason": "；".join(parts) + "。AI 建议须人工确认后才会进入可用数据。",
         }
     if int(quality.get("blocked_rows") or 0) > 0:
         return {
             "code": "govern_blocked",
             "label": "查看阻塞数据",
-            "path": "/todos?type=exception",
+            "path": "/govern?type=exception",
             "reason": f"当前有 {quality['blocked_rows']} 条阻塞记录，需处理后方可进入可用结果。",
         }
     if gate_ready is False:

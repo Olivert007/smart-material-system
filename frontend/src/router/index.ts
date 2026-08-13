@@ -5,7 +5,6 @@ import StageView from '@/pages/StageView.vue'
 import AskView from '@/pages/AskView.vue'
 import DataView from '@/pages/DataView.vue'
 import GovernHub from '@/pages/GovernHub.vue'
-import AiReviewView from '@/pages/AiReviewView.vue'
 import SystemView from '@/pages/SystemView.vue'
 import TraceView from '@/pages/TraceView.vue'
 
@@ -16,8 +15,6 @@ export const router = createRouter({
     { path: '/ask', name: 'ask', component: AskView },
     { path: '/data', name: 'data', component: DataView },
     { path: '/govern', name: 'govern', component: GovernHub },
-    { path: '/todos', name: 'todos', component: GovernHub },
-    { path: '/ai-review', name: 'ai-review', component: AiReviewView },
     { path: '/system', name: 'system', component: SystemView },
     { path: '/intake', name: 'intake', component: IntakeView },
     { path: '/trace', name: 'trace', component: TraceView },
@@ -26,8 +23,8 @@ export const router = createRouter({
     { path: '/reports', redirect: { path: '/data', query: { tab: 'report' } } },
     { path: '/metrics', redirect: { path: '/govern', query: { tab: 'advanced' } } },
     { path: '/learning', redirect: { path: '/govern', query: { tab: 'advanced' } } },
-    { path: '/govern/todos', redirect: (to) => ({ path: '/todos', query: to.query }) },
-    { path: '/suggestions', redirect: '/ai-review' },
+    { path: '/govern/todos', redirect: (to) => ({ path: '/govern', query: to.query }) },
+    { path: '/suggestions', redirect: { path: '/govern', query: { tab: 'map' } } },
     { path: '/models', redirect: { path: '/system', query: { tab: 'models' } } },
     { path: '/ops', redirect: { path: '/system', query: { tab: 'ops' } } },
     { path: '/lineage', redirect: { path: '/trace', query: { tab: 'lineage' } } },

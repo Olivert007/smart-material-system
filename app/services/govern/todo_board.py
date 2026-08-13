@@ -369,19 +369,19 @@ def todo_summary() -> dict[str, Any]:
         )
     elif release_blockers > 0:
         next_actions.append(
-            {"code": "gate", "label": "处理发布阻断项", "path": "/todos?type=release_blocker"}
+            {"code": "gate", "label": "处理发布阻断项", "path": "/govern?type=release_blocker"}
         )
     elif map_pending + master_pending + material_align + flow_pending > 0:
         next_actions.append(
             {
                 "code": "ai_review",
                 "label": "审核 AI 建议",
-                "path": "/ai-review",
+                "path": "/govern?tab=map",
             }
         )
     elif exception_groups > 0 or blocked > 0:
         next_actions.append(
-            {"code": "exception", "label": "查看阻塞异常", "path": "/todos?type=exception"}
+            {"code": "exception", "label": "查看阻塞异常", "path": "/govern?type=exception"}
         )
     else:
         next_actions.append(
@@ -395,7 +395,7 @@ def todo_summary() -> dict[str, Any]:
     ai_pending = map_pending + master_pending + material_align + flow_pending
     if ai_pending > 0 and not any(a.get("code") == "ai_review" for a in next_actions):
         next_actions.append(
-            {"code": "ai_review", "label": "审核 AI 建议", "path": "/ai-review"}
+            {"code": "ai_review", "label": "审核 AI 建议", "path": "/govern?tab=map"}
         )
 
     releasable = estimated_releasable_rows(blocked=blocked)

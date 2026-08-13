@@ -25,7 +25,7 @@
       </el-select>
       <el-tag size="small" type="danger">{{ dataStateLabel('blocked') }}</el-tag>
       <el-button :loading="loading" @click="load">刷新</el-button>
-      <el-button @click="$router.push('/todos')">去处理待办</el-button>
+      <el-button @click="$router.push('/govern')">去数据规整</el-button>
     </div>
     <div v-if="stats" class="meta">
       可用候选 {{ stats.clean_rows }} · 阻塞 {{ stats.blocked_rows }} · 阻塞率
