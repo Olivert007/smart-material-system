@@ -107,7 +107,7 @@ def test_ai_review_filter_and_summary_count(client):
     summary = s.json()
     assert "ai_suggestion_pending_count" in summary
     assert int(summary["ai_suggestion_pending_count"]) >= 1
-    assert any(a.get("path") == "/ai-review" for a in summary.get("next_actions") or [])
+    assert any(a.get("path") == "/govern?tab=map" for a in summary.get("next_actions") or [])
 
 
 def test_exception_grouped_by_file(client):

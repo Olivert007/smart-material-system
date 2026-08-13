@@ -65,7 +65,7 @@
           确认进入规整并发布到业务库
         </el-button>
         <el-button @click="refresh" :loading="loading">刷新</el-button>
-        <el-button @click="$router.push('/govern')">去处理待办</el-button>
+        <el-button @click="$router.push('/govern')">返回数据规整</el-button>
       </div>
     </el-card>
 

@@ -31,28 +31,28 @@
           <div class="card-value">{{ availabilityRate }}</div>
           <div class="card-hint">可用候选 ÷（可用 + 阻塞）；候选 ≠ 正式发布</div>
         </div>
-        <div class="card clickable" @click="$router.push({ path: '/todos' })">
+        <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
           <div class="card-label">待确认字段</div>
           <div class="card-value">{{ fmt(todos.map_pending) }}</div>
         </div>
-        <div class="card clickable" @click="$router.push({ path: '/todos', query: { type: 'master' } })">
+        <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'master' } })">
           <div class="card-label">待匹配物资</div>
           <div class="card-value">{{ fmt((todos.master_pending || 0) + (todos.material_align || 0)) }}</div>
         </div>
-        <div class="card clickable warn" @click="$router.push('/ai-review')">
+        <div class="card clickable warn" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
           <div class="card-label">待审核 AI 建议</div>
           <div class="card-value">{{ fmt(aiSuggestionPending) }}</div>
           <div class="card-hint">模型/候选建议，须人工确认</div>
         </div>
-        <div class="card clickable" @click="$router.push({ path: '/todos', query: { type: 'flow' } })">
+        <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'flow' } })">
           <div class="card-label">流水待确认</div>
           <div class="card-value">{{ fmt(todos.flow_pending) }}</div>
         </div>
-        <div class="card clickable" @click="$router.push({ path: '/todos' })">
+        <div class="card clickable" @click="$router.push({ path: '/govern' })">
           <div class="card-label">待办合计</div>
           <div class="card-value">{{ fmt(todos.total) }}</div>
         </div>
-        <div class="card ok clickable" @click="$router.push({ path: '/todos' })">
+        <div class="card ok clickable" @click="$router.push({ path: '/govern' })">
           <div class="card-label">处理后预计释放</div>
           <div class="card-value">{{ fmt(releasableRows) }}</div>
           <div class="card-hint">处理本批待办后约可进入可用的行数（估算）</div>
@@ -68,8 +68,7 @@
           <el-button type="primary" @click="$router.push(nextAction.path || '/intake')">
             {{ nextAction.label || '继续' }}
           </el-button>
-          <el-button v-if="(todos.total || 0) > 0 && nextAction.path !== '/todos'" @click="$router.push('/todos')">治理待办</el-button>
-          <el-button v-if="aiSuggestionPending > 0 && nextAction.path !== '/ai-review'" @click="$router.push('/ai-review')">审核AI建议</el-button>
+          <el-button v-if="(todos.total || 0) > 0 && nextAction.path !== '/govern'" @click="$router.push('/govern')">去数据规整</el-button>
           <el-button @click="$router.push('/data')">查看数据成果</el-button>
           <el-button @click="$router.push('/ask')">问数助手</el-button>
         </div>
@@ -323,7 +322,7 @@ const businessSnapshotTitle = computed(() =>
 
 const snapshotEmptyAction = computed(() => {
   if (nextAction.value.label) return { label: nextAction.value.label, path: nextAction.value.path || '/intake' }
-  if (hasRecentFiles.value || hasPendingWork.value) return { label: '处理治理待办', path: '/todos' }
+  if (hasRecentFiles.value || hasPendingWork.value) return { label: '处理治理待办', path: '/govern' }
   return { label: '去数据接入', path: '/intake' }
 })
 
