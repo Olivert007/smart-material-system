@@ -14,22 +14,33 @@ def _sid() -> str:
     return uuid.uuid4().hex[:12]
 
 
-def list_pending(*, limit: int = 50, offset: int = 0, status: str = "pending") -> dict:
+def list_pending(
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    status: str = "pending",
+    parse_level: str | None = None,
+) -> dict:
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
+    where = "WHERE status=?"
+    params: list[Any] = [status]
+    if parse_level:
+        where += " AND parse_level=?"
+        params.append(parse_level)
     con = meta_conn()
     try:
         total = con.execute(
-            "SELECT COUNT(*) AS c FROM flow_pending WHERE status=?", [status]
+            f"SELECT COUNT(*) AS c FROM flow_pending {where}", params
         ).fetchone()["c"]
         rows = con.execute(
-            """
+            f"""
             SELECT * FROM flow_pending
-            WHERE status=?
+            {where}
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
             """,
-            [status, limit, offset],
+            params + [limit, offset],
         ).fetchall()
     finally:
         con.close()

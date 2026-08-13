@@ -56,6 +56,9 @@ def assets_flow_configs():
 def assets_rule_dict(limit: int = 100, offset: int = 0):
     limit = max(1, min(limit, 500))
     offset = max(0, offset)
+    from app.services.govern.rule_dict import ensure_rule_dict_schema
+
+    ensure_rule_dict_schema()
     con = meta_conn()
     try:
         total = con.execute("SELECT COUNT(*) AS c FROM rule_dict").fetchone()["c"]
