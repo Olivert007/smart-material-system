@@ -70,7 +70,7 @@ function disposeCharts() {
   charts.length = 0
 }
 
-function renderCharts(topItems: Array<{ material_id: string; inQty: number; outQty: number }>) {
+function renderCharts(topItems: Array<{ key: string; displayName: string; code: string; inQty: number; outQty: number }>) {
   disposeCharts()
   const m = monthly.value
   if (m?.months?.length && monthlyEl.value) {
@@ -79,7 +79,7 @@ function renderCharts(topItems: Array<{ material_id: string; inQty: number; outQ
     chart.setOption({
       tooltip: { trigger: 'axis' },
       legend: { data: ['入库', '出库'], bottom: 0 },
-      grid: { left: 44, right: 12, top: 12, bottom: 28 },
+      grid: { left: 44, right: 12, top: 16, bottom: 36, containLabel: true },
       xAxis: { type: 'category', data: m.months, boundaryGap: false },
       yAxis: { type: 'value', minInterval: 1 },
       series: [
@@ -91,12 +91,26 @@ function renderCharts(topItems: Array<{ material_id: string; inQty: number; outQ
   if (topItems.length && topEl.value) {
     const chart = echarts.init(topEl.value)
     charts.push(chart)
-    const ids = topItems.map((i) => i.material_id)
+    const fmtAxis = (v: string) => (v.length > 10 ? `${v.slice(0, 10)}…` : v)
     chart.setOption({
-      tooltip: { trigger: 'axis' },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          const arr = Array.isArray(params) ? params : [params]
+          const it = topItems[arr[0]?.dataIndex ?? 0]
+          const lines = [it?.displayName || '']
+          if (it?.code) lines.push(`编码：${it.code}`)
+          for (const p of arr) lines.push(`${p.marker}${p.seriesName}：${p.value}`)
+          return lines.join('<br/>')
+        },
+      },
       legend: { data: ['入库', '出库'], bottom: 0 },
-      grid: { left: 80, right: 12, top: 12, bottom: 28 },
-      xAxis: { type: 'category', data: ids, axisLabel: { rotate: 30, fontSize: 10 } },
+      grid: { left: 80, right: 16, top: 16, bottom: 40, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: topItems.map((i) => i.displayName),
+        axisLabel: { interval: 0, hideOverlap: true, rotate: 20, fontSize: 10, width: 90, overflow: 'truncate', formatter: fmtAxis },
+      },
       yAxis: { type: 'value' },
       series: [
         { name: '入库', type: 'bar', data: topItems.map((i) => i.inQty) },
@@ -113,9 +127,11 @@ function renderCharts(topItems: Array<{ material_id: string; inQty: number; outQ
       legend: { bottom: 0 },
       series: [{
         type: 'pie',
-        radius: ['38%', '66%'],
+        radius: ['38%', '62%'],
+        center: ['50%', '44%'],
         data: lv.items.map((i) => ({ name: i.name, value: i.value })),
-        label: { formatter: '{b}: {c}' },
+        label: { show: true, position: 'inside', fontSize: 11, color: '#fff' },
+        labelLine: { show: false },
       }],
     })
   }
@@ -127,14 +143,18 @@ async function load() {
     const [m, top, lv] = await Promise.all([flowMonthly(), flowTop(topN.value), flowLevel()])
     monthly.value = m
     level.value = lv
-    const byId = new Map<string, { material_id: string; inQty: number; outQty: number }>()
+    // 聚合 key 用 asset_code||material_id，内部按编码对齐，不以中文名合并
+    const byKey = new Map<string, { key: string; displayName: string; code: string; inQty: number; outQty: number }>()
     for (const it of top.items || []) {
-      const cur = byId.get(it.material_id) || { material_id: it.material_id, inQty: 0, outQty: 0 }
+      const code = (it.asset_code || '').trim() || it.material_id
+      const name = it.display_name || it.material_name || code
+      const cur = byKey.get(code) || { key: code, displayName: name, code, inQty: 0, outQty: 0 }
+      if (name) cur.displayName = name
       if (it.flow_type === 'IN') cur.inQty += Number(it.qty) || 0
       else cur.outQty += Number(it.qty) || 0
-      byId.set(it.material_id, cur)
+      byKey.set(code, cur)
     }
-    const topItems = Array.from(byId.values()).sort((a, b) => b.inQty + b.outQty - a.inQty - b.outQty).slice(0, topN.value)
+    const topItems = Array.from(byKey.values()).sort((a, b) => b.inQty + b.outQty - a.inQty - a.outQty).slice(0, topN.value)
     requestAnimationFrame(() => renderCharts(topItems))
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -163,7 +183,7 @@ defineExpose({ load })
 <style scoped>
 .flow-analytics { display: flex; flex-direction: column; gap: 16px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.an-chart { width: 100%; height: 280px; }
-.an-chart-sm { height: 220px; }
+.an-chart { width: 100%; height: 320px; }
+.an-chart-sm { height: 240px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 </style>

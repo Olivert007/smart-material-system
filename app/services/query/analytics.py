@@ -18,8 +18,15 @@ _MONTHLY_SQL = (
     "GROUP BY 1, 2 ORDER BY 1"
 )
 _TOP_SQL = (
-    "SELECT material_id, flow_type, COUNT(*) AS n, ROUND(SUM(quantity), 2) AS qty "
-    "FROM fact_stock_flow GROUP BY 1, 2 ORDER BY qty DESC LIMIT {limit}"
+    "SELECT f.material_id, "
+    "COALESCE(d.material_code, f.material_id) AS asset_code, "
+    "d.material_name, d.spec, f.flow_type, f.n, f.qty "
+    "FROM ("
+    "  SELECT material_id, flow_type, COUNT(*) AS n, ROUND(SUM(quantity), 2) AS qty "
+    "  FROM fact_stock_flow GROUP BY 1, 2"
+    ") f "
+    "LEFT JOIN dim_material d USING (material_id) "
+    "ORDER BY f.qty DESC LIMIT {limit}"
 )
 
 
@@ -52,10 +59,29 @@ def flow_monthly() -> dict[str, Any]:
 
 
 def flow_top(limit: int = 10) -> dict[str, Any]:
-    """Top 物资流水（IN/OUT 分别计数与数量，UI-1 柱状图）。"""
+    """Top 物资流水（IN/OUT 分别计数与数量，UI-1 柱状图）。
+
+    按内部 material_id 聚合（对齐不依赖中文名），左连接 dim_material，
+    返回 asset_code / material_name / spec / display_name 供前端中文展示。
+    """
     limit = max(1, min(int(limit), 50))
-    rows = _run(_TOP_SQL.format(limit=limit))
-    return {"limit": limit, "items": rows}
+    items: list[dict[str, Any]] = []
+    for r in _run(_TOP_SQL.format(limit=limit)):
+        d = dict(r)
+        mid = str(d.get("material_id") or "")
+        code = str(d.get("asset_code") or "").strip() or mid
+        name = str(d.get("material_name") or "").strip()
+        spec = str(d.get("spec") or "").strip()
+        if name and spec:
+            display = f"{name}·{spec}"
+        elif name:
+            display = name
+        else:
+            display = code
+        d["asset_code"] = code
+        d["display_name"] = display
+        items.append(d)
+    return {"limit": limit, "items": items}
 
 
 def flow_level_ratio() -> dict[str, Any]:
