@@ -68,9 +68,8 @@
           <el-button type="primary" @click="$router.push(nextAction.path || '/intake')">
             {{ nextAction.label || '继续' }}
           </el-button>
-          <el-button @click="$router.push('/todos')">治理待办</el-button>
-          <el-button @click="$router.push('/ai-review')">AI建议审核</el-button>
-          <el-button @click="$router.push('/govern')">数据规整</el-button>
+          <el-button v-if="(todos.total || 0) > 0" @click="$router.push('/todos')">治理待办</el-button>
+          <el-button v-if="aiSuggestionPending > 0" @click="$router.push('/ai-review')">审核AI建议</el-button>
           <el-button @click="$router.push('/data')">查看数据成果</el-button>
           <el-button @click="$router.push('/ask')">问数助手</el-button>
         </div>
@@ -120,9 +119,10 @@
     </el-card>
 
     <el-collapse v-model="bizOpen" class="biz-fold" @change="onBizFold">
-      <el-collapse-item title="业务快照（次级，默认折叠）" name="biz">
+      <el-collapse-item :title="businessSnapshotTitle" name="biz">
+        <template v-if="shouldShowBusinessSnapshot">
         <div class="head fold-head">
-          <span class="hint" style="margin: 0">已入库表业务汇总，口径与「可用记录」不同；未规整完成时仅供参考。</span>
+          <span class="hint" style="margin: 0">基于已入库可用候选数据；不等于正式发布报表。</span>
           <el-button size="small" type="primary" plain @click="$router.push('/data')">进入数据成果</el-button>
         </div>
         <div class="cards compact" v-loading="loading">
@@ -136,21 +136,21 @@
         <div class="tops" v-if="overview?.business">
           <div>
             <div class="sub">按类别 Top</div>
-            <el-table :data="overview.business.top_by_category || []" border size="small" empty-text="无">
+            <el-table :data="overview.business.top_by_category || []" border size="small" empty-text="暂无可用分类数据">
               <el-table-column prop="name" label="类别" min-width="120" />
               <el-table-column prop="value" label="库存量" width="100" />
             </el-table>
           </div>
           <div>
             <div class="sub">按库位 Top</div>
-            <el-table :data="overview.business.top_by_location || []" border size="small" empty-text="无">
+            <el-table :data="overview.business.top_by_location || []" border size="small" empty-text="暂无可用库位数据">
               <el-table-column prop="name" label="库位" min-width="120" />
               <el-table-column prop="value" label="库存量" width="100" />
             </el-table>
           </div>
           <div>
             <div class="sub">按单位 Top（不同单位不能直接相加）</div>
-            <el-table :data="overview.business.top_by_unit || []" border size="small" empty-text="无">
+            <el-table :data="overview.business.top_by_unit || []" border size="small" empty-text="暂无可用单位数据">
               <el-table-column prop="name" label="单位" min-width="120" />
               <el-table-column prop="value" label="库存量" width="100" />
             </el-table>
@@ -160,16 +160,13 @@
           <div class="sub">近 6 月出入库趋势</div>
           <div ref="sparkEl" class="spark-chart" />
         </div>
-        <div class="cards compact scale" v-loading="loading">
-          <div
-            v-for="c in tableCards"
-            :key="c.key"
-            class="card"
-            @click="c.table && $router.push({ path: '/data', query: { tab: 'available', table: c.table } })"
-          >
-            <div class="card-label">{{ c.label }}</div>
-            <div class="card-value">{{ c.value }}</div>
-          </div>
+        </template>
+        <div v-else class="biz-empty">
+          <div class="biz-empty-title">{{ businessSnapshotEmptyReason }}</div>
+          <div class="biz-empty-desc">{{ businessSnapshotDescription }}</div>
+          <el-button type="primary" plain @click="$router.push(snapshotEmptyAction.path)">
+            {{ snapshotEmptyAction.label }}
+          </el-button>
         </div>
       </el-collapse-item>
     </el-collapse>
@@ -223,6 +220,11 @@ function fmt(v: unknown) {
   return String(v)
 }
 
+function fmtBusinessMetric(v: unknown) {
+  if (!shouldShowBusinessSnapshot.value) return '暂无'
+  return fmt(v)
+}
+
 function fileStateLabel(status?: string) {
   const code = mapIntakeStatusToDataState(status)
   if (code) return dataStateLabel(code)
@@ -268,6 +270,63 @@ const nextAction = computed(
 )
 const recentFiles = computed(() => overview.value?.recent_files ?? [])
 
+const hasRecentFiles = computed(() => recentFiles.value.length > 0)
+
+const hasQualityRows = computed(() => {
+  return ((quality.value.clean_rows ?? 0) > 0) || ((quality.value.blocked_rows ?? 0) > 0)
+})
+
+const hasPendingWork = computed(() => {
+  return (todos.value.total ?? 0) > 0
+})
+
+const hasAnyBusinessMetric = computed(() => {
+  const b = overview.value?.business
+  if (!b) return false
+  return [
+    b.stock_qty_total,
+    b.stock_value_total,
+    b.quota_fill_ratio,
+    b.stale_count,
+    b.over_quota_count,
+    b.asset_count,
+    b.demand_qty_total,
+    b.flow_in_qty,
+    b.flow_out_qty,
+  ].some((v) => v !== null && Number.isFinite(Number(v)) && Number(v) !== 0)
+})
+
+const shouldShowBusinessSnapshot = computed(() => {
+  return (quality.value.clean_rows ?? 0) > 0 || hasAnyBusinessMetric.value
+})
+
+const businessSnapshotEmptyReason = computed(() => {
+  if (!hasRecentFiles.value && !hasPendingWork.value && !hasQualityRows.value) {
+    return '当前还没有可用业务数据'
+  }
+  return '数据正在接入或规整中，业务指标暂不可用'
+})
+
+const businessSnapshotDescription = computed(() => {
+  if (hasPendingWork.value || (quality.value.blocked_rows ?? 0) > 0) {
+    return '完成治理待办并形成可用数据后，这里会展示库存、需求、资产和流水概览。'
+  }
+  if (!hasRecentFiles.value) {
+    return '请先完成数据接入，形成可用候选数据后，这里会展示库存、需求、资产和流水概览。'
+  }
+  return '请先完成字段/单位/物资/流水治理，形成可用候选数据后，这里会展示库存、需求、资产和流水概览。'
+})
+
+const businessSnapshotTitle = computed(() =>
+  shouldShowBusinessSnapshot.value ? '业务数据概览' : '业务数据概览（暂无可用数据）',
+)
+
+const snapshotEmptyAction = computed(() => {
+  if (nextAction.value.label) return { label: nextAction.value.label, path: nextAction.value.path || '/intake' }
+  if (hasRecentFiles.value || hasPendingWork.value) return { label: '处理治理待办', path: '/todos' }
+  return { label: '去数据接入', path: '/intake' }
+})
+
 const availabilityRate = computed(() => {
   const clean = Number(quality.value.clean_rows) || 0
   const blocked = Number(quality.value.blocked_rows) || 0
@@ -290,7 +349,8 @@ const statusTitle = computed(() => {
   if ((todos.value.total || 0) > 0) return '数据尚未全部可用：仍有待办需处理'
   if ((quality.value.blocked_rows || 0) > 0) return '部分数据被阻塞，暂不能全部进入可用结果'
   if ((quality.value.clean_rows || 0) > 0) return '当前有可用候选数据（不等于正式发布）'
-  return '当前还没有可用候选数据'
+  if (hasRecentFiles.value) return '数据正在接入或规整中，业务指标暂不可用'
+  return '当前还没有可用业务数据'
 })
 
 const statusDesc = computed(() => {
@@ -313,32 +373,21 @@ const statusDesc = computed(() => {
 const bizCards = computed(() => {
   const b = overview.value?.business
   const defs = [
-    { key: 'sq', label: '库存总量', value: fmt(b?.stock_qty_total) },
-    { key: 'sv', label: '库存金额', value: fmt(b?.stock_value_total) },
-    { key: 'qf', label: '定额利用率', value: fmt(b?.quota_fill_ratio) },
-    { key: 'oq', label: '超定额物资', value: fmt(b?.over_quota_count) },
-    { key: 'st', label: '呆滞料行', value: fmt(b?.stale_count) },
-    { key: 'dq', label: '需求总量', value: fmt(b?.demand_qty_total) },
-    { key: 'ac', label: '资产台数', value: fmt(b?.asset_count) },
-    { key: 'fi', label: '入库合计', value: fmt(b?.flow_in_qty) },
-    { key: 'fo', label: '出库合计', value: fmt(b?.flow_out_qty) },
+    { key: 'sq', label: '库存总量', value: fmtBusinessMetric(b?.stock_qty_total) },
+    { key: 'sv', label: '库存金额', value: fmtBusinessMetric(b?.stock_value_total) },
+    { key: 'qf', label: '定额利用率', value: fmtBusinessMetric(b?.quota_fill_ratio) },
+    { key: 'oq', label: '超定额物资', value: fmtBusinessMetric(b?.over_quota_count) },
+    { key: 'st', label: '呆滞料行', value: fmtBusinessMetric(b?.stale_count) },
+    { key: 'dq', label: '需求总量', value: fmtBusinessMetric(b?.demand_qty_total) },
+    { key: 'ac', label: '资产台数', value: fmtBusinessMetric(b?.asset_count) },
+    { key: 'fi', label: '入库合计', value: fmtBusinessMetric(b?.flow_in_qty) },
+    { key: 'fo', label: '出库合计', value: fmtBusinessMetric(b?.flow_out_qty) },
   ]
   return defs.map((d) => ({
     ...d,
     metric_id: BIZ_METRICS[d.key]?.metric_id || '',
     hint: BIZ_METRICS[d.key]?.hint || d.label,
   }))
-})
-
-const tableCards = computed(() => {
-  const t = overview.value?.tables || {}
-  return [
-    { key: 'dim', label: '主数据', table: 'dim_material', value: t.dim_material ?? '—' },
-    { key: 'inv', label: '库存', table: 'fact_inventory', value: t.fact_inventory ?? '—' },
-    { key: 'asset', label: '资产', table: 'fact_asset', value: t.fact_asset ?? '—' },
-    { key: 'demand', label: '需求', table: 'fact_demand', value: t.fact_demand ?? '—' },
-    { key: 'flow', label: '流水', table: 'fact_stock_flow', value: t.fact_stock_flow ?? '—' },
-  ]
 })
 
 function goMetric(metricId?: string) {
@@ -442,5 +491,8 @@ onUnmounted(() => {
 .next-reason { color: #606266; font-size: 14px; line-height: 1.5; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
 .biz-fold { background: #fff; border: 1px solid #ebeef5; border-radius: 4px; padding: 0 12px; }
+.biz-empty { padding: 16px 2px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.biz-empty-title { font-size: 14px; font-weight: 600; color: #606266; }
+.biz-empty-desc { color: #909399; font-size: 13px; line-height: 1.6; }
 @media (max-width: 960px) { .tops { grid-template-columns: 1fr; } }
 </style>
