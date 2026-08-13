@@ -147,6 +147,10 @@ def confirm_candidate(
     decision = (decision or "").strip().lower()
     if decision not in ("accepted", "rejected"):
         raise ValueError("decision must be accepted|rejected")
+    # schema 兜底在事务外执行，避免提前 commit 破坏 meta_tx 原子性
+    from app.services.govern.rule_dict import ensure_rule_dict_schema
+
+    ensure_rule_dict_schema()
     with meta_tx() as con:
         row = con.execute(
             "SELECT * FROM govern_confirm WHERE id=? AND source='rule_learn'",

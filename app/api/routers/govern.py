@@ -67,7 +67,7 @@ def govern_confirm(body: GovernBody, actor: str = Depends(require_ops)):
 
 
 @router.post("/govern/map-suggest")
-def map_suggest(body: MapSuggestBody):
+def map_suggest(body: MapSuggestBody, actor: str = Depends(require_ops)):
     if not body.headers:
         raise HTTPException(400, detail={"code": "HEADERS_REQUIRED", "message": "headers required"})
     return map_svc.suggest_header_mapping(body.headers, business_domain=body.business_domain)
@@ -76,10 +76,13 @@ def map_suggest(body: MapSuggestBody):
 @router.post("/govern/map-confirm")
 def map_confirm(body: MapConfirmBody, actor: str = Depends(require_ops)):
     """Persist confirmed header→std_field into rule_dict (meta only; no biz write)."""
+    from app.services.govern.rule_dict import ensure_rule_dict_schema
+
     if not body.mapping:
         raise HTTPException(400, detail={"code": "MAPPING_REQUIRED", "message": "mapping required"})
     con = meta_conn()
     try:
+        ensure_rule_dict_schema(con)
         n = 0
         for header, std_field in body.mapping.items():
             con.execute(
@@ -107,7 +110,7 @@ def map_confirm(body: MapConfirmBody, actor: str = Depends(require_ops)):
 
 
 @router.post("/govern/map/enqueue")
-def map_enqueue(body: MapEnqueueBody):
+def map_enqueue(body: MapEnqueueBody, actor: str = Depends(require_ops)):
     """Enqueue low-confidence / multi-candidate / conflict headers into map_pending."""
     try:
         if body.from_file:
@@ -154,8 +157,12 @@ def map_pending_confirm(body: MapPendingConfirmBody, actor: str = Depends(requir
 
 
 @router.get("/govern/flow/pending")
-def flow_pending(limit: int = 50, offset: int = 0, status: str = "pending"):
-    return flow_gov_svc.list_pending(limit=limit, offset=offset, status=status)
+def flow_pending(
+    limit: int = 50, offset: int = 0, status: str = "pending", parse_level: str | None = None
+):
+    return flow_gov_svc.list_pending(
+        limit=limit, offset=offset, status=status, parse_level=parse_level
+    )
 
 
 @router.post("/govern/flow/confirm")

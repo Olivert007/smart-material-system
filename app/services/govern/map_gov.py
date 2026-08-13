@@ -179,6 +179,11 @@ def confirm_pending(
     if decision not in ("accept", "amend", "ignore"):
         raise ValueError("decision must be accept|amend|ignore")
 
+    # schema 兜底在事务外执行，避免提前 commit 破坏 meta_tx 原子性
+    from app.services.govern.rule_dict import ensure_rule_dict_schema
+
+    ensure_rule_dict_schema()
+
     with meta_tx() as con:
         row = con.execute(
             "SELECT * FROM map_pending WHERE pending_id=?", [pending_id]

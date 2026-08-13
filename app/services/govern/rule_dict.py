@@ -27,9 +27,36 @@ _DEFAULT_RULES: list[dict[str, str]] = [
     {"header": "单价", "std_field": "stock_value"},
 ]
 
+# 旧版 meta.sqlite 的 rule_dict 可能缺以下列；接口层幂等补齐，避免 500。
+_RULE_DICT_SCHEMA_EXTRA: list[tuple[str, str]] = [
+    ("status", "TEXT NOT NULL DEFAULT 'active'"),
+    ("changed_by", "TEXT"),
+    ("updated_at", "TEXT"),
+]
+
+
+def ensure_rule_dict_schema(con=None) -> None:
+    """幂等补齐 rule_dict 缺失列（旧 meta.sqlite 可能缺 status/changed_by/updated_at）。
+
+    在查询/写入 rule_dict 前调用，保证即使启动迁移未执行页面接口也不会 500。
+    """
+    owns = con is None
+    con = con or meta_conn()
+    try:
+        cols = {r[1] for r in con.execute("PRAGMA table_info(rule_dict)").fetchall()}
+        for name, ddl in _RULE_DICT_SCHEMA_EXTRA:
+            if name not in cols:
+                con.execute(f"ALTER TABLE rule_dict ADD COLUMN {name} {ddl}")
+        con.commit()
+    finally:
+        if owns:
+            con.close()
+
 
 def ensure_seed_rules(*, actor: str = "system:seed") -> dict:
     """幂等写入 default 域种子规则（INSERT OR IGNORE 语义）。"""
+    # schema 兜底在事务外执行，避免提前 commit 破坏 meta_tx 原子性
+    ensure_rule_dict_schema()
     inserted = 0
     existing = 0
     with meta_tx() as con:
@@ -66,6 +93,7 @@ def _domain_field(std_field: str, domain: str) -> str | None:
 def _fetch_rules(business_domain: str | None = None) -> list[dict[str, Any]]:
     con = meta_conn()
     try:
+        ensure_rule_dict_schema(con)
         if business_domain and business_domain not in ("default", "*"):
             rows = con.execute(
                 """
@@ -241,6 +269,7 @@ def set_rule_status(
 
     con = meta_conn()
     try:
+        ensure_rule_dict_schema(con)
         row = con.execute(
             """
             SELECT rule_id, header, std_field, business_domain, hits, status, created_at
@@ -313,6 +342,7 @@ def list_rule_conflicts() -> dict[str, Any]:
     """同一表头在同一域下映射到多个不同标准字段 → 冲突（含停用项提示）。"""
     con = meta_conn()
     try:
+        ensure_rule_dict_schema(con)
         rows = con.execute(
             """
             SELECT rule_id, header, std_field, business_domain, status

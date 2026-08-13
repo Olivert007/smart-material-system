@@ -12,8 +12,13 @@ read/write race (A0-4) flapping these route-registration checks.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+
+# 治理写接口（map-suggest/map-enqueue）已加 require_ops 鉴权（docs §9.8）
+os.environ["OPS_TOKEN"] = "test-ops"
 
 from app.main import app
 from app.workers import intake_worker
@@ -109,11 +114,24 @@ def test_query_tables_list(client):
 
 
 def test_map_suggest_requires_headers(client):
+    # 未带操作令牌 -> 401（docs §9.8 鉴权验收）
     r = client.post("/api/v1/govern/map-suggest", json={"headers": ["物资编码"]})
+    assert r.status_code == 401
+
+    # 配置操作令牌 -> 200
+    r = client.post(
+        "/api/v1/govern/map-suggest",
+        json={"headers": ["物资编码"]},
+        headers={"X-Ops-Token": "test-ops"},
+    )
     assert r.status_code == 200
 
 
 def test_map_suggest_empty_headers_400(client):
-    r = client.post("/api/v1/govern/map-suggest", json={"headers": []})
+    r = client.post(
+        "/api/v1/govern/map-suggest",
+        json={"headers": []},
+        headers={"X-Ops-Token": "test-ops"},
+    )
     assert r.status_code == 400
     assert r.json()["code"] == "HEADERS_REQUIRED"
