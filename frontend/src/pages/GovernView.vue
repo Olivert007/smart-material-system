@@ -22,14 +22,9 @@
       <el-tab-pane label="库存对账" name="reconcile" />
     </el-tabs>
 
-    <el-alert
-      v-if="!hideOuterTabs"
-      type="info"
-      :closable="false"
-      show-icon
-      title="数据规整待确认"
-      description="机器不确定的项进队列，人工确认后才写入规则与业务库。本地模型只提案、不自动发布。"
-    />
+    <p v-if="!hideOuterTabs" class="outer-hint">
+      数据规整待确认：机器不确定的项进队列，人工确认后才写入规则与业务库。本地模型只提案、不自动发布。
+    </p>
 
     <template v-if="tab === 'rulelearn'">
       <el-alert
@@ -51,7 +46,9 @@
         </template>
         <el-table :data="rlItems" v-loading="rlLoading" border size="small" empty-text="无候选">
           <el-table-column prop="id" label="编号" width="70" />
-          <el-table-column prop="decision" label="状态" width="90" />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">{{ decisionLabel(row.decision) }}</template>
+          </el-table-column>
           <el-table-column label="影响行数" width="90">
             <template #default="{ row }">{{ row.proposal?.count ?? '—' }}</template>
           </el-table-column>
@@ -85,13 +82,21 @@
     </template>
 
     <!-- —— 表头映射 —— -->
-    <template v-if="tab === 'map'">
+    <template v-else-if="tab === 'map'">
       <el-alert
-        type="warning"
+        type="info"
         :closable="false"
         show-icon
         title="表头映射治理（不可自动发布）"
         description="低置信 / 多候选 / 字典冲突进入映射待定；人工确认后回写规则字典。发布业务库仍须走规整确认门。"
+      />
+      <el-alert
+        v-if="!opsTokenReady"
+        type="error"
+        :closable="false"
+        show-icon
+        title="字段规整操作需要操作令牌"
+        description="当前只能查看字段队列。请先在系统设置填写操作令牌，再执行接受、修正或忽略。"
       />
 
       <el-card shadow="never">
@@ -103,6 +108,12 @@
             </el-space>
           </div>
         </template>
+        <PagedTable
+          v-model:page="mapPage"
+          v-model:page-size="mapPageSize"
+          :total="mapPendingTotal"
+          @change="loadMapPending"
+        >
         <el-table :data="mapPending" v-loading="mapPendingLoading" border size="small" empty-text="暂无待确认">
           <el-table-column prop="header" label="表头" min-width="120" />
           <el-table-column prop="reason" label="原因" width="120" />
@@ -119,7 +130,7 @@
                   class="cand"
                   @click="row.suggested_field = c.std_field"
                 >
-                  {{ c.std_field }}{{ c.score != null ? ` ${Number(c.score).toFixed(2)}` : '' }}
+                  {{ stdFieldLabel(c.std_field) }}{{ c.score != null ? ` ${Number(c.score).toFixed(2)}` : '' }}
                 </el-tag>
               </el-space>
             </template>
@@ -127,7 +138,7 @@
           <el-table-column label="操作" width="220" fixed="right">
             <template #default="{ row }">
               <el-select v-model="row.suggested_field" filterable allow-create size="small" style="width: 110px; margin-right: 4px">
-                <el-option v-for="f in stdFields" :key="f" :label="f" :value="f" />
+                <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
               </el-select>
               <el-button link type="success" @click="decideMapPending(row, 'accept')">接受</el-button>
               <el-button link type="warning" @click="decideMapPending(row, 'amend')">修正</el-button>
@@ -135,7 +146,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <div class="hint">共 {{ mapPendingTotal }} 条待确认</div>
+        </PagedTable>
       </el-card>
 
       <el-card shadow="never" header="1. 输入表头 → 建议并入队">
@@ -166,7 +177,7 @@
           <el-table-column label="建议字段" width="200">
             <template #default="{ row }">
               <el-select v-model="row.std_field" filterable allow-create style="width: 100%">
-                <el-option v-for="f in stdFields" :key="f" :label="f" :value="f" />
+                <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
               </el-select>
             </template>
           </el-table-column>
@@ -217,7 +228,7 @@
     <!-- —— 主数据待审 —— -->
     <template v-else-if="tab === 'master'">
       <el-alert
-        type="warning"
+        type="info"
         :closable="false"
         show-icon
         title="主数据待审（三级解析 → 人工确认）"
@@ -236,6 +247,12 @@
             </el-space>
           </div>
         </template>
+        <PagedTable
+          v-model:page="masterPage"
+          v-model:page-size="masterPageSize"
+          :total="masterPendingTotal"
+          @change="loadMasterPending"
+        >
         <el-table :data="masterPending" v-loading="masterPendingLoading" border size="small" empty-text="暂无待审">
           <el-table-column prop="material_code" label="编码" width="120" show-overflow-tooltip />
           <el-table-column prop="material_name" label="名称" min-width="140" show-overflow-tooltip />
@@ -266,7 +283,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <div class="hint">共 {{ masterPendingTotal }} 条待审</div>
+        </PagedTable>
       </el-card>
     </template>
 
@@ -505,18 +522,22 @@
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>差异清单 · {{ reconcileTotal }} 行（阈值 {{ reconcileThreshold }}）</span>
+            <span>差异清单 · 共 {{ reconcileTotal }} 行，当前展示前 {{ reconcileItems.length }} 行（阈值 {{ reconcileThreshold }}）</span>
             <el-space>
               <el-button :loading="reconcileLoading" @click="loadReconcile">刷新（只读）</el-button>
               <el-button :loading="openingSeedBusy" @click="seedOpening">期初种子（仅库存无流水）</el-button>
               <el-button type="primary" :loading="reconcilePersistBusy" @click="persistReconcile">
                 重算并落库
               </el-button>
-              <el-button :disabled="!reconcileItems.length" @click="exportReconcile">导出 CSV</el-button>
+              <el-tooltip content="仅导出当前展示的明细行" placement="top">
+                <el-button :disabled="!reconcileItems.length" @click="exportReconcile">
+                  导出 CSV（{{ reconcileItems.length }} 行）
+                </el-button>
+              </el-tooltip>
             </el-space>
           </div>
         </template>
-        <p v-if="reconcileFormula" class="hint mono">{{ reconcileFormula }}</p>
+        <p v-if="reconcileFormulaBiz" class="hint">{{ reconcileFormulaBiz }}</p>
         <el-row :gutter="12" style="margin-bottom: 12px">
           <el-col v-for="c in reconcileCards" :key="c.key" :span="6">
             <el-card shadow="never" body-style="padding: 12px">
@@ -554,7 +575,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElLink, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PagedTable from '@/components/PagedTable.vue'
@@ -614,8 +635,18 @@ const props = withDefaults(
   { initialTab: 'map', hideOuterTabs: true },
 )
 
+const emit = defineEmits<{ (e: 'tab-change', tab: string): void }>()
+
 const tab = ref(props.initialTab || 'map')
 const guideVisible = ref(false)
+
+/** 操作令牌是否就绪（响应式：页面 focus / storage 变化时刷新）。 */
+const opsTokenReady = ref(Boolean(localStorage.getItem('ops_token')))
+function refreshTokenState() {
+  opsTokenReady.value = Boolean(localStorage.getItem('ops_token'))
+}
+window.addEventListener('focus', refreshTokenState)
+window.addEventListener('storage', refreshTokenState)
 
 function closeGuide() {
   guideVisible.value = false
@@ -642,10 +673,14 @@ const rlBusy = ref(false)
 const mapPending = ref<MapPendingItem[]>([])
 const mapPendingTotal = ref(0)
 const mapPendingLoading = ref(false)
+const mapPage = ref(1)
+const mapPageSize = ref(20)
 
 const masterPending = ref<Array<MasterPendingItem & { _mergeTo?: string }>>([])
 const masterPendingTotal = ref(0)
 const masterPendingLoading = ref(false)
+const masterPage = ref(1)
+const masterPageSize = ref(20)
 const masterProposeBusy = ref(false)
 
 const flowStatus = ref('pending')
@@ -703,9 +738,7 @@ const reconcileCards = computed(() => [
 ])
 
 const reconcileAlertDesc = computed(() => {
-  const base =
-    reconcileNote.value ||
-    'ΣIN−ΣOUT ≟ 库存−期初；缺期初按 0。已知源头出库缺失率高（维护材料约 79%、备品备件约 98%），差异是常态；本页用于可见、可导出、可补录，不自动轧平。'
+  const base = reconcileNoteBiz(reconcileNote.value)
   return reconcileClassHint.value ? `${base} ${reconcileClassHint.value}` : base
 })
 
@@ -767,13 +800,58 @@ function flowTypeLabel(v?: string | null): string {
   return v || '—'
 }
 
+/** 标准字段显示名：ignore 显示为「忽略」，其余保持字段名。 */
+function stdFieldLabel(f: string) {
+  return f === 'ignore' ? '忽略' : f
+}
+
+/** 决策/状态显示名：把 accept/amend/ignore/proposed 等翻译为中文。 */
+function decisionLabel(d: string) {
+  const map: Record<string, string> = {
+    accept: '接受',
+    amend: '修正',
+    ignore: '忽略',
+    approve: '批准',
+    merge: '合并',
+    reject: '拒绝',
+    proposed: '待确认',
+    accepted: '已接受',
+    rejected: '已拒绝',
+    pending: '待处理',
+  }
+  return map[d] || d
+}
+
+/** 库存对账说明业务化：不暴露 PoC / 接口路径等技术文案。 */
+function reconcileNoteBiz(note: string) {
+  const base =
+    'Σ入−Σ出 ≟ 库存−期初；缺期初按 0 处理。差异是常态，本页用于可见、可导出、可补录，不自动轧平。'
+  if (!note) return base
+  return (
+    String(note)
+      .replace(/PoC:\s*/g, '')
+      .replace(/via POST \S+\.?/g, '')
+      .replace(/missing opening_qty treated as 0/g, '缺期初按 0 处理')
+      .trim() || base
+  )
+}
+
+/** 库存对账公式业务化显示。 */
+const reconcileFormulaBiz = computed(() => {
+  if (!reconcileFormula.value) return ''
+  return reconcileFormula.value
+    .replace(/flow_net\(ΣIN−ΣOUT\)/, '流水净额(Σ入−Σ出)')
+    .replace(/COALESCE\(opening_qty,\s*0\)/g, '期初(缺省按0)')
+    .replace(/stock_qty/g, '库存')
+})
+
 function summarizeSuggest(row: FlowPendingItem): string {
   const s = (row.suggested || {}) as Record<string, unknown>
   const qty = s.quantity
   const date = s.flow_date
   const person = s.person
   const src = s.parse_source
-  return [src, date, qty != null ? `qty=${qty}` : null, person].filter(Boolean).join(' · ') || '—'
+  return [src, date, qty != null ? `数量=${qty}` : null, person].filter(Boolean).join(' · ') || '—'
 }
 
 function onFlowSelect(rowsSel: FlowPendingItem[]) {
@@ -782,6 +860,7 @@ function onFlowSelect(rowsSel: FlowPendingItem[]) {
 
 async function onTab(name: string | number) {
   const n = String(name)
+  emit('tab-change', n)
   if (n === 'map') {
     await Promise.all([loadMapPending(), loadRules()])
   } else if (n === 'rulelearn') {
@@ -886,7 +965,11 @@ async function rejectRl(id: number) {
 async function loadMapPending() {
   mapPendingLoading.value = true
   try {
-    const res = await listMapPending({ status: 'pending', limit: 100 })
+    const res = await listMapPending({
+      status: 'pending',
+      limit: mapPageSize.value,
+      offset: (mapPage.value - 1) * mapPageSize.value,
+    })
     mapPending.value = res.items || []
     mapPendingTotal.value = res.total
   } catch (e: unknown) {
@@ -926,7 +1009,7 @@ async function decideMapPending(row: MapPendingItem, decision: 'accept' | 'amend
   }
   try {
     await ElMessageBox.confirm(
-      `${decision}「${row.header}」→ ${decision === 'ignore' ? '忽略' : row.suggested_field}？仅写规则字典。`,
+      `${decisionLabel(decision)}「${row.header}」→ ${decision === 'ignore' ? '忽略' : row.suggested_field}？仅写规则字典。`,
       '映射确认门',
       { type: 'warning' },
     )
@@ -939,7 +1022,7 @@ async function decideMapPending(row: MapPendingItem, decision: 'accept' | 'amend
       decision,
       std_field: decision === 'ignore' ? 'ignore' : row.suggested_field || undefined,
     })
-    notifyBrowse('已确认', 'fact_inventory')
+    ElMessage.success('已确认映射，已写入规则字典')
     await Promise.all([loadMapPending(), loadRules()])
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -949,7 +1032,11 @@ async function decideMapPending(row: MapPendingItem, decision: 'accept' | 'amend
 async function loadMasterPending() {
   masterPendingLoading.value = true
   try {
-    const res = await listMasterPending({ status: 'pending', limit: 100 })
+    const res = await listMasterPending({
+      status: 'pending',
+      limit: masterPageSize.value,
+      offset: (masterPage.value - 1) * masterPageSize.value,
+    })
     masterPending.value = (res.items || []).map((i) => ({
       ...i,
       _mergeTo: i.candidates?.[0]?.material_id,
@@ -994,7 +1081,7 @@ async function decideMaster(
   const label = row.material_name || row.material_code || row.material_id || row.pending_id
   try {
     await ElMessageBox.confirm(
-      `${decision}「${label}」？将经写入器写业务库。`,
+      `${decisionLabel(decision)}「${label}」？将经写入器写业务库。`,
       '主数据确认门',
       { type: 'warning' },
     )
@@ -1059,7 +1146,7 @@ async function runConfirm() {
     if (r.std_field && r.std_field !== 'ignore') mapping[r.header] = r.std_field
   }
   if (!Object.keys(mapping).length) {
-    ElMessage.warning('没有可确认的映射（全为 ignore）')
+    ElMessage.warning('没有可确认的映射（全部为忽略）')
     return
   }
   try {
@@ -1109,12 +1196,9 @@ async function loadFlowPending() {
       status: flowStatus.value,
       limit: flowPageSize.value,
       offset,
+      parse_level: flowLevelFilter.value,
     })
-    let items = res.items
-    if (flowLevelFilter.value) {
-      items = items.filter((x) => x.parse_level === flowLevelFilter.value)
-    }
-    flowItems.value = items
+    flowItems.value = res.items
     flowTotal.value = res.total
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1491,12 +1575,18 @@ onMounted(async () => {
   tab.value = props.initialTab || 'map'
   await onTab(tab.value)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshTokenState)
+  window.removeEventListener('storage', refreshTokenState)
+})
 </script>
 
 <style scoped>
 .govern { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
+.outer-hint { color: #606266; font-size: 13px; line-height: 1.6; margin: 0; }
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cand { cursor: pointer; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }

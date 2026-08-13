@@ -866,16 +866,18 @@ export async function listFlowPending(opts?: {
   limit?: number
   offset?: number
   status?: string
+  parse_level?: string
 }) {
   const limit = opts?.limit ?? 50
   const offset = opts?.offset ?? 0
   const status = opts?.status ?? 'pending'
+  const lvl = opts?.parse_level ? `&parse_level=${encodeURIComponent(opts.parse_level)}` : ''
   return apiJson<{
     total: number
     limit: number
     offset: number
     items: FlowPendingItem[]
-  }>(`/govern/flow/pending?limit=${limit}&offset=${offset}&status=${encodeURIComponent(status)}`)
+  }>(`/govern/flow/pending?limit=${limit}&offset=${offset}&status=${encodeURIComponent(status)}${lvl}`)
 }
 
 export async function confirmFlowPending(body: {
@@ -1523,6 +1525,10 @@ export async function flowMonthly() {
 
 export type FlowTopItem = {
   material_id: string
+  asset_code?: string
+  material_name?: string
+  spec?: string
+  display_name?: string
   flow_type: string
   n: number
   qty: number
