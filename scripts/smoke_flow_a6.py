@@ -19,8 +19,9 @@ os.environ["OPS_TOKEN"] = "test-ops"
 os.environ["ALLOW_FREE_QUERY"] = "1"
 os.environ["WORKER_POLL_SEC"] = "0.2"
 
-# Guard: lineage must never UPDATE quantity in place
-src = (ROOT / "app/services/flow_lineage.py").read_text(encoding="utf-8")
+# Guard: lineage must never UPDATE quantity in place (impl lives in govern/ after A0-1 split;
+# app/services/flow_lineage.py is a re-export shim and carries none of the SQL).
+src = (ROOT / "app/services/govern/flow_lineage.py").read_text(encoding="utf-8")
 assert not re.search(r"UPDATE\s+fact_stock_flow\s+SET\s+quantity", src, re.I), "FL7 violate"
 assert "DELETE FROM fact_stock_flow" in src
 
