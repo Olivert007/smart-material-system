@@ -40,9 +40,10 @@
         v-model:page="page"
         v-model:page-size="pageSize"
         :total="result?.total || 0"
+        :show-pager="!!result"
         @change="load"
       >
-        <el-table :data="result?.rows || []" v-loading="loading" border size="small" max-height="560">
+        <el-table :data="result?.rows || []" v-loading="loading" border size="small" max-height="560" empty-text="暂无数据">
           <el-table-column
             v-for="c in displayColumns"
             :key="c"
@@ -89,7 +90,7 @@ const table = ref(
 )
 const page = ref(1)
 const pageSize = ref(20)
-const loading = ref(false)
+const loading = ref(true)
 const result = ref<BrowseResult | null>(null)
 
 const modeState = computed(() => (props.mode === 'staged' ? 'standardized' : 'available'))

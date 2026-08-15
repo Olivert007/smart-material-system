@@ -23,7 +23,7 @@
         </div>
       </template>
       <div v-loading="loading" class="an-chart" ref="monthlyEl" />
-      <p v-if="!monthly?.months?.length" class="hint">暂无流水数据</p>
+      <p v-if="!loading && !monthly?.months?.length" class="hint">暂无流水数据</p>
     </el-card>
     <el-card shadow="never">
       <template #header>
@@ -38,7 +38,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="head">
-          <span>流水解析可信级别占比（共 {{ level?.total ?? 0 }} 条）</span>
+          <span>流水解析可信级别占比<template v-if="level">（共 {{ level.total ?? 0 }} 条）</template></span>
         </div>
       </template>
       <div v-loading="loading" class="an-chart an-chart-sm" ref="levelEl" />
@@ -75,7 +75,7 @@ const LEVEL_LABEL: Record<string, string> = {
   L3: '模型兜底或人工治理（L3）',
 }
 
-const loading = ref(false)
+const loading = ref(true)
 const topN = ref(10)
 const monthly = ref<FlowMonthly | null>(null)
 const level = ref<{ total?: number; items?: Array<{ name: string; value: number }> } | null>(null)
@@ -185,6 +185,18 @@ async function load() {
       if (it.flow_type === 'IN') cur.inQty += Number(it.qty) || 0
       else cur.outQty += Number(it.qty) || 0
       byKey.set(code, cur)
+    }
+    // 同名不同编码的物资用中性序号区分（如「光纤适配器（2）」），不暴露内部编号
+    const nameCount = new Map<string, number>()
+    const marked = new Set<string>()
+    for (const v of byKey.values()) {
+      const n = v.displayName
+      const seen = nameCount.get(n) || 0
+      if (seen > 0 && !marked.has(n)) {
+        marked.add(n)
+        v.displayName = `${n}（${seen + 1}）`
+      }
+      nameCount.set(n, seen + 1)
     }
     const topItems = Array.from(byKey.values()).sort((a, b) => b.inQty + b.outQty - a.inQty - a.outQty).slice(0, topN.value)
     requestAnimationFrame(() => renderCharts(topItems))
