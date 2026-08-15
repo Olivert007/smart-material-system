@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="追溯审计"
-      description="从发布版本与操作记录回看结果来源；可用结果不等于正式发布报表。审计记录仅追加、不可删除。"
+      description="回看数据结果的来源（源文件、工作表、发布版本）与确认记录（谁在何时确认了什么）；可用结果不等于正式发布报表。"
     />
     <el-alert
       v-if="contextLine"
@@ -16,8 +16,8 @@
       style="margin-top: -4px"
     />
     <el-tabs v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="版本血缘" name="lineage" />
-      <el-tab-pane label="审计时间线" name="audit" />
+      <el-tab-pane label="数据来源" name="lineage" />
+      <el-tab-pane label="操作记录" name="audit" />
     </el-tabs>
     <LineageView v-if="tab === 'lineage'" />
     <AuditView v-else />
