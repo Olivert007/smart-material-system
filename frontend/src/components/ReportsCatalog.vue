@@ -30,11 +30,11 @@
             <span v-else class="muted">无</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
-            <el-button link type="primary" @click="run(row)">运行</el-button>
+            <el-button link type="primary" @click="run(row)">运行并预览</el-button>
             <el-button v-if="lastRun?.report_id === row.report_id" link @click="downloadLast">
-              下载
+              下载完整报表
             </el-button>
           </template>
         </el-table-column>
@@ -77,6 +77,32 @@
       </el-descriptions>
     </el-card>
 
+    <el-card v-if="preview" shadow="never">
+      <template #header>
+        <div class="head">
+          <span>数据预览（前20行）</span>
+          <span class="muted">共 {{ preview.row_count }} 行 · 展示前 {{ preview.preview_count }} 行</span>
+        </div>
+      </template>
+      <el-table
+        :data="preview.rows"
+        v-loading="previewLoading"
+        border
+        size="small"
+        max-height="360"
+        empty-text="当前报表无数据，请调整参数后重新运行"
+      >
+        <el-table-column
+          v-for="col in preview.columns"
+          :key="col"
+          :prop="col"
+          :label="col"
+          min-width="120"
+          show-overflow-tooltip
+        />
+      </el-table>
+    </el-card>
+
     <el-dialog v-model="paramVisible" :title="`运行：${paramReport?.name ?? ''}`" width="480px" destroy-on-close>
       <el-alert
         type="info"
@@ -107,7 +133,7 @@
       />
       <template #footer>
         <el-button @click="paramVisible = false">取消</el-button>
-        <el-button type="primary" :loading="running" @click="runWithParams">运行</el-button>
+        <el-button type="primary" :loading="running" @click="runWithParams">运行并预览</el-button>
       </template>
     </el-dialog>
   </div>
@@ -116,7 +142,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { formatApiError, listReports, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
+import { formatApiError, listReports, reportPreview, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
 import { dataStateLabel } from '@/utils/dataStates'
 
 type ParamDecl = { name: string; label?: string; type?: 'text' | 'number' }
@@ -132,6 +158,15 @@ const lastRun = ref<{
   source_release_ids?: string[]
   metric_versions?: Array<{ metric_id: string; version?: number | string }>
 } | null>(null)
+
+const preview = ref<{
+  run_id: string
+  row_count: number
+  preview_count: number
+  columns: string[]
+  rows: Record<string, unknown>[]
+} | null>(null)
+const previewLoading = ref(false)
 
 const paramVisible = ref(false)
 const paramReport = ref<ReportItem | null>(null)
@@ -194,10 +229,23 @@ async function doRun(id: string, params?: Record<string, unknown>) {
         `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载 CSV/Parquet 产物`,
     }
     ElMessage.success(`完成 ${out.row_count} 行`)
+    loadPreview(out.run_id)
     return true
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
     return false
+  }
+}
+
+async function loadPreview(runId: string) {
+  previewLoading.value = true
+  try {
+    preview.value = await reportPreview(runId)
+  } catch (e: unknown) {
+    preview.value = null
+    ElMessage.warning(`预览加载失败：${formatApiError(e)}`)
+  } finally {
+    previewLoading.value = false
   }
 }
 

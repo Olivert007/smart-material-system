@@ -35,6 +35,34 @@ def test_seed_report_run_without_ops_token(client: TestClient):
     assert body.get("run_id")
 
 
+def test_report_preview(client: TestClient):
+    """report-export-preview §4: 运行后可读产物预览（只读，不重新运行）。"""
+    ensure_report_seed()
+    rid = next(r for r in SEED_REPORT_IDS if r != "rpt_inv_filtered")
+    run = client.post(f"/api/v1/reports/{rid}/run")
+    assert run.status_code == 200, run.text
+    run_id = run.json()["run_id"]
+
+    r = client.get(f"/api/v1/reports/{run_id}/preview?limit=5")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["run_id"] == run_id
+    assert body["preview_count"] <= 5
+    assert body["row_count"] >= body["preview_count"]
+    assert isinstance(body["columns"], list) and body["columns"]
+    assert isinstance(body["rows"], list)
+    if body["rows"]:
+        assert set(body["rows"][0].keys()) == set(body["columns"])
+
+    # limit 上限钳制为 100
+    big = client.get(f"/api/v1/reports/{run_id}/preview?limit=999")
+    assert big.status_code == 200, big.text
+    assert big.json()["preview_count"] <= 100
+
+    # 不存在的 run → 404
+    assert client.get("/api/v1/reports/run_nope/preview").status_code == 404
+
+
 def test_adhoc_report_run_requires_ops_token(client: TestClient):
     r = client.post("/api/v1/reports/rpt_nonexistent_custom/run")
     assert r.status_code in (401, 404)
