@@ -14,7 +14,7 @@
       :closable="false"
       show-icon
       title="本地模型不可用（复杂问数暂不可用）"
-      description="指标模板类问题（库存总量是多少、库存表有多少行、按库位统计库存记录数等）仍可回答；数据成果浏览、导出与治理待办不受影响。"
+      description="指标模板类问题（库存总量是多少、库存表有多少行、资产台数有多少等）仍可回答；数据成果浏览、导出与数据规整不受影响。"
     />
     <div v-if="modelDown" class="ask-degraded-actions">
       <el-button size="small" @click="$router.push('/system?tab=models')">查看本地模型状态</el-button>
@@ -55,6 +55,9 @@
               指标口径 {{ result.metric_name || result.metric_id
               }}{{ result.metric_version != null ? ` v${result.metric_version}` : '' }}
             </el-tag>
+            <el-tag v-if="result.source" size="small" type="info">来源 {{ sourceZh }}</el-tag>
+            <el-tag v-if="result.model_invoked === false" size="small">未调用模型（指标口径）</el-tag>
+            <el-tag v-else-if="result.model_invoked === true" size="small" type="warning">已调用本地模型</el-tag>
             <el-tag size="small" :type="result.ok ? 'success' : 'danger'">
               {{ result.ok ? '成功' : '失败' }}
             </el-tag>
@@ -107,7 +110,14 @@
         class="answer"
       />
       <el-alert
-        v-if="result.error"
+        v-else-if="fallbackAnswer"
+        :title="fallbackAnswer"
+        type="success"
+        :closable="false"
+        class="answer"
+      />
+      <el-alert
+        v-if="result.error && !isModelDegraded(result)"
         :title="result.error"
         type="error"
         :closable="false"
@@ -119,8 +129,22 @@
         <div ref="chartEl" class="chart" />
       </div>
 
+      <el-descriptions
+        v-if="singleMetric"
+        :column="1"
+        border
+        size="small"
+        class="metric-table"
+      >
+        <el-descriptions-item label="指标">{{ result.metric_name || result.metric_id }}</el-descriptions-item>
+        <el-descriptions-item label="数值">{{ singleMetricValue }}</el-descriptions-item>
+        <el-descriptions-item label="单位">{{ result.unit || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="数据范围">当前可用候选（非正式发布）</el-descriptions-item>
+        <el-descriptions-item label="来源">指标口径模板命中</el-descriptions-item>
+      </el-descriptions>
+
       <el-table
-        v-if="result.data?.length"
+        v-if="result.data?.length && displayCols.length"
         :data="result.data"
         stripe
         border
@@ -155,28 +179,12 @@
           </div>
           <div class="adv-meta">
             <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
-            <el-tag v-if="result.model_invoked === false" size="small">未调用本地模型：已命中指标字典口径</el-tag>
             <el-tag v-if="result.latency_ms != null" size="small" type="warning">
               {{ result.latency_ms }} ms
             </el-tag>
-            <el-tag v-if="result.source" size="small">来源 {{ result.source }}</el-tag>
           </div>
         </el-collapse-item>
       </el-collapse>
-    </el-card>
-
-    <el-card v-if="history.length" header="本会话历史" shadow="never">
-      <el-timeline>
-        <el-timeline-item
-          v-for="(h, i) in history"
-          :key="i"
-          :type="h.ok ? 'success' : 'danger'"
-          :timestamp="h.at"
-        >
-          <el-button link type="primary" @click="reuse(h.question)">{{ h.question }}</el-button>
-          <span class="hist-meta">{{ h.ok ? `rows=${h.rows}` : h.error }}</span>
-        </el-timeline-item>
-      </el-timeline>
     </el-card>
   </div>
 </template>
@@ -194,33 +202,31 @@ import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
-type Hist = {
-  question: string
-  ok: boolean
-  rows?: number | null
-  error?: string | null
-  at: string
-}
-
 const route = useRoute()
 const router = useRouter()
 const question = ref('')
-const examples = [
+/** 模型离线时也可回答的单值指标示例。 */
+const SINGLE_VALUE_EXAMPLES = [
   '库存表有多少行',
-  '按库位统计库存记录数，取前10',
   '库存总量是多少',
-  '按类别统计库存量',
   '资产台数有多少',
   '需求总量是多少',
   '入库合计是多少',
   '出库合计是多少',
   '超定额物资有多少',
   '呆滞料有多少行',
+]
+/** 需本地模型的分组/前N 类复杂问数，仅模型可用时展示。 */
+const COMPLEX_EXAMPLES = [
+  '按库位统计库存记录数，取前10',
+  '按类别统计库存量',
   '按单位统计库存（前5）',
 ]
+const examples = computed(() =>
+  modelDown.value ? SINGLE_VALUE_EXAMPLES : [...SINGLE_VALUE_EXAMPLES, ...COMPLEX_EXAMPLES],
+)
 const busy = ref(false)
 const result = ref<AskResult | null>(null)
-const history = ref<Hist[]>([])
 const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 const gateReady = ref<boolean | null>(null)
@@ -234,6 +240,38 @@ const scopeChip = computed(() => {
     return `状态：${scope} · 指标口径${ver}（非正式发布）`
   }
   return `状态：${scope}（非正式发布）`
+})
+
+/** 结果来源业务文案。 */
+const sourceZh = computed(() => {
+  const s = result.value?.source
+  if (s === 'metric_template') return '指标口径模板'
+  if (s === 'llm_text2sql') return '模型生成 SQL'
+  return s || '-'
+})
+
+/** 单值指标命中：指标模板 + 单行单列结果，以业务结果表呈现而非 v 列表格。 */
+const singleMetric = computed(() => {
+  const res = result.value
+  return !!res && res.source === 'metric_template' && !!res.metric_id && res.data?.length === 1
+})
+
+const singleMetricValue = computed(() => {
+  const res = result.value
+  if (!res?.data?.length) return null
+  const row = res.data[0]
+  const key = Object.keys(row)[0]
+  return key != null ? row[key] : null
+})
+
+/** 无 answer 但返回单行单列时，用列名与值拼出摘要。 */
+const fallbackAnswer = computed(() => {
+  const res = result.value
+  if (res?.answer || !res?.data?.length) return null
+  const row = res.data[0]
+  const cols = Object.keys(row)
+  if (cols.length !== 1) return null
+  return `${fieldZh(cols[0])} = ${row[cols[0]]}`
 })
 
 function isNumeric(v: unknown): boolean {
@@ -296,23 +334,6 @@ function renderChart() {
   )
 }
 
-function loadHistory() {
-  try {
-    history.value = JSON.parse(sessionStorage.getItem('ask_history') || '[]')
-  } catch {
-    history.value = []
-  }
-}
-
-function saveHistory() {
-  sessionStorage.setItem('ask_history', JSON.stringify(history.value.slice(0, 20)))
-}
-
-function reuse(q: string) {
-  question.value = q
-  runAsk()
-}
-
 function exportResult() {
   const res = result.value
   if (!res?.data?.length) return
@@ -337,15 +358,7 @@ async function runAsk() {
   try {
     const res = await askQuestion(q)
     result.value = res
-    history.value.unshift({
-      question: q,
-      ok: !!res.ok,
-      rows: res.rows,
-      error: res.error,
-      at: new Date().toLocaleTimeString(),
-    })
-    saveHistory()
-    if (!res.ok) ElMessage.error(res.error || '问答失败')
+    if (!res.ok && !isModelDegraded(res)) ElMessage.error(res.error || '问答失败')
     await nextTick()
     renderChart()
   } catch (e: unknown) {
@@ -367,7 +380,6 @@ function isModelDegraded(res: AskResult | null) {
 }
 
 onMounted(async () => {
-  loadHistory()
   try {
     const g = await flowGate()
     gateReady.value = !!g.ready
@@ -424,5 +436,5 @@ watch(
 .truncate-hint { margin-top: 12px; }
 .adv-fold { margin-top: 12px; }
 .adv-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.hist-meta { margin-left: 8px; color: #909399; font-size: 12px; }
+.metric-table { margin-bottom: 12px; }
 </style>

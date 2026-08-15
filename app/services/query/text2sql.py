@@ -207,6 +207,7 @@ def ask(question: str) -> dict:
                 "metric_id": mid,
                 "metric_name": best.get("metric_name"),
                 "metric_version": ev.get("version"),
+                "unit": unit or None,
                 "metric_match": matched,
                 "source": "metric_template",
                 "data_scope": "available_candidate",
@@ -268,7 +269,7 @@ def ask(question: str) -> dict:
             "degraded": degraded,
             "hint": (
                 "本地模型不可用：复杂问数暂不可用。指标模板类问题仍可回答"
-                "（例如：库存总量是多少、库存表有多少行、按库位统计库存记录数）。"
+                "（例如：库存总量是多少、库存表有多少行、资产台数有多少）。"
                 "数据成果浏览与导出不受影响。"
             )
             if degraded
@@ -282,8 +283,8 @@ def ask(question: str) -> dict:
                 [
                     "库存总量是多少",
                     "库存表有多少行",
-                    "按库位统计库存记录数，取前10",
                     "资产台数有多少",
+                    "入库合计是多少",
                 ]
                 if degraded
                 else None

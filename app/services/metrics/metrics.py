@@ -79,6 +79,21 @@ BUSINESS_METRICS: list[dict[str, Any]] = [
         "metric_group": "business",
     },
     {
+        "metric_id": "INV_RECORD_CNT",
+        "metric_name": "库存记录行数",
+        "aliases": json.dumps(
+            ["库存表有多少行", "库存记录数", "库存行数", "库存记录条数"],
+            ensure_ascii=False,
+        ),
+        "unit": "行",
+        "definition": "库存台账记录行数（COUNT(*)）",
+        "definition_sql": "SELECT COUNT(*) AS v FROM fact_inventory",
+        "source_tables": "fact_inventory",
+        "engine": "biz",
+        "status": "active",
+        "metric_group": "business",
+    },
+    {
         "metric_id": "INV_VALUE_TOTAL",
         "metric_name": "库存总金额",
         "aliases": json.dumps(

@@ -501,6 +501,7 @@ export type AskResult = {
   metric_id?: string
   metric_name?: string
   metric_version?: number | string | null
+  unit?: string | null
   data_scope?: string
   hint?: string
   degraded?: boolean
