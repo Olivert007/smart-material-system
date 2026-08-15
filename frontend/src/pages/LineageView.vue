@@ -21,10 +21,10 @@
               </el-tag>
             </div>
             <div class="rc-meta">
-              来源文件 {{ r.file_id }} · 域 {{ r.target_domain || '—' }} · 可用候选
-              {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? '—' }}
+              来源文件 {{ r.file_id }} · 域 {{ domainZh(r.target_domain) }} · 可用候选
+              {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? 0 }}
             </div>
-            <div class="rc-meta">确认人 {{ r.released_by || '—' }} · {{ r.released_at || '—' }}</div>
+            <div class="rc-meta">确认人 {{ actorZhLabel(r.released_by) }} · {{ r.released_at || '—' }}</div>
             <div v-if="r.supersedes || r.superseded_by" class="rc-meta">
               取代 {{ r.supersedes || '—' }} / 被取代 {{ r.superseded_by || '—' }}
             </div>
@@ -47,8 +47,8 @@
           style="margin-top: 6px"
         >
           <el-table-column prop="sheet" label="工作表" min-width="140" />
-          <el-table-column prop="role_hint" label="角色" width="120" />
-          <el-table-column prop="structure_hint" label="结构" width="130" />
+          <el-table-column label="角色" width="120" :formatter="(r: Record<string, unknown>) => roleZh(r.role_hint)" />
+          <el-table-column label="结构" width="130" :formatter="(r: Record<string, unknown>) => structureZh(r.structure_hint)" />
           <el-table-column prop="rows" label="行" width="70" />
           <el-table-column prop="cols" label="列" width="70" />
         </el-table>
@@ -62,10 +62,10 @@
           style="margin-top: 6px"
         >
           <el-table-column prop="ts" label="时间" width="160" />
-          <el-table-column prop="actor" label="确认人" width="90" />
-          <el-table-column prop="action" label="操作内容" width="110" />
-          <el-table-column prop="source" label="记录来源" width="120" show-overflow-tooltip />
-          <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
+          <el-table-column label="确认人" width="120" :formatter="(r: Record<string, unknown>) => actorZhLabel(r.actor)" />
+          <el-table-column label="操作内容" width="110" :formatter="(r: Record<string, unknown>) => actionZh(r.action)" />
+          <el-table-column label="记录来源" width="120" :formatter="(r: Record<string, unknown>) => sourceZh(r.source)" show-overflow-tooltip />
+          <el-table-column label="详情" min-width="200" :formatter="(r: Record<string, unknown>) => renderAuditDetail(String(r.detail ?? ''))" show-overflow-tooltip />
         </el-table>
         <p v-else class="hint">暂无与当前上下文匹配的确认记录；可到「操作记录」查看全部。</p>
       </template>
@@ -91,6 +91,16 @@ import {
   listLineageReleases,
   type FileItem,
 } from '@/api/client'
+import {
+  ACTOR_ZH,
+  DOMAIN_ZH,
+  ROLE_ZH,
+  SOURCE_ZH,
+  STRUCTURE_ZH,
+  actionZh,
+  mapZh,
+  renderAuditDetail,
+} from '@/utils/auditLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -107,6 +117,26 @@ function releaseStatusLabel(s?: unknown): string {
   if (!v || v === 'released') return '已发布'
   if (v === 'revoked') return '已吊销'
   return v
+}
+
+function domainZh(v: unknown): string {
+  return mapZh(DOMAIN_ZH, v) || '—'
+}
+
+function actorZhLabel(v: unknown): string {
+  return mapZh(ACTOR_ZH, v)
+}
+
+function roleZh(v: unknown): string {
+  return mapZh(ROLE_ZH, v)
+}
+
+function structureZh(v: unknown): string {
+  return mapZh(STRUCTURE_ZH, v)
+}
+
+function sourceZh(v: unknown): string {
+  return mapZh(SOURCE_ZH, v)
 }
 
 function clearRowEvidence() {

@@ -93,17 +93,33 @@ def audit_timeline(
             like_q = f"%{q}%"
             gc_where.append("(COALESCE(detail, '') LIKE ? OR COALESCE(note, '') LIKE ? OR COALESCE(source, '') LIKE ?)")
             gc_params.extend([like_q, like_q, like_q])
-            wa_where.append("(COALESCE(detail_json, '') LIKE ? OR COALESCE(action, '') LIKE ?)")
-            wa_params.extend([like_q, like_q])
-        if gc_where:
-            gc_sql += " WHERE " + " AND ".join(gc_where)
-        if wa_where:
-            wa_sql += " WHERE " + " AND ".join(wa_where)
-        gc_sql += " ORDER BY created_at DESC LIMIT ?"
-        wa_sql += " ORDER BY created_at DESC LIMIT ?"
+            # 关键词同样命中报表中文名（detail_json 只存 report_id，中文名在 report_definition）
+            wa_where.append(
+                "(COALESCE(detail_json, '') LIKE ? OR COALESCE(action, '') LIKE ? "
+                "OR EXISTS (SELECT 1 FROM report_definition rd "
+                "WHERE rd.report_id = json_extract(COALESCE(write_audit.detail_json, ''), '$.report_id') "
+                "AND rd.name LIKE ?))"
+            )
+            wa_params.extend([like_q, like_q, like_q])
+        gc_where_clause = " WHERE " + " AND ".join(gc_where) if gc_where else ""
+        wa_where_clause = " WHERE " + " AND ".join(wa_where) if wa_where else ""
+        gc_n = con.execute("SELECT COUNT(*) AS n FROM govern_confirm" + gc_where_clause, gc_params).fetchone()["n"]
+        wa_n = con.execute("SELECT COUNT(*) AS n FROM write_audit" + wa_where_clause, wa_params).fetchone()["n"]
         fetch_n = limit + offset + 50
-        gc_rows = con.execute(gc_sql, [*gc_params, fetch_n]).fetchall()
-        wa_rows = con.execute(wa_sql, [*wa_params, fetch_n]).fetchall()
+        gc_rows = con.execute(
+            gc_sql + gc_where_clause + " ORDER BY created_at DESC LIMIT ?", [*gc_params, fetch_n]
+        ).fetchall()
+        wa_rows = con.execute(
+            wa_sql + wa_where_clause + " ORDER BY created_at DESC LIMIT ?", [*wa_params, fetch_n]
+        ).fetchall()
+        # 报表运行：补充 report_definition 里的中文报表名，供前端展示
+        try:
+            report_names = {
+                r[0]: r[1]
+                for r in con.execute("SELECT report_id, name FROM report_definition").fetchall()
+            }
+        except Exception:
+            report_names = {}
     finally:
         con.close()
 
@@ -112,7 +128,18 @@ def audit_timeline(
         d = dict(r)
         detail = d.get("detail")
         d["file_id"] = _parse_file_id(detail if isinstance(detail, str) else None)
+        if d.get("action") == "report_run" and isinstance(detail, str):
+            try:
+                obj = json.loads(detail)
+                if isinstance(obj, dict):
+                    name = report_names.get(str(obj.get("report_id") or ""))
+                    if name:
+                        obj["report_name"] = name
+                        obj.pop("report_id", None)
+                        d["detail"] = json.dumps(obj, ensure_ascii=False)
+            except Exception:
+                pass
         items.append(d)
     items.sort(key=lambda x: str(x.get("ts") or ""), reverse=True)
     page = items[offset : offset + limit]
-    return {"total": len(items), "limit": limit, "offset": offset, "items": page}
+    return {"total": gc_n + wa_n, "limit": limit, "offset": offset, "items": page}
