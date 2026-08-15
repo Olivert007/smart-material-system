@@ -78,7 +78,8 @@ SELECT
   END AS status,
   i.source_release_id AS source_release_id,
   i.row_key AS row_key,
-  i.source_file AS source_file
+  i.source_file AS source_file,
+  i.material_id AS material_id
 FROM fact_inventory i
 LEFT JOIN dim_material m ON i.material_id = m.material_id
 UNION ALL
@@ -102,7 +103,8 @@ SELECT
   COALESCE(NULLIF(trim(CAST(a.status AS VARCHAR)), ''), '—') AS status,
   a.source_release_id AS source_release_id,
   a.row_key AS row_key,
-  a.source_file AS source_file
+  a.source_file AS source_file,
+  a.asset_code AS material_id
 FROM fact_asset a
 """
 
@@ -146,14 +148,17 @@ def _where(categories: list[str], locations: list[str], q: str) -> tuple[str, li
         clauses.append(f"location IN ({placeholders})")
         params.extend(locations)
     if q:
-        # contains() 按字面匹配，避免 % / _ 被当成 SQL LIKE 通配符扫出全表
+        # contains() 按字面匹配，避免 % / _ 被当成 SQL LIKE 通配符扫出全表。
+        # 匹配正式编码 / 物资名称 / 内部编码（material_id）：数据中大量物资尚无正式编码
+        # （material_code 为空或与 material_id 相同 → 展示"未维护"），按内部编码可定位到行。
         clauses.append(
             "("
             " (material_code IS NOT NULL AND contains(lower(CAST(material_code AS VARCHAR)), lower(?)))"
             " OR (material_name IS NOT NULL AND contains(lower(CAST(material_name AS VARCHAR)), lower(?)))"
+            " OR (material_id IS NOT NULL AND contains(lower(CAST(material_id AS VARCHAR)), lower(?)))"
             ")"
         )
-        params.extend([q, q])
+        params.extend([q, q, q])
     if not clauses:
         return "", params
     return " WHERE " + " AND ".join(clauses), params
