@@ -1,11 +1,13 @@
 <template>
   <div class="stage" v-loading="loading">
-    <el-steps :active="stepActive" finish-status="success" align-center style="margin-bottom: 16px">
-      <el-step title="识别结构" description="表头与工作表" />
-      <el-step title="质量检查" description="问题预检" />
-      <el-step title="生成规整结果" description="可用候选预览" />
-      <el-step title="确认写入" description="写入业务库" />
-    </el-steps>
+    <div class="steps">
+      <el-steps :active="stepActive" finish-status="success" align-center style="margin-bottom: 8px">
+        <el-step title="识别结构" description="表头与工作表" />
+        <el-step title="质量检查" description="问题预检" />
+        <el-step title="生成规整结果" description="可用候选预览" />
+        <el-step title="确认写入" description="写入业务库" />
+      </el-steps>
+    </div>
 
     <el-alert
       :title="conclusionTitle"
@@ -579,7 +581,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.stage { display: flex; flex-direction: column; gap: 16px; max-width: 960px; }
+.stage { display: flex; flex-direction: column; gap: 16px; max-width: 960px; width: 100%; min-width: 0; }
+.steps { width: 100%; overflow-x: auto; padding-bottom: 4px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .summary-cards {
   display: grid;
@@ -591,6 +594,7 @@ onMounted(async () => {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
   padding: 10px 12px;
+  min-width: 0;
 }
 .scard.warn { border-color: var(--el-color-warning-light-5); }
 .slabel { color: #909399; font-size: 12px; margin-bottom: 4px; }
@@ -603,5 +607,14 @@ onMounted(async () => {
 pre {
   margin: 0 0 8px; white-space: pre-wrap; font-size: 12px; color: #303133;
   background: #f8fafc; padding: 8px; border-radius: 6px;
+}
+@media (max-width: 720px) {
+  .head { flex-direction: column; align-items: stretch; }
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions .el-button { width: 100%; }
+  .summary-cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .svalue { font-size: 18px; }
+  .stage :deep(.el-step__description) { display: none; }
+  .stage :deep(.el-step__title) { font-size: 13px; }
 }
 </style>

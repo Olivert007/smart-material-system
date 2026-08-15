@@ -378,6 +378,49 @@ def create_staging(
     return out
 
 
+def _backfill_legacy_dry_run(d: dict) -> None:
+    """旧版本生成的 dry_run 缺 clean_sample/clean_columns/quality（存量记录）。
+
+    从已保存的规整 payload parquet 读回补全，避免前端「规整后预览」「质量检查」区块空白。
+    仅内存补全，不写库、不改变 status/release_id。
+    """
+    dry = d.get("dry_run")
+    if not isinstance(dry, dict):
+        return
+    if (
+        dry.get("clean_sample") is not None
+        and dry.get("clean_columns") is not None
+        and dry.get("quality") is not None
+    ):
+        return
+    if dry.get("payload_kind") != "tabular" or not dry.get("target_domain"):
+        return
+    payload = staging_payload_path(
+        d["file_id"], dry.get("config_version") or "v1", dry["target_domain"]
+    )
+    if not payload.exists():
+        return
+    try:
+        clean = pd.read_parquet(payload)
+    except Exception:
+        return
+    if dry.get("clean_columns") is None:
+        dry["clean_columns"] = [str(c) for c in clean.columns]
+    if dry.get("clean_sample") is None:
+        dry["clean_sample"] = _clean_sample(clean)
+    if dry.get("quality") is None and dry["target_domain"] != "generic":
+        try:
+            from app.services.intake.quality_precheck import run_quality_precheck
+
+            dry["quality"] = run_quality_precheck(
+                clean,
+                domain=dry["target_domain"],
+                col_map=dry.get("column_mapping") or {},
+            )
+        except Exception:
+            dry["quality"] = None
+
+
 def get_staging(file_id: str) -> dict | None:
     with meta_tx() as con:
         row = con.execute(
@@ -394,7 +437,8 @@ def get_staging(file_id: str) -> dict | None:
         d = dict(row)
         d["dry_run"] = json.loads(d.pop("dry_run_json") or "{}")
         d["impact"] = json.loads(d.pop("impact_json") or "{}")
-        return d
+    _backfill_legacy_dry_run(d)
+    return d
 
 
 def discard_staging(file_id: str) -> bool:
