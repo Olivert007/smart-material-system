@@ -100,7 +100,7 @@ def create_staging(
     elif tab.exists():
         df = pd.read_parquet(tab)
         from app.services.evidence import normalize_tabular
-        from app.services.govern.flow_config import ledger_sheet_names
+        from app.services.govern.flow_config import get_ledger_route, ledger_sheet_names
 
         # T3.2: 4-sheet 台账按域路由过滤（仅当文件内实际存在路由 sheet；否则保持旧行为）
         if "sheet" in df.columns and target_domain in ("inventory", "asset"):
@@ -108,6 +108,8 @@ def create_staging(
             if keep:
                 present = {str(p).strip() for p in df["sheet"].astype(str).tolist()}
                 matched = [s for s in keep if any(s in p or p in s for p in present)]
+                # 台账文件判定：任一 sheet 命中路由（任何域）即视为台账文件
+                is_ledger_file = any(get_ledger_route(p) is not None for p in present)
                 if matched:
                     import re as _re
 
@@ -115,6 +117,11 @@ def create_staging(
                     df = df[
                         df["sheet"].astype(str).str.contains(pat, case=False, na=False, regex=True)
                     ].reset_index(drop=True)
+                elif is_ledger_file:
+                    # T3.2 fix: 台账文件但本域路由 sheet 不存在 → 空 staging，
+                    # 防止把其他域/未路由 sheet 全部灌入本域（曾导致 维护材料/备品备件
+                    # 行被误写入 fact_asset，台账发布 623 行伪资产）。
+                    df = df.iloc[0:0]
         df = normalize_tabular(df, domain=target_domain)
         clean = df
         blocked = df.iloc[0:0]
