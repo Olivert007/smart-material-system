@@ -1534,8 +1534,29 @@ export type FlowMonthly = {
   out: number[]
 }
 
-export async function flowMonthly() {
-  return apiJson<FlowMonthly>('/analytics/flow-monthly')
+export type FlowAnalyticsQuery = {
+  categories?: string[]
+  year?: string
+}
+
+function flowQueryString(q?: FlowAnalyticsQuery, extra?: Record<string, string>) {
+  const p = new URLSearchParams()
+  if (q?.categories?.length) p.set('categories', q.categories.join(','))
+  if (q?.year?.trim()) p.set('year', q.year.trim())
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) p.set(k, v)
+  }
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+/** 趋势分析筛选项：物资种类 + 流水年份。 */
+export async function flowFilters() {
+  return apiJson<{ categories: string[]; years: string[] }>('/analytics/flow-filters')
+}
+
+export async function flowMonthly(q?: FlowAnalyticsQuery) {
+  return apiJson<FlowMonthly>(`/analytics/flow-monthly${flowQueryString(q)}`)
 }
 
 export type FlowTopItem = {
@@ -1549,8 +1570,10 @@ export type FlowTopItem = {
   qty: number
 }
 
-export async function flowTop(limit = 10) {
-  return apiJson<{ limit: number; items: FlowTopItem[] }>(`/analytics/flow-top?limit=${limit}`)
+export async function flowTop(limit = 10, q?: FlowAnalyticsQuery) {
+  return apiJson<{ limit: number; items: FlowTopItem[] }>(
+    `/analytics/flow-top${flowQueryString(q, { limit: String(limit) })}`,
+  )
 }
 
 export type FlowLevel = {

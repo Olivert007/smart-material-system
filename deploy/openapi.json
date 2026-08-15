@@ -3864,11 +3864,11 @@
         }
       }
     },
-    "/api/v1/analytics/flow-monthly": {
+    "/api/v1/analytics/flow-filters": {
       "get": {
-        "summary": "Analytics Flow Monthly",
-        "description": "UI-1/UI-2：出入库按月趋势（只读，与 ReportsView rpt_flow_monthly 同口径）。",
-        "operationId": "analytics_flow_monthly_api_v1_analytics_flow_monthly_get",
+        "summary": "Analytics Flow Filters",
+        "description": "趋势分析筛选项：物资种类枚举 + 流水年份。",
+        "operationId": "analytics_flow_filters_api_v1_analytics_flow_filters_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3881,10 +3881,71 @@
         }
       }
     },
+    "/api/v1/analytics/flow-monthly": {
+      "get": {
+        "summary": "Analytics Flow Monthly",
+        "description": "UI-1/UI-2：出入库按月趋势（只读，可按物资种类、年份筛选）。",
+        "operationId": "analytics_flow_monthly_api_v1_analytics_flow_monthly_get",
+        "parameters": [
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Categories"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analytics/flow-top": {
       "get": {
         "summary": "Analytics Flow Top",
-        "description": "UI-1：Top 物资流水（IN/OUT 柱状数据源）。",
+        "description": "UI-1：Top 物资流水（IN/OUT 柱状数据源，可按物资种类、年份筛选）。",
         "operationId": "analytics_flow_top_api_v1_analytics_flow_top_get",
         "parameters": [
           {
@@ -3895,6 +3956,38 @@
               "type": "integer",
               "default": 10,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Categories"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
             }
           }
         ],
@@ -4272,6 +4365,54 @@
             "schema": {
               "type": "string",
               "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/{run_id}/preview": {
+      "get": {
+        "summary": "Reports Preview",
+        "description": "report-export-preview §4: 预览已生成报表产物（只读，不重新运行）。\n\nlimit 默认 20，上限 100；仅返回产物前 N 行 + 列名 + 总行数。",
+        "operationId": "reports_preview_api_v1_reports__run_id__preview_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
             }
           }
         ],

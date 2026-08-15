@@ -1397,6 +1397,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/flow-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Analytics Flow Filters
+         * @description 趋势分析筛选项：物资种类枚举 + 流水年份。
+         */
+        get: operations["analytics_flow_filters_api_v1_analytics_flow_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/flow-monthly": {
         parameters: {
             query?: never;
@@ -1406,7 +1426,7 @@ export interface paths {
         };
         /**
          * Analytics Flow Monthly
-         * @description UI-1/UI-2：出入库按月趋势（只读，与 ReportsView rpt_flow_monthly 同口径）。
+         * @description UI-1/UI-2：出入库按月趋势（只读，可按物资种类、年份筛选）。
          */
         get: operations["analytics_flow_monthly_api_v1_analytics_flow_monthly_get"];
         put?: never;
@@ -1426,7 +1446,7 @@ export interface paths {
         };
         /**
          * Analytics Flow Top
-         * @description UI-1：Top 物资流水（IN/OUT 柱状数据源）。
+         * @description UI-1：Top 物资流水（IN/OUT 柱状数据源，可按物资种类、年份筛选）。
          */
         get: operations["analytics_flow_top_api_v1_analytics_flow_top_get"];
         put?: never;
@@ -1569,6 +1589,28 @@ export interface paths {
         };
         /** Reports File */
         get: operations["reports_file_api_v1_reports__run_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/{run_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reports Preview
+         * @description report-export-preview §4: 预览已生成报表产物（只读，不重新运行）。
+         *
+         *     limit 默认 20，上限 100；仅返回产物前 N 行 + 列名 + 总行数。
+         */
+        get: operations["reports_preview_api_v1_reports__run_id__preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5164,7 +5206,7 @@ export interface operations {
             };
         };
     };
-    analytics_flow_monthly_api_v1_analytics_flow_monthly_get: {
+    analytics_flow_filters_api_v1_analytics_flow_filters_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5184,10 +5226,44 @@ export interface operations {
             };
         };
     };
+    analytics_flow_monthly_api_v1_analytics_flow_monthly_get: {
+        parameters: {
+            query?: {
+                categories?: string | null;
+                year?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     analytics_flow_top_api_v1_analytics_flow_top_get: {
         parameters: {
             query?: {
                 limit?: number;
+                categories?: string | null;
+                year?: string | null;
             };
             header?: never;
             path?: never;
@@ -5458,6 +5534,39 @@ export interface operations {
     reports_file_api_v1_reports__run_id__file_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reports_preview_api_v1_reports__run_id__preview_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path: {
                 run_id: string;

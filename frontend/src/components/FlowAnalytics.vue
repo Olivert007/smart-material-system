@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="流水分析（只读）"
-      description="出入库按月趋势、Top 物资、L1/L2/L3 可信级别占比；基于可用候选数据，非正式发布报表。"
+      description="出入库按月趋势与 Top 物资可按物资种类、年份筛选；可信级别占比为全量解析口径，不受筛选影响。基于可用候选数据，非正式发布报表。"
     />
     <el-alert
       type="warning"
@@ -15,6 +15,26 @@
       description="状态：可用。下载或截图不等于正式发布；请核对口径与来源版本。"
       style="margin-bottom: 8px"
     />
+    <el-card shadow="never" class="filter-card">
+      <div class="filter-bar">
+        <el-select
+          v-model="categories"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          placeholder="物资种类（默认全部）"
+          class="filter-item"
+        >
+          <el-option v-for="c in categoryOptions" :key="c" :label="c" :value="c" />
+        </el-select>
+        <el-select v-model="year" clearable placeholder="年份（默认全部）" class="filter-year">
+          <el-option v-for="y in yearOptions" :key="y" :label="y" :value="y" />
+        </el-select>
+        <el-button type="primary" @click="load">查询</el-button>
+        <el-button @click="onReset">重置</el-button>
+      </div>
+    </el-card>
     <el-card shadow="never">
       <template #header>
         <div class="head">
@@ -23,7 +43,7 @@
         </div>
       </template>
       <div v-loading="loading" class="an-chart" ref="monthlyEl" />
-      <p v-if="!loading && !monthly?.months?.length" class="hint">暂无流水数据</p>
+      <p v-if="!loading && !monthly?.months?.length" class="hint">当前筛选下暂无流水</p>
     </el-card>
     <el-card shadow="never">
       <template #header>
@@ -33,7 +53,8 @@
         </div>
       </template>
       <div v-loading="loading" class="an-chart" ref="topEl" />
-      <p class="hint">横轴为物资中文名称；口径：先按物资总出入库量选 TopN，再展示其入库/出库对比。</p>
+      <p v-if="!loading && topEmpty" class="hint">当前筛选下暂无流水</p>
+      <p v-else class="hint">横轴为物资中文名称；口径：先按物资总出入库量选 TopN，再展示其入库/出库对比。</p>
     </el-card>
     <el-card shadow="never">
       <template #header>
@@ -55,7 +76,7 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LegacyGridContainLabel } from 'echarts/features'
-import { flowLevel, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
+import { flowFilters, flowLevel, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
 
 echarts.use([
   BarChart,
@@ -77,6 +98,11 @@ const LEVEL_LABEL: Record<string, string> = {
 
 const loading = ref(true)
 const topN = ref(10)
+const categories = ref<string[]>([])
+const year = ref('')
+const categoryOptions = ref<string[]>([])
+const yearOptions = ref<string[]>([])
+const topEmpty = ref(false)
 const monthly = ref<FlowMonthly | null>(null)
 const level = ref<{ total?: number; items?: Array<{ name: string; value: number }> } | null>(null)
 const monthlyEl = ref<HTMLDivElement | null>(null)
@@ -167,10 +193,34 @@ function renderCharts(topItems: Array<{ key: string; displayName: string; inQty:
   }
 }
 
+function query() {
+  return {
+    categories: categories.value,
+    year: year.value || undefined,
+  }
+}
+
+async function loadFilters() {
+  try {
+    const f = await flowFilters()
+    categoryOptions.value = f.categories || []
+    yearOptions.value = f.years || []
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  }
+}
+
+function onReset() {
+  categories.value = []
+  year.value = ''
+  void load()
+}
+
 async function load() {
   loading.value = true
   try {
-    const [m, top, lv] = await Promise.all([flowMonthly(), flowTop(topN.value), flowLevel()])
+    const q = query()
+    const [m, top, lv] = await Promise.all([flowMonthly(q), flowTop(topN.value, q), flowLevel()])
     monthly.value = m
     level.value = lv
     // 聚合 key 用 asset_code||material_id，内部按编码对齐，不以中文名合并
@@ -199,6 +249,7 @@ async function load() {
       nameCount.set(n, seen + 1)
     }
     const topItems = Array.from(byKey.values()).sort((a, b) => b.inQty + b.outQty - a.inQty - a.outQty).slice(0, topN.value)
+    topEmpty.value = topItems.length === 0
     requestAnimationFrame(() => renderCharts(topItems))
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -212,6 +263,7 @@ function onResize() {
 }
 
 onMounted(() => {
+  void loadFilters()
   void load()
   window.addEventListener('resize', onResize)
 })
@@ -226,6 +278,9 @@ defineExpose({ load })
 
 <style scoped>
 .flow-analytics { display: flex; flex-direction: column; gap: 16px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.filter-item { width: 240px; max-width: 100%; }
+.filter-year { width: 160px; max-width: 100%; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .an-chart { width: 100%; height: 320px; }
 .an-chart-sm { height: 240px; }
