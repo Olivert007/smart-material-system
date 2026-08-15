@@ -4,13 +4,13 @@
       type="info"
       :closable="false"
       show-icon
-      title="系统设置"
-      description="运维健康、本地模型状态与本地体验配置。指标口径请到「数据规整 → 高级能力」；血缘与审计请使用「追溯审计」。"
+      title="系统运维"
+      description="面向运维：查看系统运行状态、本地模型可用性与本地体验配置。指标口径请到「数据规整 → 高级能力」；血缘与审计请使用「追溯审计」。"
     />
     <el-tabs v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="运维面板" name="ops" />
-      <el-tab-pane label="本地模型状态" name="models" />
-      <el-tab-pane label="设置" name="settings" />
+      <el-tab-pane label="系统状态" name="ops" />
+      <el-tab-pane label="模型状态" name="models" />
+      <el-tab-pane label="本地设置" name="settings" />
     </el-tabs>
     <OpsView v-if="tab === 'ops'" />
     <ModelsView v-else-if="tab === 'models'" />
