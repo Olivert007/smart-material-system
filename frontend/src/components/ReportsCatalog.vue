@@ -78,6 +78,14 @@
     </el-card>
 
     <el-dialog v-model="paramVisible" :title="`运行：${paramReport?.name ?? ''}`" width="480px" destroy-on-close>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="参数说明"
+        description="参数将代入报表 SQL 的 ${参数名} 占位符；必填参数（数字）不可留空，文本参数可留空则按全部匹配。"
+        style="margin-bottom: 12px"
+      />
       <el-form label-width="110px">
         <el-form-item v-for="p in paramDecls(paramReport)" :key="p.name" :label="p.label || p.name">
           <el-input

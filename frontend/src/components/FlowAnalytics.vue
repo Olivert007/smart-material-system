@@ -54,9 +54,19 @@ import * as echarts from 'echarts/core'
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { LegacyGridContainLabel } from 'echarts/features'
 import { flowLevel, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
 
-echarts.use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+echarts.use([
+  BarChart,
+  LineChart,
+  PieChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  CanvasRenderer,
+  LegacyGridContainLabel,
+])
 
 /** 发布级别业务含义（评审 §9）：可见内容只展示业务语义，不裸展示 L1/L2/L3。 */
 const LEVEL_LABEL: Record<string, string> = {
