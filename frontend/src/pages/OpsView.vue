@@ -115,7 +115,7 @@
         </div>
         <p class="hint">登记仅写入演练记录，不会自动执行全量恢复，避免误伤数据。</p>
       </div>
-      <el-button link type="primary" @click="$router.push('/trace?tab=lineage')">打开追溯审计 / 版本血缘</el-button>
+      <el-button link type="primary" @click="$router.push('/trace?tab=lineage')">打开追溯审计 / 数据来源</el-button>
     </el-card>
 
     <el-collapse>

@@ -9,7 +9,7 @@
         <el-menu-item index="/data">数据成果</el-menu-item>
         <el-menu-item index="/ask">问数助手</el-menu-item>
         <el-menu-item index="/trace">追溯审计</el-menu-item>
-        <el-menu-item v-if="isOps" index="/system">系统设置</el-menu-item>
+        <el-menu-item v-if="isOps" index="/system">系统运维</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -36,7 +36,7 @@ import { healthReady } from '@/api/client'
 const route = useRoute()
 const router = useRouter()
 const systemReady = ref(false)
-const opsRole = ref(localStorage.getItem('ops_role') || 'ops')
+const opsRole = ref(localStorage.getItem('ops_role') || 'viewer')
 
 const isOps = computed(() => opsRole.value === 'ops')
 
@@ -55,7 +55,7 @@ const title = computed(() => {
     '/ask': '问数助手',
     '/data': '数据成果',
     '/govern': '数据规整',
-    '/system': '系统设置',
+    '/system': '系统运维',
     '/intake': '数据接入',
     '/trace': '追溯审计',
   }
@@ -68,7 +68,7 @@ function onAuthRequired() {
 }
 
 function onStorage() {
-  opsRole.value = localStorage.getItem('ops_role') || 'ops'
+  opsRole.value = localStorage.getItem('ops_role') || 'viewer'
 }
 
 onMounted(async () => {

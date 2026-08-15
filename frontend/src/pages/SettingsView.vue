@@ -33,11 +33,11 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 const token = ref('')
-const role = ref('ops')
+const role = ref('viewer')
 
 onMounted(() => {
   token.value = localStorage.getItem('ops_token') || ''
-  role.value = localStorage.getItem('ops_role') || 'ops'
+  role.value = localStorage.getItem('ops_role') || 'viewer'
 })
 
 function save() {
@@ -50,7 +50,7 @@ function clear() {
   localStorage.removeItem('ops_token')
   localStorage.removeItem('ops_role')
   token.value = ''
-  role.value = 'ops'
+  role.value = 'viewer'
   ElMessage.success('已清除')
 }
 </script>

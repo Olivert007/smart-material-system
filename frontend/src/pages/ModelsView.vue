@@ -19,11 +19,11 @@
     />
     <div class="toolbar">
       <el-space wrap>
-        <el-tag type="success" size="large">Stage {{ status?.stage ?? '—' }}</el-tag>
-        <el-tag :type="status?.fast?.ok ? 'success' : 'info'">fast {{ status?.fast?.ok ? 'up' : 'down' }}</el-tag>
-        <el-tag :type="status?.big?.ok ? 'success' : 'danger'">big {{ status?.big?.ok ? 'up' : 'down' }}</el-tag>
+        <el-tag type="success" size="large">阶段 {{ status?.stage ?? '—' }}</el-tag>
+        <el-tag :type="status?.big?.ok ? 'success' : 'danger'">主模型 {{ status?.big?.ok ? '可用' : '离线' }}</el-tag>
+        <el-tag :type="status?.fast?.ok ? 'success' : 'info'">快速模型 {{ status?.fast?.ok ? '可用' : '离线' }}</el-tag>
         <el-tag :type="status?.embed?.ok ? 'success' : 'warning'">
-          embed {{ status?.embed?.ok ? 'up' : 'down / lexical' }}
+          向量模型 {{ status?.embed?.ok ? '可用' : '词法兜底' }}
         </el-tag>
         <el-input
           v-model="q"
@@ -40,8 +40,8 @@
         <div class="card-top">
           <div class="title">{{ c.model }}</div>
           <el-space>
-            <el-tag size="small">{{ c.role }}</el-tag>
-            <el-tag size="small" :type="cardStateType(c)">{{ c.cardState }}</el-tag>
+            <el-tag size="small">{{ roleLabel(c.role) }}</el-tag>
+            <el-tag size="small" :type="cardStateType(c)">{{ stateLabel(c.cardState) }}</el-tag>
           </el-space>
         </div>
         <p class="duty">{{ c.duty }}</p>
@@ -53,10 +53,10 @@
           <div v-else class="err">状态：不可用（已保留规则路径）</div>
         </div>
         <el-collapse>
-          <el-collapse-item title="高级详情（endpoint / 错误）" :name="c.role">
+          <el-collapse-item title="高级详情（接口地址 / 错误信息）" :name="c.role">
             <div class="mono">
-              <div>endpoint: {{ c.endpoint || '—' }}</div>
-              <div v-if="c.error" class="err">error: {{ c.error }}</div>
+              <div>接口地址: {{ c.endpoint || '—' }}</div>
+              <div v-if="c.error" class="err">错误信息: {{ c.error }}</div>
             </div>
           </el-collapse-item>
         </el-collapse>
@@ -70,8 +70,8 @@
     <el-card shadow="never" class="topology">
       <template #header>当前拓扑说明</template>
       <p class="hint">
-        GB10 同卡难塞 fast+big+embed。当前常见：fast(:8000)+big(:8001) 双驻时 embed 停用并走
-        lexical_fallback；或 big+embed（Stage1）。docs/10 评测门槛未过前，仅作过渡探测，不宣称生产双常驻达标。
+        单卡难以同时驻留全部模型。当前常见：快速模型与主模型双驻时，向量模型停用并走词法兜底；
+        或主模型与向量模型（阶段 1）。评测门槛未过前，仅作过渡探测，不宣称生产双常驻达标。
       </p>
       <el-button link type="primary" @click="$router.push('/system?tab=ops')">打开运维面板（备份 / 自检）</el-button>
     </el-card>
@@ -109,8 +109,8 @@ const cards = computed<RoleCard[]>(() => {
       model: s.big?.configured_model || '(未配置)',
       ok: !!s.big?.ok,
       cardState: s.big?.ok ? (stage >= 1 ? 'active' : 'deployed') : s.big?.configured_model ? 'unreachable' : 'not_configured',
-      duty: '复杂 SQL / 质量解读 / 接入建议终稿；PolicyRouter escalate 目标',
-      tags: ['Stage1+', 'port :8001', '生成'],
+      duty: '复杂 SQL / 质量解读 / 接入建议终稿；复杂问数的优先模型',
+      tags: ['阶段 1+', '复杂任务'],
       endpoint: (s.big as { endpoint?: string })?.endpoint,
       error: s.big?.error,
     },
@@ -125,8 +125,8 @@ const cards = computed<RoleCard[]>(() => {
         : s.fast?.configured_model
           ? 'unreachable'
           : 'not_configured',
-      duty: '流水 suggest / 常规映射 / 轻任务草稿；不可用时 degraded_up → big',
-      tags: ['Stage2+ 过渡 7B', 'port :8000', '生成'],
+      duty: '流水建议 / 常规映射 / 轻任务草稿；不可用时降级到主模型',
+      tags: ['阶段 2+ 过渡', '轻量任务'],
       endpoint: (s.fast as { endpoint?: string })?.endpoint,
       error: s.fast?.error,
     },
@@ -141,11 +141,11 @@ const cards = computed<RoleCard[]>(() => {
           : s.embed?.configured_model
             ? 'unreachable'
             : 'not_configured',
-      duty: '表头/主数据候选召回；down 时可 lexical_fallback（不直连库）',
+      duty: '表头/主数据候选召回；不可用时走词法兜底（不直连库）',
       tags: [
-        'Stage1+',
-        'port :8002',
-        s.embed?.lexical_fallback ? 'lexical fallback' : 'vector',
+        '阶段 1+',
+        '候选召回',
+        s.embed?.lexical_fallback ? '词法兜底' : '向量检索',
       ],
       endpoint: (s.embed as { endpoint?: string })?.endpoint,
       error: (s.embed as { error?: string })?.error,
@@ -179,6 +179,22 @@ function cardStateType(c: RoleCard) {
   if (c.cardState === 'unreachable') return 'danger'
   if (c.cardState === 'configured' || c.cardState === 'deployed') return 'warning'
   return 'info'
+}
+
+function stateLabel(s: string) {
+  const map: Record<string, string> = {
+    active: '当前活跃',
+    deployed: '已部署',
+    unreachable: '不可达',
+    not_configured: '未配置',
+    configured: '词法兜底',
+  }
+  return map[s] || s
+}
+
+function roleLabel(r: string) {
+  const map: Record<string, string> = { big: '主模型', fast: '快速模型', embed: '向量模型' }
+  return map[r] || r
 }
 
 async function load() {
@@ -235,11 +251,11 @@ onMounted(load)
 </script>
 
 <style scoped>
-.models { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.models { display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0; }
 .toolbar { display: flex; }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 .card {
@@ -250,6 +266,7 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 .card.down { opacity: 0.92; border-style: dashed; }
 .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
@@ -258,8 +275,8 @@ onMounted(load)
 .tags { min-height: 24px; }
 .meta { font-size: 12px; color: #909399; }
 .err { color: #f56c6c; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow-wrap: anywhere; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
-.hint { color: #909399; font-size: 13px; margin: 0 0 8px; line-height: 1.5; }
+.hint { color: #909399; font-size: 13px; margin: 0 0 8px; line-height: 1.5; overflow-wrap: anywhere; }
 .topology { width: 100%; }
 </style>
