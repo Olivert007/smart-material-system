@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A9 smoke: FLOW_* metrics stay draft; L1/L2/L3 stats + baseline values."""
+"""A9 smoke: FLOW_* 质量门生命周期（seed draft → gate 就绪后激活）+ L1/L2/L3 stats + baseline。"""
 from __future__ import annotations
 
 import json
@@ -66,16 +66,19 @@ def main() -> None:
         assert "by_source_file" in stats and "by_source_sheet" in stats
 
         mets = client.get("/api/v1/metrics").json()
-        flow = [i for i in mets["items"] if i["metric_id"].startswith("FLOW_")]
-        assert {i["metric_id"] for i in flow} >= {
-            "FLOW_QTY_TOTAL",
-            "FLOW_PARSE_L1_RATIO",
-            "FLOW_RECONCILE_GAP_CNT",
-        }
-        assert all(i["status"] == "draft" for i in flow), flow
+        # 质量门 FLOW_* 三指标与业务指标 FLOW_IN/OUT 同前缀；只断言质量门口径
+        GATE_IDS = {"FLOW_QTY_TOTAL", "FLOW_PARSE_L1_RATIO", "FLOW_RECONCILE_GAP_CNT"}
+        gate = [i for i in mets["items"] if i["metric_id"] in GATE_IDS]
+        assert {i["metric_id"] for i in gate} == GATE_IDS
+        biz = [i for i in mets["items"] if i["metric_id"] in ("FLOW_IN_QTY_TOTAL", "FLOW_OUT_QTY_TOTAL")]
+        # 质量门保持 draft（激活须过 08/12 门禁）；业务指标为 active
+        assert all(i["status"] == "draft" for i in gate), gate
+        assert all(i["status"] == "active" for i in biz), biz
 
-        # force-activate must be blocked
-        bad = client.post(
+        # 质量门激活路径：gate 就绪则 upsert active 成功（D4）；未就绪则 403 FLOW_GATE
+        gate = client.get("/api/v1/govern/flow/gate").json()
+        print("gate.missing", gate.get("missing"))
+        ups = client.post(
             "/api/v1/metrics",
             headers=headers,
             json={
@@ -85,17 +88,21 @@ def main() -> None:
                 "status": "active",
             },
         )
-        assert bad.status_code == 403, bad.text
-        assert bad.json().get("code") == "FLOW_GATE"
+        if gate.get("ready"):
+            assert ups.status_code == 200, ups.text
+            assert ups.json()["status"] == "active"
+        else:
+            assert ups.status_code == 403, ups.text
+            assert ups.json().get("code") == "FLOW_GATE"
 
         for mid in ("FLOW_QTY_TOTAL", "FLOW_PARSE_L1_RATIO", "FLOW_RECONCILE_GAP_CNT"):
             ev = client.post(f"/api/v1/metrics/{mid}/evaluate").json()
             print("eval", mid, ev.get("value"), ev.get("status"), ev.get("note"))
-            assert ev["status"] == "draft"
-            assert ev.get("active") is False
+            assert ev["status"] in ("draft", "active")
 
         base = client.get("/api/v1/govern/flow/baseline").json()
-        assert base["ok"] and base["flow_metrics_all_draft"]
+        assert base["ok"]
+        assert "metric_status" in base and "gate" in base
         out = TEST_DATA / "flow_baseline.json"
         out.write_text(json.dumps(base, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         print("wrote", out)
