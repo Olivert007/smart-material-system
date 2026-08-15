@@ -255,7 +255,7 @@ onMounted(load)
 .toolbar { display: flex; }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 .card {
@@ -270,7 +270,7 @@ onMounted(load)
 }
 .card.down { opacity: 0.92; border-style: dashed; }
 .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-.title { font-weight: 600; font-size: 15px; word-break: break-all; }
+.title { font-weight: 600; font-size: 15px; word-break: break-all; flex: 1 1 auto; min-width: 0; }
 .duty { margin: 0; color: #606266; font-size: 13px; line-height: 1.45; }
 .tags { min-height: 24px; }
 .meta { font-size: 12px; color: #909399; }
