@@ -14,7 +14,7 @@
         clearable
         placeholder="选择接入文件"
         style="width: 320px"
-        @change="load"
+        @change="onFileChange"
       >
         <el-option
           v-for="f in files"
@@ -31,22 +31,29 @@
       可用候选 {{ stats.clean_rows }} · 阻塞 {{ stats.blocked_rows }} · 阻塞率
       {{ Number(stats.block_rate || 0).toFixed(3) }}
     </div>
-    <el-table :data="items" v-loading="loading" border size="small" empty-text="无阻塞明细或尚未选择文件">
-      <el-table-column prop="source_row" label="行号" width="70" />
-      <el-table-column label="原因" min-width="160" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span :title="row.reason_code">{{ reasonLabel(row.reason_code) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="header" label="表头" width="120" />
-      <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="raw_value" label="原始值" width="120" show-overflow-tooltip />
-      <el-table-column label="追溯" width="100">
-        <template #default>
-          <el-button link type="primary" @click="goTrace">追溯</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <PagedTable
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :total="total"
+      @change="load"
+    >
+      <el-table :data="items" v-loading="loading" border size="small" empty-text="无阻塞明细或尚未选择文件">
+        <el-table-column prop="source_row" label="行号" width="70" />
+        <el-table-column label="原因" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span :title="row.reason_code">{{ reasonLabel(row.reason_code) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="header" label="表头" width="120" />
+        <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="raw_value" label="原始值" width="120" show-overflow-tooltip />
+        <el-table-column label="追溯" width="100">
+          <template #default>
+            <el-button link type="primary" @click="goTrace">追溯</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </PagedTable>
   </div>
 </template>
 
@@ -54,6 +61,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import PagedTable from '@/components/PagedTable.vue'
 import {
   formatApiError,
   getQualityStats,
@@ -68,6 +76,9 @@ const router = useRouter()
 const files = ref<FileItem[]>([])
 const fileId = ref('')
 const loading = ref(false)
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 const items = ref<
   Array<{ source_row?: number; reason_code: string; header?: string; reason_detail?: string; raw_value?: string }>
 >([])
@@ -84,16 +95,27 @@ function goTrace() {
   })
 }
 
+function onFileChange() {
+  page.value = 1
+  load()
+}
+
 async function load() {
   if (!fileId.value) {
     items.value = []
     stats.value = null
+    total.value = 0
     return
   }
   loading.value = true
   try {
     stats.value = await getQualityStats(fileId.value)
-    items.value = (await listQualityBlocked(fileId.value, { limit: 100 })).items || []
+    const resp = await listQualityBlocked(fileId.value, {
+      limit: pageSize.value,
+      offset: (page.value - 1) * pageSize.value,
+    })
+    items.value = resp.items || []
+    total.value = resp.total || 0
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
