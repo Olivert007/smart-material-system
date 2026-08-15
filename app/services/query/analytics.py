@@ -26,7 +26,11 @@ _TOP_SQL = (
     "  FROM fact_stock_flow GROUP BY 1, 2"
     ") f "
     "LEFT JOIN dim_material d USING (material_id) "
-    "ORDER BY f.qty DESC LIMIT {limit}"
+    "WHERE f.material_id IN ("
+    "  SELECT material_id FROM fact_stock_flow "
+    "  GROUP BY material_id ORDER BY SUM(quantity) DESC LIMIT {limit}"
+    ") "
+    "ORDER BY f.qty DESC"
 )
 
 
@@ -61,8 +65,11 @@ def flow_monthly() -> dict[str, Any]:
 def flow_top(limit: int = 10) -> dict[str, Any]:
     """Top 物资流水（IN/OUT 分别计数与数量，UI-1 柱状图）。
 
-    按内部 material_id 聚合（对齐不依赖中文名），左连接 dim_material，
-    返回 asset_code / material_name / spec / display_name 供前端中文展示。
+    口径：先按物资总出入库量（SUM(quantity)）选出 TopN 物资，再返回这些
+    物资的 IN/OUT 分组行——避免旧实现"按单条 flow_type 行 LIMIT"导致
+    IN/OUT 对比被截断。内部按 material_id 聚合（对齐不依赖中文名），
+    左连接 dim_material，返回 asset_code / material_name / spec /
+    display_name 供前端中文展示。
     """
     limit = max(1, min(int(limit), 50))
     items: list[dict[str, Any]] = []
