@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Smart Material System",
+    "title": "物资数据规整系统",
     "description": "Trusted pipeline + F2 SPA: SQLite meta, unique writer, idempotent release, AST query",
     "version": "0.6.1-ocr-eval"
   },
