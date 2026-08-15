@@ -106,4 +106,16 @@ onUnmounted(() => {
   background: #fff; border-bottom: 1px solid #ebeef5;
 }
 .title { font-size: 18px; font-weight: 600; }
+@media (max-width: 900px) {
+  .aside { width: 176px !important; }
+}
+@media (max-width: 720px) {
+  .layout { flex-direction: column; }
+  .aside { width: 100% !important; height: auto; }
+  .brand { padding: 12px 16px; }
+  .aside :deep(.el-menu) { display: flex; overflow-x: auto; }
+  .aside :deep(.el-menu-item) { flex-shrink: 0; height: 44px; }
+  .header { padding: 0 12px; }
+  .title { font-size: 16px; }
+}
 </style>
