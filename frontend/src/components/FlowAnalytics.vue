@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="流水分析（只读）"
-      description="出入库按月趋势、Top 物资、L1/L2/L3 占比；基于可用候选数据，非正式发布报表。"
+      description="出入库按月趋势、Top 物资、L1/L2/L3 可信级别占比；基于可用候选数据，非正式发布报表。"
     />
     <el-alert
       type="warning"
@@ -33,20 +33,22 @@
         </div>
       </template>
       <div v-loading="loading" class="an-chart" ref="topEl" />
+      <p class="hint">横轴为物资中文名称；口径：先按物资总出入库量选 TopN，再展示其入库/出库对比。</p>
     </el-card>
     <el-card shadow="never">
       <template #header>
         <div class="head">
-          <span>发布级别占比（共 {{ level?.total ?? 0 }} 条）</span>
+          <span>流水解析可信级别占比（共 {{ level?.total ?? 0 }} 条）</span>
         </div>
       </template>
       <div v-loading="loading" class="an-chart an-chart-sm" ref="levelEl" />
+      <p v-if="levelNote" class="level-note">{{ levelNote }}</p>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
@@ -55,6 +57,13 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { flowLevel, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
 
 echarts.use([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+
+/** 发布级别业务含义（评审 §9）：可见内容只展示业务语义，不裸展示 L1/L2/L3。 */
+const LEVEL_LABEL: Record<string, string> = {
+  L1: '规则直出（L1）',
+  L2: '规则 + 校验（L2）',
+  L3: '模型兜底或人工治理（L3）',
+}
 
 const loading = ref(false)
 const topN = ref(10)
@@ -65,12 +74,22 @@ const topEl = ref<HTMLDivElement | null>(null)
 const levelEl = ref<HTMLDivElement | null>(null)
 const charts: echarts.ECharts[] = []
 
+const levelNote = computed(() => {
+  const lv = level.value
+  if (!lv?.items?.length) return ''
+  const base = '可信级别含义：L1 规则直出；L2 规则 + 校验；L3 模型兜底或人工治理后发布。'
+  if (lv.items.length === 1 && lv.total) {
+    return `${base} 当前全部为 ${lv.items[0].name}，因此占比图只有一个扇区。`
+  }
+  return base
+})
+
 function disposeCharts() {
   for (const c of charts) c.dispose()
   charts.length = 0
 }
 
-function renderCharts(topItems: Array<{ key: string; displayName: string; code: string; inQty: number; outQty: number }>) {
+function renderCharts(topItems: Array<{ key: string; displayName: string; inQty: number; outQty: number }>) {
   disposeCharts()
   const m = monthly.value
   if (m?.months?.length && monthlyEl.value) {
@@ -98,8 +117,8 @@ function renderCharts(topItems: Array<{ key: string; displayName: string; code: 
         formatter: (params: any) => {
           const arr = Array.isArray(params) ? params : [params]
           const it = topItems[arr[0]?.dataIndex ?? 0]
+          // 评审 §8.3：tooltip 只展示中文业务名称，不展示「编码：M-…」
           const lines = [it?.displayName || '']
-          if (it?.code) lines.push(`编码：${it.code}`)
           for (const p of arr) lines.push(`${p.marker}${p.seriesName}：${p.value}`)
           return lines.join('<br/>')
         },
@@ -122,6 +141,7 @@ function renderCharts(topItems: Array<{ key: string; displayName: string; code: 
   if (lv?.items?.length && levelEl.value) {
     const chart = echarts.init(levelEl.value)
     charts.push(chart)
+    const data = lv.items.map((i) => ({ name: LEVEL_LABEL[i.name] || i.name, value: i.value }))
     chart.setOption({
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
       legend: { bottom: 0 },
@@ -129,8 +149,8 @@ function renderCharts(topItems: Array<{ key: string; displayName: string; code: 
         type: 'pie',
         radius: ['38%', '62%'],
         center: ['50%', '44%'],
-        data: lv.items.map((i) => ({ name: i.name, value: i.value })),
-        label: { show: true, position: 'inside', fontSize: 11, color: '#fff' },
+        data,
+        label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p: any) => p.name },
         labelLine: { show: false },
       }],
     })
@@ -144,11 +164,13 @@ async function load() {
     monthly.value = m
     level.value = lv
     // 聚合 key 用 asset_code||material_id，内部按编码对齐，不以中文名合并
-    const byKey = new Map<string, { key: string; displayName: string; code: string; inQty: number; outQty: number }>()
+    const byKey = new Map<string, { key: string; displayName: string; inQty: number; outQty: number }>()
     for (const it of top.items || []) {
       const code = (it.asset_code || '').trim() || it.material_id
-      const name = it.display_name || it.material_name || code
-      const cur = byKey.get(code) || { key: code, displayName: name, code, inQty: 0, outQty: 0 }
+      // 评审 §8.2：坐标轴只展示中文业务名称；无中文名时不暴露内部编号
+      let name = it.display_name || it.material_name || ''
+      if (!name || name === code) name = '未命名物资'
+      const cur = byKey.get(code) || { key: code, displayName: name, inQty: 0, outQty: 0 }
       if (name) cur.displayName = name
       if (it.flow_type === 'IN') cur.inQty += Number(it.qty) || 0
       else cur.outQty += Number(it.qty) || 0
@@ -186,4 +208,5 @@ defineExpose({ load })
 .an-chart { width: 100%; height: 320px; }
 .an-chart-sm { height: 240px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
+.level-note { color: #606266; font-size: 13px; margin: 10px 0 0; line-height: 1.6; }
 </style>
