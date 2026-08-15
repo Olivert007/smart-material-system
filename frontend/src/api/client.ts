@@ -1660,6 +1660,8 @@ export const MATERIAL_CATEGORIES = ['维护材料', '低值易耗品', '备品�
 
 export type MaterialStandardizedItem = {
   material_code: string | null
+  /** 内部编码（material_id / asset_code），无正式编码时用于展示兜底 */
+  material_id?: string | null
   material_name: string
   category: string
   location: string | null

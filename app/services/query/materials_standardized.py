@@ -187,6 +187,7 @@ def _item_from_row(row: dict[str, Any]) -> dict[str, Any]:
         code = str(code).strip() or None
     return {
         "material_code": code,
+        "material_id": _null_if_nan(row.get("material_id")),
         "material_name": _null_if_nan(row.get("material_name")) or "",
         "category": _null_if_nan(row.get("category")) or "",
         "location": _null_if_nan(row.get("location")),
