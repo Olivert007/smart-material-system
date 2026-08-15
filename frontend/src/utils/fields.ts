@@ -107,6 +107,8 @@ export const TECHNICAL_FIELDS = new Set([
   'source_row',
   'source_segment',
   'match_level',
+  // 指标模板/聚合 SQL 的无语义单值列（业务上由指标口径呈现）
+  'v',
 ])
 
 export function tableZh(table: string): string {
