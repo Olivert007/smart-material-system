@@ -92,7 +92,7 @@
       </section>
 
       <el-collapse v-model="advancedOpen" class="advanced-fold">
-        <el-collapse-item title="高级治理（字段 / 物资待审 / 规则 / 出入库 / 库存对账）" name="adv">
+        <el-collapse-item title="高级治理（字段 / 物资待审 / 规则 / 出入库 / 库存对账 / 规则资产 / 指标口径）" name="adv">
           <template v-if="advancedOpen.includes('adv')">
             <el-alert
               type="warning"
