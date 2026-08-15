@@ -128,12 +128,13 @@ def test_default_lists_all(client):
     assert "GJ-01" in codes
     assert "M-1001" not in codes
     assert "M-1002" not in codes
-    assert None in codes  # 无正式编码 → 未维护
+    assert None in codes  # 无正式编码 → material_code 为空，前端回退展示内部编码
     tape = next(it for it in body["items"] if it["material_name"] == "绝缘胶带")
     assert tape["material_code"] is None
+    assert tape["material_id"] == "M-1002"
     copied = next(it for it in body["items"] if it["material_name"] == "内部编码物资")
     assert copied["material_code"] is None
-    assert "material_id" not in body["items"][0]
+    assert copied["material_id"] == "M-1003"
     by = {x["category"]: x["count"] for x in body["summary"]["by_category"]}
     assert by["维护材料"] == 3
     assert by["低值易耗品"] == 1
@@ -174,7 +175,7 @@ def test_keyword_name_code_and_internal_id(client):
     assert {it["material_name"] for it in by_name["items"]} == {"电力电缆"}
     by_code = client.get("/api/v1/materials/standardized", params={"q": "WH-001"}).json()
     assert by_code["total"] == 2
-    # 内部编码同样可命中：展示仍为"未维护"，但按上传时填写的编码能定位到数据行
+    # 内部编码同样可命中：material_code 为空但按上传时填写的内部编码可定位到数据行
     by_internal = client.get("/api/v1/materials/standardized", params={"q": "M-1002"}).json()
     assert by_internal["total"] == 2
     assert {it["material_name"] for it in by_internal["items"]} == {"绝缘胶带"}
@@ -327,12 +328,12 @@ def test_orphan_inventory_and_asset_without_code(client):
     orphan = next(it for it in body["items"] if it["location"] == "工具房")
     assert orphan["material_code"] is None
     assert orphan["material_name"] == ""
+    assert orphan["material_id"] == "M-GONE"
     glove = next(it for it in body["items"] if it["material_name"] == "绝缘手套")
     assert glove["material_code"] is None
     assert glove["category"] == "个人工器具"
     by = {x["category"]: x["count"] for x in body["summary"]["by_category"]}
     assert by["维护材料"] + by["个人工器具"] == 2
-    assert "material_id" not in orphan
     assert sum(x["count"] for x in body["summary"]["by_category"]) == body["total"]
 
 

@@ -76,7 +76,7 @@
             empty-text="暂无匹配的物资数据，请调整物资种类或存放区域筛选条件"
           >
             <el-table-column label="物资编码" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">{{ displayCode(row.material_code) }}</template>
+              <template #default="{ row }">{{ displayCode(row) }}</template>
             </el-table-column>
             <el-table-column prop="material_name" label="物资名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="category" label="物资种类" min-width="110" show-overflow-tooltip />
@@ -113,7 +113,7 @@
 
     <el-dialog v-model="detailVisible" title="物资详情" width="560px" destroy-on-close>
       <el-descriptions v-if="detailRow" :column="2" border size="small">
-        <el-descriptions-item label="物资编码">{{ displayCode(detailRow.material_code) }}</el-descriptions-item>
+        <el-descriptions-item label="物资编码">{{ displayCode(detailRow) }}</el-descriptions-item>
         <el-descriptions-item label="物资名称">{{ detailRow.material_name || '—' }}</el-descriptions-item>
         <el-descriptions-item label="物资种类">{{ detailRow.category || '—' }}</el-descriptions-item>
         <el-descriptions-item label="存放区域">{{ detailRow.location || '—' }}</el-descriptions-item>
@@ -174,13 +174,17 @@ const categorySummaryText = computed(() => {
   return rows.map((r) => `${r.category}${r.count}条`).join('/')
 })
 
-function displayCode(code: string | null | undefined) {
-  const s = (code || '').trim()
-  return s || '未维护'
+function displayCode(row: MaterialStandardizedItem) {
+  // 优先正式编码；未维护时回退内部编码（material_id / asset_code），避免整列"未维护"
+  const s = (row.material_code || '').trim()
+  if (s) return s
+  const internal = (row.material_id || '').trim()
+  return internal || '未维护'
 }
 
 function canTrace(row: MaterialStandardizedItem) {
-  return Boolean(row.source_release_id && row.row_key)
+  // 有发布版本或源文件即可追溯（来源概览）；无 row_key 时仅看来源，不显示行级证据
+  return Boolean(row.source_release_id || row.source_file)
 }
 
 function csvList(v: unknown): string[] {
