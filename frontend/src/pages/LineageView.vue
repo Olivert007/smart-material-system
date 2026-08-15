@@ -128,22 +128,35 @@ async function loadBusiness() {
       typeof route.query.release_id === 'string' && route.query.release_id
         ? route.query.release_id
         : ''
-    const fid = fileFilter.value || ''
-    const [releases, files, confirms] = await Promise.all([
+    const rawFid = fileFilter.value || ''
+    const [releases, files] = await Promise.all([
       listLineageReleases({ limit: 30 }),
       listFiles(50, 0),
-      auditTimeline({
-        limit: 50,
-        release_id: relId || undefined,
-        file_id: fid || undefined,
-      }),
     ])
-    const rels = (releases.items || []).filter(
-      (r) =>
-        (!relId || String(r.release_id) === relId) &&
-        (!fid || String(r.file_id || '').includes(fid)),
-    )
-    const fileRow = fid ? (files.items || []).find((f) => f.file_id === fid) || null : null
+    const fileItems = files.items || []
+    const allRels = releases.items || []
+    // 先按 release_id 定位发布版本，再解析源文件哈希：优先取该发布版本绑定的文件；
+    // 其次把文件名解析为哈希；兜底按原值（哈希，来自阻塞数据等入口）使用。
+    const rel = relId ? allRels.find((r) => String(r.release_id) === relId) : undefined
+    let fid = rawFid
+    if (rel?.file_id) {
+      fid = String(rel.file_id)
+    } else {
+      const hit =
+        fileItems.find((f) => f.filename === rawFid) ||
+        fileItems.find((f) => f.file_id === rawFid)
+      if (hit) fid = hit.file_id
+    }
+    // 过滤发布版本：release_id 精确匹配；file 上下文用解析后的哈希匹配（兼容哈希/文件名）
+    const rels = relId
+      ? allRels.filter((r) => String(r.release_id) === relId)
+      : allRels.filter((r) => !fid || String(r.file_id || '').includes(fid))
+    const confirms = await auditTimeline({
+      limit: 50,
+      release_id: relId || undefined,
+      file_id: fid || undefined,
+    })
+    const fileRow = fid ? fileItems.find((f) => f.file_id === fid) || null : null
     let sheets: Array<Record<string, unknown>> = []
     if (fid) {
       try {

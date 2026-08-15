@@ -128,9 +128,7 @@ function exportCsv() {
 
 function goTrace(row: Record<string, unknown>) {
   const releaseId = String(row.source_release_id || row.release_id || '')
-  const sourceFile = String(
-    row.source_file || row['来源文件'] || row.file_id || '',
-  )
+  const sourceFile = String(row.source_file || row['来源文件'] || '')
   const rowKey = String(row.row_key || '')
   router.push({
     path: '/trace',
@@ -140,7 +138,7 @@ function goTrace(row: Record<string, unknown>) {
         ? { release_id: releaseId }
         : {}),
       ...(sourceFile && sourceFile !== 'null' && sourceFile !== 'undefined'
-        ? { source_file: sourceFile, file_id: sourceFile }
+        ? { source_file: sourceFile }
         : {}),
       ...(rowKey && rowKey !== 'null' && rowKey !== 'undefined'
         ? { row_key: rowKey }

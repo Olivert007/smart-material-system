@@ -49,7 +49,6 @@ const filterQ = ref('')
 function seedFromRoute() {
   if (typeof route.query.release_id === 'string') filterRelease.value = route.query.release_id
   if (typeof route.query.file_id === 'string') filterFile.value = route.query.file_id
-  else if (typeof route.query.source_file === 'string') filterFile.value = route.query.source_file
   if (typeof route.query.q === 'string') filterQ.value = route.query.q
   if (typeof route.query.source === 'string') filterSource.value = route.query.source
   if (typeof route.query.actor === 'string') filterActor.value = route.query.actor
