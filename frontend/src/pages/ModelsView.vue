@@ -159,6 +159,7 @@ const filtered = computed(() => {
   return cards.value.filter(
     (c) =>
       c.role.includes(needle) ||
+      roleLabel(c.role).includes(needle) ||
       c.model.toLowerCase().includes(needle) ||
       c.duty.toLowerCase().includes(needle),
   )
