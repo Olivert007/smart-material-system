@@ -320,10 +320,23 @@ def _write_release(
                     rec.pop("_row_key", None)
                     rec["row_key"] = row_key
                     values = [rec.get(c) for c in cols]
-                    con.execute(
-                        f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders})",
-                        values,
-                    )
+                    if table == "fact_asset":
+                        # b3: fact_asset 以 asset_code 为 PK，跨文件存在同码资产
+                        # （如「资产清查汇总表」），同码时以本次发布快照覆盖旧台账，
+                        # 避免 500 RELEASE_FAILED（原为裸 INSERT 触发主键冲突）。
+                        upsert_sets = ", ".join(
+                            f"{c} = excluded.{c}" for c in cols if c != "asset_code"
+                        )
+                        con.execute(
+                            f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders}) "
+                            f"ON CONFLICT (asset_code) DO UPDATE SET {upsert_sets}",
+                            values,
+                        )
+                    else:
+                        con.execute(
+                            f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders})",
+                            values,
+                        )
                     inserted += 1
                     if table == "fact_stock_flow":
                         payload = {
