@@ -24,6 +24,8 @@ export const router = createRouter({
     { path: '/metrics', redirect: { path: '/govern', query: { tab: 'advanced' } } },
     { path: '/learning', redirect: { path: '/govern', query: { tab: 'advanced' } } },
     { path: '/govern/todos', redirect: (to) => ({ path: '/govern', query: to.query }) },
+    { path: '/todos', redirect: (to) => ({ path: '/govern', query: to.query }) },
+    { path: '/ai-review', redirect: '/govern' },
     { path: '/suggestions', redirect: { path: '/govern', query: { tab: 'map' } } },
     { path: '/models', redirect: { path: '/system', query: { tab: 'models' } } },
     { path: '/ops', redirect: { path: '/system', query: { tab: 'ops' } } },

@@ -117,7 +117,9 @@
         <el-table :data="mapPending" v-loading="mapPendingLoading" border size="small" empty-text="暂无待确认">
           <el-table-column prop="header" label="表头" min-width="120" />
           <el-table-column prop="reason" label="原因" width="120" />
-          <el-table-column prop="suggested_field" label="建议" width="120" />
+          <el-table-column label="建议" width="120">
+            <template #default="{ row }">{{ stdFieldLabel(row.suggested_field) }}</template>
+          </el-table-column>
           <el-table-column prop="sheet" label="工作表" width="100" />
           <el-table-column prop="file_id" label="文件" width="110" />
           <el-table-column label="候选" min-width="200">
@@ -579,6 +581,7 @@ import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElLink, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PagedTable from '@/components/PagedTable.vue'
+import { fieldZh as fieldzh } from '@/utils/fields'
 import {
   confirmFlowPending,
   flowOpeningSeed,
@@ -800,9 +803,11 @@ function flowTypeLabel(v?: string | null): string {
   return v || '—'
 }
 
-/** 标准字段显示名：ignore 显示为「忽略」，其余保持字段名。 */
-function stdFieldLabel(f: string) {
-  return f === 'ignore' ? '忽略' : f
+/** 标准字段显示名：ignore 显示为「忽略」，其余按中文映射，未知字段保留原名。 */
+function stdFieldLabel(f: string | null | undefined) {
+  if (!f) return '未选择'
+  if (f === 'ignore') return '忽略'
+  return fieldzh(f)
 }
 
 /** 决策/状态显示名：把 accept/amend/ignore/proposed 等翻译为中文。 */
@@ -1009,7 +1014,7 @@ async function decideMapPending(row: MapPendingItem, decision: 'accept' | 'amend
   }
   try {
     await ElMessageBox.confirm(
-      `${decisionLabel(decision)}「${row.header}」→ ${decision === 'ignore' ? '忽略' : row.suggested_field}？仅写规则字典。`,
+      `${decisionLabel(decision)}「${row.header}」→ ${decision === 'ignore' ? '忽略' : stdFieldLabel(row.suggested_field)}？仅写规则字典。`,
       '映射确认门',
       { type: 'warning' },
     )
@@ -1247,7 +1252,7 @@ async function decideOne(
       overwrite,
     })
     if (res.code === 'FLOW_EXAMPLE_CONFLICT' || (!res.ok && res.conflict)) {
-      ElMessage.warning('与已有 example 冲突，可切到 conflict 状态后「覆盖接受」')
+      ElMessage.warning('与已有示例冲突，可切到冲突状态后「覆盖接受」')
     } else if (!res.ok) {
       ElMessage.error(res.code || '失败')
     } else {
@@ -1442,7 +1447,7 @@ async function submitAmend() {
         remark: amendRow.value.text_raw,
       },
     })
-    ElMessage.success('已修正并回写 example')
+    ElMessage.success('已修正并回写示例')
     amendVisible.value = false
     await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
   } catch (e: unknown) {

@@ -308,7 +308,7 @@ const businessSnapshotEmptyReason = computed(() => {
 
 const businessSnapshotDescription = computed(() => {
   if (hasPendingWork.value || (quality.value.blocked_rows ?? 0) > 0) {
-    return '完成治理待办并形成可用数据后，这里会展示库存、需求、资产和流水概览。'
+    return '完成数据规整并形成可用数据后，这里会展示库存、需求、资产和流水概览。'
   }
   if (!hasRecentFiles.value) {
     return '请先完成数据接入，形成可用候选数据后，这里会展示库存、需求、资产和流水概览。'
@@ -322,7 +322,7 @@ const businessSnapshotTitle = computed(() =>
 
 const snapshotEmptyAction = computed(() => {
   if (nextAction.value.label) return { label: nextAction.value.label, path: nextAction.value.path || '/intake' }
-  if (hasRecentFiles.value || hasPendingWork.value) return { label: '处理治理待办', path: '/govern' }
+  if (hasRecentFiles.value || hasPendingWork.value) return { label: '处理待办事项', path: '/govern' }
   return { label: '去数据接入', path: '/intake' }
 })
 
@@ -464,7 +464,6 @@ onUnmounted(() => {
   gap: 12px;
 }
 .cards.compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-.cards.scale { margin-top: 14px; }
 .biz-card, .card {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
