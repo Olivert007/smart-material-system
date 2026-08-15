@@ -38,6 +38,7 @@ export function formatApiError(e: unknown): string {
     }
     if (e.status === 503) return `服务暂不可用（503）：${e.message}`
     if (e.status === 401 || e.status === 403) return `鉴权失败（${e.status}）：请检查 Ops Token`
+    if (e.code === 'EMPTY_EXPORT') return e.message || '当前筛选条件查询结果为空，不支持导出，请重新设置筛选条件'
     return e.message
   }
   return e instanceof Error ? e.message : String(e)
@@ -1640,6 +1641,107 @@ export type BrowseResult = {
 /** 台账在线分页浏览（后端 /api/v1/browse/{table}，LB-1）。 */
 export async function browseTable(table: string, limit = 100, offset = 0) {
   return apiJson<BrowseResult>(`/browse/${encodeURIComponent(table)}?limit=${limit}&offset=${offset}`)
+}
+
+export const MATERIAL_CATEGORIES = ['维护材料', '低值易耗品', '备品备件', '公用工器具', '个人工器具'] as const
+
+export type MaterialStandardizedItem = {
+  material_code: string | null
+  material_name: string
+  category: string
+  location: string | null
+  spec: string | null
+  unit: string | null
+  stock_qty: number | null
+  status: string
+  source_file?: string | null
+  source_release_id?: string | null
+  row_key?: string | null
+}
+
+export type MaterialStandardizedQuery = {
+  categories?: string[]
+  locations?: string[]
+  q?: string
+  limit?: number
+  offset?: number
+  sort_by?: 'material_code' | 'material_name' | 'stock_qty'
+  sort_order?: 'asc' | 'desc'
+}
+
+export type MaterialStandardizedResult = {
+  items: MaterialStandardizedItem[]
+  total: number
+  summary: { by_category: Array<{ category: string; count: number }> }
+  filters: { categories: string[]; locations: string[]; q?: string }
+  limit: number
+  offset: number
+}
+
+function materialQueryString(q: MaterialStandardizedQuery, withPage = true) {
+  const p = new URLSearchParams()
+  if (q.categories?.length) p.set('categories', q.categories.join(','))
+  if (q.locations?.length) p.set('locations', q.locations.join(','))
+  if (q.q?.trim()) p.set('q', q.q.trim())
+  if (q.sort_by) p.set('sort_by', q.sort_by)
+  if (q.sort_order) p.set('sort_order', q.sort_order)
+  if (withPage) {
+    if (q.limit != null) p.set('limit', String(q.limit))
+    if (q.offset != null) p.set('offset', String(q.offset))
+  }
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+/** 物资种类 / 存放区域筛选项。 */
+export async function listMaterialStandardizedFilters() {
+  return apiJson<{ categories: string[]; locations: string[] }>('/materials/standardized/filters')
+}
+
+/** 已规整物资台账分页浏览。 */
+export async function listMaterialStandardized(q: MaterialStandardizedQuery = {}) {
+  return apiJson<MaterialStandardizedResult>(`/materials/standardized${materialQueryString(q)}`)
+}
+
+function filenameFromDisposition(header: string | null, fallback: string) {
+  if (!header) return fallback
+  const star = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(header)
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"(.*)"$/, '$1'))
+    } catch {
+      /* keep fallback */
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header)
+  return plain ? plain[1] : fallback
+}
+
+/** 按当前筛选条件下载物资台账表格文件。 */
+export async function exportMaterialStandardized(q: MaterialStandardizedQuery = {}) {
+  const headers = new Headers()
+  headers.set('X-Request-ID', newRequestId())
+  for (const [k, v] of Object.entries(opsHeaders())) headers.set(k, v)
+  const res = await fetch(`${API_BASE}/materials/standardized/export${materialQueryString(q, false)}`, {
+    headers,
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let body: unknown = text
+    try {
+      body = text ? JSON.parse(text) : null
+    } catch {
+      /* keep text */
+    }
+    handleAuthError(res.status)
+    throw new ApiError(res.status, body)
+  }
+  const blob = await res.blob()
+  const filename = filenameFromDisposition(
+    res.headers.get('content-disposition'),
+    '物资规整_筛选结果.csv',
+  )
+  downloadBlob(blob, filename)
 }
 
 export type RowEvidence = {
