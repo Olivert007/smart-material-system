@@ -337,6 +337,23 @@ function renderChart() {
 function exportResult() {
   const res = result.value
   if (!res?.data?.length) return
+  // 单值指标：v 列已隐藏，导出业务口径表而非空表头
+  if (singleMetric.value) {
+    const row = res.data[0]
+    const valKey = Object.keys(row)[0]
+    const headers = ['指标', '数值', '单位', '数据范围']
+    const rows = [
+      {
+        指标: res.metric_name || res.metric_id || '-',
+        数值: valKey != null ? row[valKey] : '',
+        单位: res.unit || '-',
+        数据范围: '当前可用候选（非正式发布）',
+      },
+    ]
+    downloadCsv(rows, headers, `ask_result_${Date.now()}.csv`, '已导出 1 行')
+    ElMessage.success('已导出 1 行')
+    return
+  }
   const rawCols = res.columns || Object.keys(res.data[0] || {})
   const cols = visibleFields(rawCols)
   const headers = zhColumns(cols)
@@ -358,6 +375,7 @@ async function runAsk() {
   try {
     const res = await askQuestion(q)
     result.value = res
+    if (isModelDegraded(res)) modelDown.value = true
     if (!res.ok && !isModelDegraded(res)) ElMessage.error(res.error || '问答失败')
     await nextTick()
     renderChart()
