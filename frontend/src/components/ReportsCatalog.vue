@@ -84,11 +84,19 @@
             v-if="p.type === 'number'"
             v-model.number="paramValues[p.name]"
             type="number"
-            placeholder="数字"
+            placeholder="必填，请输入数字"
           />
-          <el-input v-else v-model="paramValues[p.name]" placeholder="文本" />
+          <el-input v-else v-model="paramValues[p.name]" placeholder="可选，请输入文本" />
         </el-form-item>
       </el-form>
+      <el-alert
+        v-if="paramPreview"
+        type="info"
+        :closable="false"
+        show-icon
+        :title="`将使用参数：${paramPreview}`"
+        style="margin-top: 8px"
+      />
       <template #footer>
         <el-button @click="paramVisible = false">取消</el-button>
         <el-button type="primary" :loading="running" @click="runWithParams">运行</el-button>
@@ -98,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatApiError, listReports, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
 import { dataStateLabel } from '@/utils/dataStates'
@@ -120,6 +128,18 @@ const lastRun = ref<{
 const paramVisible = ref(false)
 const paramReport = ref<ReportItem | null>(null)
 const paramValues = reactive<Record<string, string | number>>({})
+
+/** 运行前展示实际参数（评审 §2.5.3）：只列出已填写的参数。 */
+const paramPreview = computed(() => {
+  const decls = paramDecls(paramReport.value)
+  const parts: string[] = []
+  for (const p of decls) {
+    const v = paramValues[p.name]
+    if (v === '' || v == null) continue
+    parts.push(`${p.label || p.name}=${v}`)
+  }
+  return parts.join('，')
+})
 
 function paramDecls(row: ReportItem | null): ParamDecl[] {
   if (!row?.params_json) return []
@@ -182,8 +202,9 @@ async function run(row: ReportItem) {
   const decls = paramDecls(row)
   if (decls.length) {
     paramReport.value = row
+    // 评审 §2.5.2：必填参数不默认填 0/空串，避免直接运行得到误导性结果
     for (const p of decls) {
-      paramValues[p.name] = p.type === 'number' ? 0 : ''
+      paramValues[p.name] = ''
     }
     paramVisible.value = true
     return

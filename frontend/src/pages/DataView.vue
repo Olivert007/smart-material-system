@@ -5,47 +5,17 @@
       :closable="false"
       show-icon
       title="数据成果"
-      description="结果统一标注六态：原始 / 暂存 / 规整 / 可用 / 阻塞 / 已发布。可用不等于正式发布报表。"
+      description="规整明细为规整后业务库视图；报表与趋势基于当前业务库可用候选数据，均非正式发布。"
     />
-    <div class="state-legend">
-      <span class="legend-label">数据状态</span>
-      <el-tag
-        v-for="s in DATA_STATE_LEGEND"
-        :key="s.code"
-        size="small"
-        :type="s.tagType || 'info'"
-        effect="plain"
-        :title="s.hint"
-      >
-        {{ s.label }}
-      </el-tag>
-    </div>
     <el-tabs v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="可用" name="available" />
-      <el-tab-pane label="规整" name="staged" />
-      <el-tab-pane label="阻塞" name="blocked" />
-      <el-tab-pane label="报表与趋势" name="report" />
+      <el-tab-pane label="规整明细" name="detail" />
+      <el-tab-pane label="报表导出" name="report" />
+      <el-tab-pane label="趋势分析" name="trend" />
     </el-tabs>
 
-    <BrowseView v-if="tab === 'available'" mode="available" />
-    <BrowseView v-else-if="tab === 'staged'" mode="staged" />
-    <BlockedDataPanel v-else-if="tab === 'blocked'" />
-    <div v-else class="report-wrap">
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        title="报表快照说明"
-        description="以下报表与趋势基于当前业务库可用候选数据，须核对来源 release 与指标口径版本；非正式发布报告。"
-        style="margin-bottom: 12px"
-      />
-      <el-tabs v-model="reportInner">
-        <el-tab-pane label="汇总报表" name="report" />
-        <el-tab-pane label="趋势分析" name="trend" />
-      </el-tabs>
-      <ReportsCatalog v-if="reportInner === 'report'" />
-      <FlowAnalytics v-else />
-    </div>
+    <BrowseView v-if="tab === 'detail'" mode="staged" />
+    <ReportsCatalog v-else-if="tab === 'report'" />
+    <FlowAnalytics v-else />
   </div>
 </template>
 
@@ -53,26 +23,22 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrowseView from '@/pages/BrowseView.vue'
-import BlockedDataPanel from '@/components/BlockedDataPanel.vue'
 import ReportsCatalog from '@/components/ReportsCatalog.vue'
 import FlowAnalytics from '@/components/FlowAnalytics.vue'
-import { DATA_STATE_LEGEND } from '@/utils/dataStates'
 
 const route = useRoute()
 const router = useRouter()
 
-const TAB_NAMES = ['available', 'staged', 'blocked', 'report'] as const
-
+/** 顶层 Tab 与参考项目一致：detail=规整明细、report=报表导出、trend=趋势分析。 */
 function normalizeTab(v: unknown) {
   const s = String(v || '')
-  if (s === 'detail') return 'available'
-  if (s === 'trend') return 'report'
-  if ((TAB_NAMES as readonly string[]).includes(s)) return s
-  return 'available'
+  if (s === 'trend') return 'trend'
+  if (s === 'report') return 'report'
+  // 兼容旧链接：available/staged/blocked 都回到「规整明细」
+  return 'detail'
 }
 
 const tab = ref(normalizeTab(route.query.tab))
-const reportInner = ref(String(route.query.tab) === 'trend' ? 'trend' : 'report')
 
 function onTab(name: string | number) {
   const t = String(name)
@@ -84,19 +50,10 @@ watch(
   () => route.query.tab,
   (v) => {
     tab.value = normalizeTab(v)
-    if (String(v) === 'trend') reportInner.value = 'trend'
   },
 )
 </script>
 
 <style scoped>
 .data-hub { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-.report-wrap { display: flex; flex-direction: column; gap: 8px; }
-.state-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.legend-label { color: #909399; font-size: 12px; margin-right: 4px; }
 </style>
