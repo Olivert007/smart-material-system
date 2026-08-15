@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Smart Material System",
+    title="物资数据规整系统",
     version=APP_VERSION,
     description="Trusted pipeline + F2 SPA: SQLite meta, unique writer, idempotent release, AST query",
     lifespan=lifespan,
@@ -179,7 +179,7 @@ def health_ready():
 @app.get("/api")
 def api_root():
     return {
-        "name": "Smart Material System API",
+        "name": "物资数据规整系统 API",
         "version": APP_VERSION,
         "phase": "A",
         "frontend": "F3",
@@ -197,7 +197,7 @@ def _mount_spa() -> None:
         @app.get("/")
         def root_fallback():
             return {
-                "name": "Smart Material System API",
+                "name": "物资数据规整系统 API",
                 "version": APP_VERSION,
                 "hint": "frontend/dist missing — run: cd frontend && npm run build",
                 "docs": "/docs",

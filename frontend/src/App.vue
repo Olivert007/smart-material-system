@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout">
     <el-aside width="220px" class="aside">
-      <div class="brand">Smart Material</div>
+      <div class="brand">物资数据规整</div>
       <el-menu :default-active="activePath" router>
         <el-menu-item index="/">工作台</el-menu-item>
         <el-menu-item index="/intake">数据接入</el-menu-item>
@@ -60,7 +60,7 @@ const title = computed(() => {
     '/trace': '追溯审计',
   }
   if (route.path.startsWith('/stage/')) return '规整确认'
-  return map[route.path] || 'Smart Material System'
+  return map[route.path] || '物资数据规整系统'
 })
 
 function onAuthRequired() {
@@ -90,17 +90,18 @@ onUnmounted(() => {
 
 <style scoped>
 .layout { min-height: 100vh; background: #f5f7fa; }
-.aside { background: #1f2a37; color: #fff; }
+.aside { background: #004597; color: #fff; }
 .brand {
   padding: 20px 16px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #e8eef6;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
 }
 .aside :deep(.el-menu) { border-right: none; background: transparent; }
-.aside :deep(.el-menu-item) { color: #c9d4e0; }
-.aside :deep(.el-menu-item.is-active) { background: rgba(64,158,255,0.18); color: #fff; }
+.aside :deep(.el-menu-item) { color: rgba(255,255,255,0.88); }
+.aside :deep(.el-menu-item:hover) { background: rgba(255,255,255,0.12); color: #fff; }
+.aside :deep(.el-menu-item.is-active) { background: #0053b7; color: #fff; }
 .header {
   display: flex; align-items: center; justify-content: space-between;
   background: #fff; border-bottom: 1px solid #ebeef5;

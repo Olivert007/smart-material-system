@@ -1,1 +1,1 @@
-"""Smart Material System — Phase A backend package."""
+"""物资数据规整系统 — Phase A backend package."""
