@@ -16,20 +16,32 @@ def stats_overview(recent_limit: int = 5):
     return stats_overview_svc.overview(recent_limit=recent_limit)
 
 
+@router.get("/analytics/flow-filters")
+def analytics_flow_filters():
+    """趋势分析筛选项：物资种类枚举 + 流水年份。"""
+    from app.services.analytics import flow_filters
+
+    return flow_filters()
+
+
 @router.get("/analytics/flow-monthly")
-def analytics_flow_monthly():
-    """UI-1/UI-2：出入库按月趋势（只读，与 ReportsView rpt_flow_monthly 同口径）。"""
+def analytics_flow_monthly(categories: str | None = None, year: str | None = None):
+    """UI-1/UI-2：出入库按月趋势（只读，可按物资种类、年份筛选）。"""
     from app.services.analytics import flow_monthly
 
-    return flow_monthly()
+    return flow_monthly(categories=categories, year=year)
 
 
 @router.get("/analytics/flow-top")
-def analytics_flow_top(limit: int = 10):
-    """UI-1：Top 物资流水（IN/OUT 柱状数据源）。"""
+def analytics_flow_top(
+    limit: int = 10,
+    categories: str | None = None,
+    year: str | None = None,
+):
+    """UI-1：Top 物资流水（IN/OUT 柱状数据源，可按物资种类、年份筛选）。"""
     from app.services.analytics import flow_top
 
-    return flow_top(limit=limit)
+    return flow_top(limit=limit, categories=categories, year=year)
 
 
 @router.get("/analytics/flow-level")

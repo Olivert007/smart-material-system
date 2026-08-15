@@ -120,6 +120,13 @@ def test_materials_standardized_filters(client):
     assert "categories" in body and "locations" in body
 
 
+def test_analytics_flow_filters(client):
+    r = client.get("/api/v1/analytics/flow-filters")
+    assert r.status_code == 200
+    body = r.json()
+    assert "categories" in body and "years" in body
+
+
 def test_map_suggest_requires_headers(client):
     # 未带操作令牌 -> 401（docs §9.8 鉴权验收）
     r = client.post("/api/v1/govern/map-suggest", json={"headers": ["物资编码"]})
