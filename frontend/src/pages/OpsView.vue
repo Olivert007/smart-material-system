@@ -16,7 +16,7 @@
         </div>
       </template>
       <el-descriptions v-if="ready" :column="2" border size="small">
-        <el-descriptions-item label="API / Ready">
+        <el-descriptions-item label="API 接口">
           <el-tag :type="ready.status === 'ready' ? 'success' : 'danger'" size="small">
             {{ ready.status === 'ready' ? '就绪' : '异常' }}
           </el-tag>
