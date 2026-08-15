@@ -341,6 +341,21 @@ def init_meta() -> None:
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS ask_log (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT NOT NULL,
+                sql TEXT,
+                source TEXT,
+                metric_id TEXT,
+                ok INTEGER NOT NULL,
+                degraded INTEGER NOT NULL DEFAULT 0,
+                model_state TEXT,
+                error TEXT,
+                latency_ms INTEGER,
+                rows INTEGER,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS rule_dict (
                 rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 header TEXT NOT NULL,
@@ -583,6 +598,7 @@ def init_meta() -> None:
             CREATE INDEX IF NOT EXISTS idx_staging_blocked_code ON staging_blocked(reason_code);
             CREATE INDEX IF NOT EXISTS idx_metric_snapshot_mid ON metric_snapshot(metric_id, evaluated_at);
             CREATE INDEX IF NOT EXISTS idx_report_run_rid ON report_run(report_id);
+            CREATE INDEX IF NOT EXISTS idx_ask_log_ts ON ask_log(created_at);
             """
         )
         # Soft migrations for existing meta DBs

@@ -172,11 +172,7 @@
       <div v-if="result.ok && !result.data?.length" class="empty">无数据行（行数={{ result.rows ?? 0 }}）</div>
 
       <el-collapse class="adv-fold">
-        <el-collapse-item title="高级详情（查询语句 / 模型状态）" name="adv">
-          <div v-if="result.sql" class="sql-block">
-            <div class="label">查询语句</div>
-            <pre>{{ result.sql }}</pre>
-          </div>
+        <el-collapse-item title="技术详情（模型状态 / 耗时）" name="adv">
           <div class="adv-meta">
             <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
             <el-tag v-if="result.latency_ms != null" size="small" type="warning">
@@ -441,12 +437,6 @@ watch(
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .answer { margin-bottom: 12px; }
-.sql-block { margin-bottom: 12px; }
-.sql-block .label { font-size: 12px; color: #909399; margin-bottom: 4px; }
-.sql-block pre {
-  margin: 0; padding: 10px 12px; background: #0f172a; color: #e2e8f0;
-  border-radius: 8px; overflow: auto; font-size: 13px; line-height: 1.45;
-}
 .chart-wrap { margin-bottom: 12px; }
 .chart-wrap .label { font-size: 12px; color: #909399; margin-bottom: 4px; }
 .chart { width: 100%; height: 280px; }

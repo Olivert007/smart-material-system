@@ -80,3 +80,30 @@ def test_sql_fewshot_table_seeded():
     finally:
         con.close()
     assert n >= 3
+
+
+def test_ask_audit_log_written():
+    """问数结果（含 SQL）落 ask_log 审计，供排查，页面不再展示 SQL。"""
+    init_meta()
+    con = writer_conn()
+    try:
+        ensure_biz_schema(con)
+    finally:
+        con.close()
+    ensure_metrics_seed()
+    res = ask("库存总量是多少")
+    assert res["ok"] is True
+    row = None
+    con = meta_conn()
+    try:
+        row = con.execute(
+            "SELECT * FROM ask_log ORDER BY log_id DESC LIMIT 1"
+        ).fetchone()
+    finally:
+        con.close()
+    assert row is not None
+    assert row["question"] == "库存总量是多少"
+    assert row["sql"] and "fact_inventory" in row["sql"]
+    assert row["source"] == "metric_template"
+    assert row["metric_id"] == "INV_QTY_TOTAL"
+    assert row["ok"] == 1
