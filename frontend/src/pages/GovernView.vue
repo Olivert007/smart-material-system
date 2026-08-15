@@ -54,7 +54,7 @@
           </el-table-column>
           <el-table-column label="提案" min-width="280">
             <template #default="{ row }">
-              <span class="mono">{{ JSON.stringify(row.proposal || {}) }}</span>
+              <span class="hint">{{ proposalLabel(row.proposal) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="260" fixed="right">
@@ -116,7 +116,9 @@
         >
         <el-table :data="mapPending" v-loading="mapPendingLoading" border size="small" empty-text="暂无待确认">
           <el-table-column prop="header" label="表头" min-width="120" />
-          <el-table-column prop="reason" label="原因" width="120" />
+          <el-table-column label="原因" width="120">
+            <template #default="{ row }">{{ reasonLabel(row.reason) }}</template>
+          </el-table-column>
           <el-table-column label="建议" width="120">
             <template #default="{ row }">{{ stdFieldLabel(row.suggested_field) }}</template>
           </el-table-column>
@@ -142,9 +144,9 @@
               <el-select v-model="row.suggested_field" filterable allow-create size="small" style="width: 110px; margin-right: 4px">
                 <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
               </el-select>
-              <el-button link type="success" @click="decideMapPending(row, 'accept')">接受</el-button>
-              <el-button link type="warning" @click="decideMapPending(row, 'amend')">修正</el-button>
-              <el-button link type="info" @click="decideMapPending(row, 'ignore')">忽略</el-button>
+              <el-button link type="success" :disabled="!opsTokenReady" @click="decideMapPending(row, 'accept')">接受</el-button>
+              <el-button link type="warning" :disabled="!opsTokenReady" @click="decideMapPending(row, 'amend')">修正</el-button>
+              <el-button link type="info" :disabled="!opsTokenReady" @click="decideMapPending(row, 'ignore')">忽略</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -159,10 +161,10 @@
           placeholder="每行一个表头，或用逗号分隔。例如：&#10;物资编码&#10;物资名称&#10;现有数量&#10;库位号"
         />
         <div class="row-actions">
-          <el-button type="primary" :loading="suggestBusy" @click="runSuggest">生成建议</el-button>
-          <el-button type="warning" :loading="enqueueBusy" @click="runEnqueue">入队低置信项</el-button>
+          <el-button type="primary" :loading="suggestBusy" :disabled="!opsTokenReady" @click="runSuggest">生成建议</el-button>
+          <el-button type="warning" :loading="enqueueBusy" :disabled="!opsTokenReady" @click="runEnqueue">入队低置信项</el-button>
           <el-button @click="headersText = '物资编码\n物资名称\n现有数量\n库位号\n型号规格'">填入库存示例</el-button>
-          <el-tag v-if="suggestMeta.state" size="small" type="info">{{ suggestMeta.state }}</el-tag>
+          <el-tag v-if="suggestMeta.state" size="small" type="info">{{ modelStateLabel(suggestMeta.state) }}</el-tag>
           <el-tag v-if="suggestMeta.invoked != null" size="small">
             AI {{ suggestMeta.invoked ? '已调用' : '跳过' }}
           </el-tag>
@@ -193,7 +195,7 @@
                   class="cand"
                   @click="row.std_field = c.std_field"
                 >
-                  {{ c.std_field }} {{ c.score.toFixed(2) }}
+                  {{ stdFieldLabel(c.std_field) }} {{ c.score.toFixed(2) }}
                 </el-tag>
               </el-space>
             </template>
@@ -202,7 +204,7 @@
 
         <div class="row-actions">
           <el-input v-model="note" placeholder="确认备注（可选）" style="max-width: 360px" />
-          <el-button type="success" :loading="confirmBusy" @click="runConfirm">
+          <el-button type="success" :loading="confirmBusy" :disabled="!opsTokenReady" @click="runConfirm">
             确认回写规则字典
           </el-button>
         </div>
@@ -217,9 +219,13 @@
         </template>
         <el-table :data="rules" v-loading="rulesLoading" size="small" border style="width: 100%">
           <el-table-column prop="header" label="表头" min-width="140" />
-          <el-table-column prop="std_field" label="标准字段" width="140" />
+          <el-table-column label="标准字段" width="140">
+            <template #default="{ row }">{{ stdFieldLabel(String(row.std_field)) }}</template>
+          </el-table-column>
           <el-table-column prop="hits" label="命中" width="70" />
-          <el-table-column prop="source" label="来源" width="120" />
+          <el-table-column label="来源" width="120">
+            <template #default="{ row }">{{ ruleSourceLabel(String(row.source)) }}</template>
+          </el-table-column>
           <el-table-column prop="confirmed_by" label="确认人" width="120" />
           <el-table-column prop="created_at" label="时间" width="170" />
         </el-table>
@@ -242,7 +248,7 @@
           <div class="result-head">
             <span>待审队列</span>
             <el-space>
-              <el-button type="primary" :loading="masterProposeBusy" @click="runMasterPropose">
+              <el-button type="primary" :loading="masterProposeBusy" :disabled="!opsTokenReady" @click="runMasterPropose">
                 扫描入队
               </el-button>
               <el-button link type="primary" @click="loadMasterPending">刷新</el-button>
@@ -260,7 +266,9 @@
           <el-table-column prop="material_name" label="名称" min-width="140" show-overflow-tooltip />
           <el-table-column prop="spec" label="规格" width="120" show-overflow-tooltip />
           <el-table-column prop="match_level" label="级别" width="80" />
-          <el-table-column prop="conflict_type" label="冲突" width="150" show-overflow-tooltip />
+          <el-table-column label="冲突" width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ conflictLabel(row.conflict_type) }}</template>
+          </el-table-column>
           <el-table-column prop="source_file" label="来源" width="120" show-overflow-tooltip />
           <el-table-column label="候选" min-width="180">
             <template #default="{ row }">
@@ -272,16 +280,16 @@
                   class="cand"
                   @click="row._mergeTo = c.material_id"
                 >
-                  {{ c.material_code || c.material_id }}{{ c.why ? ` · ${c.why}` : '' }}
+                  {{ c.material_code || c.material_id }}{{ c.why ? ` · ${conflictLabel(c.why)}` : '' }}
                 </el-tag>
               </el-space>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="240" fixed="right">
             <template #default="{ row }">
-              <el-button link type="success" @click="decideMaster(row, 'approve')">批准</el-button>
-              <el-button link type="warning" @click="decideMaster(row, 'merge')">合并</el-button>
-              <el-button link type="info" @click="decideMaster(row, 'reject')">拒绝</el-button>
+              <el-button link type="success" :disabled="!opsTokenReady" @click="decideMaster(row, 'approve')">批准</el-button>
+              <el-button link type="warning" :disabled="!opsTokenReady" @click="decideMaster(row, 'merge')">合并</el-button>
+              <el-button link type="info" :disabled="!opsTokenReady" @click="decideMaster(row, 'reject')">拒绝</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -417,8 +425,12 @@
               <span class="mono">{{ summarizeSuggest(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="llm_state" label="AI状态" width="90" />
-          <el-table-column prop="llm_role" label="角色" width="70" />
+          <el-table-column label="AI状态" width="90">
+            <template #default="{ row }">{{ modelStateLabel(row.llm_state) }}</template>
+          </el-table-column>
+          <el-table-column label="角色" width="70">
+            <template #default="{ row }">{{ llmRoleLabel(row.llm_role) }}</template>
+          </el-table-column>
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
               <el-button
@@ -810,6 +822,90 @@ function stdFieldLabel(f: string | null | undefined) {
   return fieldzh(f)
 }
 
+/** AI/模型状态显示名：把 model_state / llm_state 等翻译为中文。 */
+function modelStateLabel(s?: string | null) {
+  const map: Record<string, string> = {
+    not_attempted: '未尝试',
+    rule_dict_hit: '规则字典命中',
+    embed_high_confidence: '高置信匹配',
+    local_model_unavailable: '本地模型不可用',
+    circuit_open: '模型熔断',
+    llm_analysis_available: 'AI 分析成功',
+    llm_output_invalid: 'AI 输出无效',
+    llm_invocation_failed: 'AI 调用失败',
+    fallback: '降级方案',
+    none: '未运行',
+    queued: '排队中',
+    done: '已完成',
+    failed: '失败',
+    ok: '成功',
+  }
+  return map[String(s ?? '')] || String(s ?? '—')
+}
+
+/** 流水解析角色显示名：fast / big 翻译为中文。 */
+function llmRoleLabel(r?: string | null) {
+  const map: Record<string, string> = { fast: '快速模型', big: '大模型' }
+  return map[String(r ?? '')] || String(r ?? '—')
+}
+
+/** 主数据冲突原因 / 候选 why 显示名。 */
+function conflictLabel(c?: string | null) {
+  const map: Record<string, string> = {
+    code_same_name_diff: '编码同名称异',
+    name_same_code_diff: '名称同编码异',
+    spec_diff: '规格不同',
+  }
+  return map[String(c ?? '')] || String(c ?? '')
+}
+
+/** 表头映射原因显示名。 */
+function reasonLabel(r?: string | null) {
+  const map: Record<string, string> = {
+    conflict: '冲突',
+    multi_candidate: '多候选',
+    low_confidence: '低置信',
+    unmapped: '未映射',
+  }
+  return map[String(r ?? '')] || String(r ?? '—')
+}
+
+/** 规则字典来源显示名。 */
+function ruleSourceLabel(s?: string | null) {
+  const map: Record<string, string> = {
+    seed: '种子规则',
+    map_pending_confirm: '映射确认',
+    rule_learn: '规则学习',
+  }
+  return map[String(s ?? '')] || String(s ?? '—')
+}
+
+/** 规则学习候选提案摘要：替代原始 JSON，将 kind / std_field 等翻译为中文。 */
+function proposalLabel(p?: Record<string, unknown>) {
+  if (!p) return '—'
+  const kindZh: Record<string, string> = {
+    map_alias: '表头映射',
+    value_rule: '值规则',
+    review: '人工复核',
+  }
+  const checkZh: Record<string, string> = {
+    required: '必填',
+    numeric_positive: '数字正数',
+  }
+  const sevZh: Record<string, string> = { block: '阻断' }
+  const parts: string[] = []
+  const kind = String(p.kind || '')
+  if (kind) parts.push(`类型=${kindZh[kind] || kind}`)
+  if (p.header) parts.push(`表头=${p.header}`)
+  if (p.suggested_std_field) parts.push(`建议字段=${stdFieldLabel(String(p.suggested_std_field))}`)
+  if (p.std_field) parts.push(`字段=${stdFieldLabel(String(p.std_field))}`)
+  if (p.check_type) parts.push(`校验=${checkZh[String(p.check_type)] || p.check_type}`)
+  if (p.severity) parts.push(`级别=${sevZh[String(p.severity)] || p.severity}`)
+  if (p.reason_code) parts.push(`原因=${p.reason_code}`)
+  if (p.hint) parts.push(String(p.hint))
+  return parts.join(' · ')
+}
+
 /** 决策/状态显示名：把 accept/amend/ignore/proposed 等翻译为中文。 */
 function decisionLabel(d: string) {
   const map: Record<string, string> = {
@@ -1166,7 +1262,7 @@ async function runConfirm() {
   confirmBusy.value = true
   try {
     const res = await mapConfirm(mapping, note.value)
-    ElMessage.success(`已保存 ${res.saved} 条（${res.actor}）`)
+    ElMessage.success(`已写入规则字典 ${res.saved} 条`)
     await loadRules()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1390,7 +1486,7 @@ async function runFlowSuggestQueue() {
       body.processed ??
       body.count ??
       (Array.isArray(body.items) ? body.items.length : body.ok ? 1 : 0)
-    ElMessage.success(`队列批处理完成（processed=${processed}）`)
+    ElMessage.success(`队列批处理完成（已处理 ${processed} 条）`)
     await Promise.all([loadFlowPending(), loadFlowStats()])
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
