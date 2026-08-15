@@ -1245,6 +1245,19 @@ export async function runReport(reportId: string, params?: Record<string, unknow
   })
 }
 
+export type ReportPreview = {
+  run_id: string
+  row_count: number
+  preview_count: number
+  columns: string[]
+  rows: Record<string, unknown>[]
+}
+
+/** 报表运行产物预览（后端 /reports/{run_id}/preview，只读不重新运行）。 */
+export async function reportPreview(runId: string, limit = 20) {
+  return apiJson<ReportPreview>(`/reports/${encodeURIComponent(runId)}/preview?limit=${limit}`)
+}
+
 export async function upsertMetric(body: {
   metric_id: string
   metric_name: string

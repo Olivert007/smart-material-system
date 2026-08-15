@@ -169,6 +169,24 @@ def reports_file(run_id: str):
     return FileResponse(path, filename=Path(path).name)
 
 
+@router.get("/reports/{run_id}/preview")
+def reports_preview(run_id: str, limit: int = 20):
+    """report-export-preview §4: 预览已生成报表产物（只读，不重新运行）。
+
+    limit 默认 20，上限 100；仅返回产物前 N 行 + 列名 + 总行数。
+    """
+    from app.services import report_runner as rr
+
+    try:
+        return rr.preview_run(run_id, limit=limit)
+    except KeyError:
+        raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "run not found"})
+    except FileNotFoundError:
+        raise HTTPException(404, detail={"code": "ARTIFACT_MISSING", "message": "artifact missing"})
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, detail={"code": "PREVIEW_FAILED", "message": str(e)})
+
+
 # DT-W1/W5: 业务明细视图映射 — browse/export 默认 mode=business 时按事实表映射宽表。
 BROWSE_VIEWS = {
     "fact_inventory": "v_browse_inventory",

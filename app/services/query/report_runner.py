@@ -292,7 +292,8 @@ def run_report(
             raise ValueError(guard.error or "unsafe sql")
         result = query_svc.run_readonly_query(sql, allow_free=True, row_limit=None)
         data = result.get("data") or []
-        df = pd.DataFrame(data)
+        # 保留 SQL 列名：空结果时 pd.DataFrame([]) 无列，导致产物丢失 schema（预览/表头无法展示）
+        df = pd.DataFrame(data, columns=result.get("columns") or None)
         out_dir = reports_dir() / report_id
         out_dir.mkdir(parents=True, exist_ok=True)
         artifact = out_dir / f"{run_id}.parquet"
@@ -399,6 +400,33 @@ def get_run(run_id: str) -> dict:
     if not row:
         raise KeyError("run not found")
     return dict(row)
+
+
+def preview_run(run_id: str, *, limit: int = 20) -> dict[str, Any]:
+    """预览已生成报表产物（只读，不重新运行报表；report-export-preview §4）。
+
+    从 artifact_path 读取 parquet，返回前 limit 行（默认 20，上限 100）。
+    NaN → null（避免前端出现 "NaN"），时间列 → ISO 字符串，可直接 JSON 序列化。
+    """
+    import json
+
+    limit = max(1, min(int(limit), 100))
+    run = get_run(run_id)
+    if run.get("status") != "done":
+        raise ValueError("run not finished")
+    path = run.get("artifact_path")
+    if not path or not Path(path).exists():
+        raise FileNotFoundError("artifact missing")
+    df = pd.read_parquet(path)
+    head = df.head(limit)
+    rows = json.loads(head.to_json(orient="records"))
+    return {
+        "run_id": run_id,
+        "row_count": int(len(df)),
+        "preview_count": int(len(rows)),
+        "columns": list(head.columns),
+        "rows": rows,
+    }
 
 
 def list_runs(report_id: str | None = None, *, limit: int = 50) -> dict:
