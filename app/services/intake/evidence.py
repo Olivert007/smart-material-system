@@ -151,10 +151,13 @@ def _read_excel_best(path: Path, **kwargs):
 
 
 def _load_csv(path: Path, file_id: str) -> tuple[pd.DataFrame, int]:
+    # header=None keeps the physical header row in evidence (row 1), so that
+    # profile/header detection and map_pending see real column headers instead
+    # of the first data row's values. Matches XLSX evidence row convention.
     try:
-        df = pd.read_csv(path, dtype=str, on_bad_lines="skip")
+        df = pd.read_csv(path, dtype=str, header=None, on_bad_lines="skip")
     except UnicodeDecodeError:
-        df = pd.read_csv(path, dtype=str, encoding="gbk", on_bad_lines="skip")
+        df = pd.read_csv(path, dtype=str, header=None, encoding="gbk", on_bad_lines="skip")
     rows = []
     for i, (_, row) in enumerate(df.iterrows(), 1):
         for c, v in enumerate(row, 1):
