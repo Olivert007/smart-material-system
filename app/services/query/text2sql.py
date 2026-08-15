@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from app import config
-from app.repositories import biz_conn
+from app.repositories import biz_conn, meta_tx
 from app.services.jsonutil import json_safe
 from app.services.model_client import chat
 from app.services.sql_guard import validate_readonly_sql
@@ -137,6 +137,45 @@ def _extract_sql(text: str) -> str:
 
 
 def ask(question: str) -> dict:
+    """问数入口：执行查询并把结果（含 SQL）写入审计日志（ask_log）。
+
+    页面不再直接展示 SQL；排查走审计日志（docs optv2 问数助手 §7 后续调整）。
+    """
+    res = _ask(question)
+    _audit_ask(res)
+    return res
+
+
+def _audit_ask(res: dict) -> None:
+    """把问数请求/结果（含 SQL）落审计日志；失败不影响回答本身。"""
+    try:
+        with meta_tx() as con:
+            con.execute(
+                """
+                INSERT INTO ask_log (
+                    question, sql, source, metric_id, ok, degraded,
+                    model_state, error, latency_ms, rows
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    (res.get("question") or "")[:300],
+                    (res.get("sql") or "")[:4000] or None,
+                    res.get("source"),
+                    res.get("metric_id"),
+                    1 if res.get("ok") else 0,
+                    1 if res.get("degraded") else 0,
+                    res.get("model_state"),
+                    (res.get("error") or "")[:500] or None,
+                    res.get("latency_ms"),
+                    res.get("rows"),
+                ),
+            )
+    except Exception:
+        # 审计失败不阻断问数
+        pass
+
+
+def _ask(question: str) -> dict:
     q = (question or "").strip()
     if not q:
         return {"ok": False, "error": "empty question", "model_state": "not_attempted"}
