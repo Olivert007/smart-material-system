@@ -18,13 +18,18 @@ _STD_TO_DOMAIN: dict[str, list[str]] = {
     "asset_code": ["asset_code", "material_code"],
     "asset_name": ["asset_name", "material_name"],
     "serial_or_factory_no": ["serial_no", "serial_or_factory_no"],
+    # 金额字段：与 ALIASES['inventory'] 的 unit_cost/stock_value 对齐，
+    # 使规则字典中的「单价」等映射在 inventory 域可落地（此前 _domain_field 返回 None 被丢弃）。
+    "unit_cost": ["unit_cost"],
+    "stock_value": ["stock_value"],
 }
 
 # 0.5 种子规则：修复 stage1 映射 miss（填报人/单价 → ignore）。
 # 与 embed_recall.STD_FIELDS 别名口径一致，保证 rule-first 映射命中。
 _DEFAULT_RULES: list[dict[str, str]] = [
     {"header": "填报人", "std_field": "keeper_or_user"},
-    {"header": "单价", "std_field": "stock_value"},
+    # 单价是单位成本口径，落 unit_cost（此前误标 stock_value 且该映射无法落地）
+    {"header": "单价", "std_field": "unit_cost"},
 ]
 
 # 旧版 meta.sqlite 的 rule_dict 可能缺以下列；接口层幂等补齐，避免 500。
@@ -54,19 +59,28 @@ def ensure_rule_dict_schema(con=None) -> None:
 
 
 def ensure_seed_rules(*, actor: str = "system:seed") -> dict:
-    """幂等写入 default 域种子规则（INSERT OR IGNORE 语义）。"""
+    """幂等写入 default 域种子规则；已存在的 seed 规则自动同步最新 std_field。"""
     # schema 兜底在事务外执行，避免提前 commit 破坏 meta_tx 原子性
     ensure_rule_dict_schema()
     inserted = 0
+    updated = 0
     existing = 0
     with meta_tx() as con:
         for r in _DEFAULT_RULES:
             row = con.execute(
-                "SELECT rule_id FROM rule_dict WHERE header=? AND business_domain='default' AND std_field=?",
-                [r["header"], r["std_field"]],
+                "SELECT rule_id, std_field FROM rule_dict "
+                "WHERE header=? AND business_domain='default' AND source='seed'",
+                [r["header"]],
             ).fetchone()
             if row:
                 existing += 1
+                # 种子口径随代码演进（如 单价 stock_value→unit_cost），同步旧库
+                if row[1] != r["std_field"]:
+                    con.execute(
+                        "UPDATE rule_dict SET std_field=? WHERE rule_id=?",
+                        [r["std_field"], row[0]],
+                    )
+                    updated += 1
                 continue
             con.execute(
                 "INSERT INTO rule_dict (header, std_field, business_domain, hits, source, confirmed_by) "
@@ -74,7 +88,7 @@ def ensure_seed_rules(*, actor: str = "system:seed") -> dict:
                 [r["header"], r["std_field"], actor],
             )
             inserted += 1
-    return {"ok": True, "inserted": inserted, "existing": existing}
+    return {"ok": True, "inserted": inserted, "updated": updated, "existing": existing}
 
 
 def _domain_field(std_field: str, domain: str) -> str | None:

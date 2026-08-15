@@ -19,6 +19,10 @@ ALIASES: dict[str, dict[str, list[str]]] = {
         "custodian": ["custodian", "保管人", "领用人", "管理员"],
         "region": ["region", "区域", "域", "域描述"],
         "category": ["category", "类别", "物资种类", "物资大类", "物资大类描述"],
+        # 金额字段：quality_precheck 对含金额语义表头未映射即 block（防静默丢钱），
+        # inventory 域此前无 unit_cost/stock_value 别名，导致带「单价」的文件无法发布。
+        "unit_cost": ["unit_cost", "单价", "成本单价", "入库单价", "unit_price"],
+        "stock_value": ["stock_value", "库存金额", "金额", "库存总值"],
         # T2: ledger-export-plan §8.1（LD-1 锁定 2026-08-10）
         "opening_qty": ["opening_qty", "初始库存", "期初数量", "期初库存"],
         "min_qty": ["min_qty", "最低库存阈值", "最低库存"],
@@ -259,8 +263,8 @@ def build_domain_rows(
                     "temp_qty": None,
                     "company_wh_qty": _num(_get(data, mapping, "company_wh_qty")),
                     "age_days": None,
-                    "unit_cost": None,
-                    "stock_value": None,
+                    "unit_cost": _num(_get(data, mapping, "unit_cost")),
+                    "stock_value": _num(_get(data, mapping, "stock_value")),
                     "unit": _str(_get(data, mapping, "unit")),
                     "location": _str(_get(data, mapping, "location")),
                     "custodian": _str(_get(data, mapping, "custodian")),
