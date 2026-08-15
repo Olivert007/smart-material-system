@@ -1,35 +1,25 @@
 <template>
   <div class="govern-hub">
+    <MaterialStandardizedPanel />
+
     <el-alert
+      v-if="isNoData"
       type="info"
       :closable="false"
       show-icon
-      :title="hubTitle"
-      :description="hubDescription"
-    />
+      title="当前还没有可规整数据"
+      description="请先在「数据接入」上传原始需求表或台账，完成字段识别与暂存确认后再查看物资台账。"
+    >
+      <el-button type="primary" @click="$router.push('/intake')">去数据接入</el-button>
+    </el-alert>
 
-    <!-- Empty: no files — only CTA -->
-    <template v-if="isNoData">
-      <el-empty description="当前没有可规整数据">
-        <template #default>
-          <ol class="empty-steps">
-            <li>在「数据接入」上传原始需求表或台账</li>
-            <li>完成字段识别与暂存确认</li>
-            <li>回到本页处理待办，使数据进入可用</li>
-          </ol>
-          <el-button type="primary" @click="$router.push('/intake')">去数据接入</el-button>
-        </template>
-      </el-empty>
-    </template>
-
-    <!-- Main workbench when files exist -->
     <template v-else-if="summary">
       <el-alert
         v-if="summary.next_action"
         type="info"
         :closable="false"
         show-icon
-        :title="`下一步：${summary.next_action.label}`"
+        :title="`待处理：${summary.next_action.label}`"
         :description="summary.next_action.reason"
       >
         <el-button type="primary" plain size="small" @click="$router.push(summary.next_action.path)">
@@ -37,44 +27,37 @@
         </el-button>
       </el-alert>
 
-      <div class="summary-row" v-loading="summaryLoading">
-        <div class="scard clickable" @click="openDetailByType('map')">
-          <div class="slabel">待确认字段</div>
-          <div class="svalue">{{ summary.todos?.map_pending ?? 0 }}</div>
+      <section class="pending-bar">
+        <div class="pending-head">待处理问题</div>
+        <p class="pending-hint">不影响上方物资台账查询。需要处理字段、物资或对账问题时再展开。</p>
+        <div class="pending-chips">
+          <button class="chip" type="button" @click="openDetailByType('map')">
+            待确认字段 <strong>{{ summary.todos?.map_pending ?? 0 }}</strong>
+          </button>
+          <button class="chip" type="button" @click="openDetailByType('master')">
+            待匹配物资 <strong>{{ summary.todos?.master_pending ?? 0 }}</strong>
+          </button>
+          <button class="chip" type="button" @click="openDetailByType('reconcile')">
+            对账差异 <strong>{{ reconcileTotal }}</strong>
+          </button>
+          <button class="chip" type="button" @click="openDetailByType('flow')">
+            待解析流水 <strong>{{ summary.flow?.pending ?? 0 }}</strong>
+          </button>
+          <button class="chip warn" type="button" @click="openGateDetail">
+            指标未就绪 <strong>{{ summary.gate?.ready === false ? (summary.gate.missing || []).length : 0 }}</strong>
+          </button>
+          <button class="chip warn" type="button" @click="openDetailByType('map')">
+            待审核智能建议 <strong>{{ summary.todos?.ai_suggestion_pending ?? 0 }}</strong>
+          </button>
+          <button class="chip warn" type="button" @click="openDetailByType('exception')">
+            阻塞行 <strong>{{ summary.quality?.blocked_rows ?? 0 }}</strong>
+          </button>
+          <span class="chip ok">
+            预计可释放 <strong>{{ summary.estimated_releasable_rows ?? 0 }}</strong>
+          </span>
         </div>
-        <div class="scard clickable" @click="openDetailByType('master')">
-          <div class="slabel">待匹配物资</div>
-          <div class="svalue">{{ summary.todos?.master_pending ?? 0 }}</div>
-        </div>
-        <div class="scard clickable" @click="openDetailByType('reconcile')">
-          <div class="slabel">对账差异</div>
-          <div class="svalue">{{ reconcileTotal }}</div>
-        </div>
-        <div class="scard clickable" @click="openDetailByType('flow')">
-          <div class="slabel">待解析流水</div>
-          <div class="svalue">{{ summary.flow?.pending ?? 0 }}</div>
-        </div>
-        <div class="scard warn clickable" title="点击查看指标口径" @click="openGateDetail">
-          <div class="slabel">门禁阻断</div>
-          <div class="svalue">
-            {{ summary.gate?.ready === false ? (summary.gate.missing || []).length : 0 }}
-          </div>
-        </div>
-        <div class="scard warn clickable" @click="openDetailByType('map')">
-          <div class="slabel">待审核 AI 建议</div>
-          <div class="svalue">{{ summary.todos?.ai_suggestion_pending ?? 0 }}</div>
-        </div>
-        <div class="scard warn clickable" @click="openDetailByType('exception')">
-          <div class="slabel">阻塞行</div>
-          <div class="svalue">{{ summary.quality?.blocked_rows ?? 0 }}</div>
-        </div>
-        <div class="scard ok">
-          <div class="slabel">预计可释放</div>
-          <div class="svalue">{{ summary.estimated_releasable_rows ?? 0 }}</div>
-        </div>
-      </div>
+      </section>
 
-      <!-- Detail expands on demand -->
       <section v-if="detailOpen" class="detail-section">
         <div class="section-head">
           <h3>处理详情：{{ detailTitle }}</h3>
@@ -93,7 +76,7 @@
           :closable="false"
           show-icon
           title="发布阻断"
-          description="指标门禁尚未就绪：请先完成相关规整，再启用指标口径。"
+          description="指标口径尚未就绪：请先完成相关规整，再启用指标口径。"
         />
         <el-alert
           v-else-if="detailType === 'exception'"
@@ -101,32 +84,35 @@
           :closable="false"
           show-icon
           title="异常与阻塞"
-          description="请到「数据成果 → 阻塞数据」查看明细并回到字段/物资规整修复；忽略不等于修复。"
+          description="请到「数据成果」查看阻塞明细，并回到字段或物资待审中修复；忽略不等于修复。"
         >
           <el-button type="primary" link @click="$router.push('/data?tab=blocked')">查看阻塞数据</el-button>
         </el-alert>
-        <p class="hint">收起详情后，汇总卡片会自动刷新。</p>
+        <p class="hint">收起详情后，汇总数字会自动刷新。</p>
       </section>
 
       <el-collapse v-model="advancedOpen" class="advanced-fold">
-        <el-collapse-item title="高级能力（规则沉淀 / 出入库 / 规则资产 / 指标口径）" name="adv">
+        <el-collapse-item title="高级治理（字段 / 物资待审 / 规则 / 出入库 / 库存对账）" name="adv">
           <template v-if="advancedOpen.includes('adv')">
             <el-alert
               type="warning"
               :closable="false"
               show-icon
               title="面向治理人员"
-              description="规则变更前请先看影响预演；日常请优先处理上方待办。"
+              description="规则变更前请先看影响预演；日常请优先使用上方物资台账查询，需要处理问题时再进入本区。"
               style="margin-bottom: 10px"
             />
             <el-tabs v-model="advInner">
+              <el-tab-pane label="字段规整" name="map" />
+              <el-tab-pane label="物资待审" name="master" />
               <el-tab-pane label="规则沉淀" name="rulelearn" />
               <el-tab-pane label="出入库记录处理" name="flow" />
+              <el-tab-pane label="库存对账" name="reconcile" />
               <el-tab-pane label="规则资产" name="assets" />
               <el-tab-pane label="指标口径" name="metrics" />
             </el-tabs>
             <GovernView
-              v-if="advInner === 'rulelearn' || advInner === 'flow'"
+              v-if="['map', 'master', 'rulelearn', 'flow', 'reconcile'].includes(advInner)"
               :key="'adv-' + advInner"
               :initial-tab="advInner"
               :hide-outer-tabs="true"
@@ -149,18 +135,12 @@ import { ElMessage } from 'element-plus'
 import GovernView from '@/pages/GovernView.vue'
 import AssetsView from '@/pages/AssetsView.vue'
 import MetricsView from '@/pages/MetricsView.vue'
+import MaterialStandardizedPanel from '@/components/MaterialStandardizedPanel.vue'
 import { gateLabel } from '@/utils/gateLabels'
 import { formatApiError, flowReconcile, statsOverview, type StatsOverview } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
-
-/** 数据规整工作台：摘要卡片点击只在本页展开详情，不跳转其它治理入口 */
-const hubTitle = computed(() => '数据规整工作台')
-const hubDescription = computed(
-  () =>
-    '按优先级处理字段、物资、出入库和库存对账问题；AI 建议须人工确认后才会进入可用数据。',
-)
 
 const DETAIL_TAB_MAP: Record<string, string> = {
   map: 'map',
@@ -177,7 +157,7 @@ const summaryLoading = ref(false)
 const reconcileTotal = ref(0)
 const detailOpen = ref(false)
 const detailType = ref('')
-const advInner = ref('rulelearn')
+const advInner = ref('map')
 const advancedOpen = ref<string[]>([])
 
 const isNoData = computed(
@@ -194,12 +174,11 @@ const metricsEditable = computed(() => {
 
 const detailTitle = computed(() => {
   const t = detailType.value
-  // 规则沉淀 / 物资主数据 / 出入库记录处理等以 GovernView 内部 Tab 为准
   const inner = detailActiveTab.value || detailInnerTab.value
   const innerMap: Record<string, string> = {
     map: '字段规整',
     rulelearn: '规则沉淀',
-    master: '物资主数据',
+    master: '待处理物资',
     flow: '出入库记录处理',
     reconcile: '库存对账',
   }
@@ -207,7 +186,7 @@ const detailTitle = computed(() => {
   const map: Record<string, string> = {
     map: '字段规整',
     unit: '单位规整',
-    master: '物资规整',
+    master: '待处理物资',
     material_align: '物资对齐',
     flow: '出入库记录',
     exception: '异常与阻塞',
@@ -245,8 +224,9 @@ function typeLabel(t: string) {
 }
 
 function syncQuery() {
-  const q: Record<string, string> = {}
+  const q: Record<string, string | string[]> = { ...route.query } as Record<string, string | string[]>
   if (detailOpen.value && detailType.value) q.detail = detailType.value
+  else delete q.detail
   router.replace({ path: '/govern', query: q })
 }
 
@@ -339,24 +319,28 @@ onMounted(async () => {
 
 <style scoped>
 .govern-hub { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-.empty-steps { text-align: left; margin: 0 0 16px; padding-left: 1.2em; color: #606266; line-height: 1.8; }
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-.scard {
+.pending-bar {
   border: 1px solid var(--el-border-color);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 12px;
-  background: var(--el-bg-color);
+  background: var(--el-fill-color-blank);
 }
-.scard.warn { border-color: var(--el-color-warning-light-5); }
-.scard.ok { border-color: var(--el-color-success-light-5); }
-.scard.clickable { cursor: pointer; }
-.scard.clickable:hover { border-color: var(--el-color-primary-light-5); }
-.slabel { color: #909399; font-size: 12px; margin-bottom: 4px; }
-.svalue { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pending-head { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.pending-hint { margin: 0 0 8px; color: #909399; font-size: 12px; line-height: 1.6; }
+.pending-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #606266;
+  cursor: pointer;
+}
+.chip strong { color: #303133; font-size: 14px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.chip.warn { border-color: var(--el-color-warning-light-5); }
+.chip.ok { border-color: var(--el-color-success-light-5); cursor: default; }
+.chip:hover:not(.ok) { border-color: var(--el-color-primary-light-5); }
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -372,5 +356,5 @@ onMounted(async () => {
   background: var(--el-fill-color-blank);
 }
 .advanced-fold { margin-top: 4px; }
-.loading-box { min-height: 120px; }
+.loading-box { min-height: 80px; }
 </style>

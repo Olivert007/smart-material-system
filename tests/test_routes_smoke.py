@@ -113,6 +113,13 @@ def test_query_tables_list(client):
     assert isinstance(r.json(), list)
 
 
+def test_materials_standardized_filters(client):
+    r = client.get("/api/v1/materials/standardized/filters")
+    assert r.status_code == 200
+    body = r.json()
+    assert "categories" in body and "locations" in body
+
+
 def test_map_suggest_requires_headers(client):
     # 未带操作令牌 -> 401（docs §9.8 鉴权验收）
     r = client.post("/api/v1/govern/map-suggest", json={"headers": ["物资编码"]})

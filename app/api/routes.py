@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routers import assets, audit, files, govern, intake, metrics, ops, query, reports, stats
+from app.api.routers import assets, audit, files, govern, intake, materials, metrics, ops, query, reports, stats
 
 router = APIRouter()
 
@@ -23,5 +23,6 @@ router.include_router(metrics.router)
 router.include_router(assets.router)
 router.include_router(stats.router)
 router.include_router(reports.router)
+router.include_router(materials.router)
 router.include_router(ops.router)
 router.include_router(audit.router)
