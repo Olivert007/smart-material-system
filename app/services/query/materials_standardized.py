@@ -69,7 +69,7 @@ SELECT
   END AS category,
   NULLIF(trim(CAST(i.location AS VARCHAR)), '') AS location,
   m.spec AS spec,
-  COALESCE(m.unit, i.unit) AS unit,
+  COALESCE(NULLIF(trim(CAST(m.unit AS VARCHAR)), ''), i.unit) AS unit,
   i.stock_qty AS stock_qty,
   CASE
     WHEN i.stock_qty IS NULL THEN '未维护'

@@ -75,25 +75,25 @@
             max-height="560"
             empty-text="暂无匹配的物资数据，请调整物资种类或存放区域筛选条件"
           >
-            <el-table-column label="物资编码" min-width="120" show-overflow-tooltip>
+            <el-table-column label="物资编码" min-width="150" show-overflow-tooltip>
               <template #default="{ row }">{{ displayCode(row) }}</template>
             </el-table-column>
-            <el-table-column prop="material_name" label="物资名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="category" label="物资种类" min-width="110" show-overflow-tooltip />
-            <el-table-column label="存放区域" min-width="120" show-overflow-tooltip>
+            <el-table-column prop="material_name" label="物资名称" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="category" label="物资种类" min-width="140" show-overflow-tooltip />
+            <el-table-column label="存放区域" min-width="240" show-overflow-tooltip>
               <template #default="{ row }">{{ row.location || '—' }}</template>
             </el-table-column>
-            <el-table-column label="规格型号" min-width="120" show-overflow-tooltip>
+            <el-table-column label="规格型号" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">{{ row.spec || '—' }}</template>
             </el-table-column>
-            <el-table-column label="单位" width="80">
+            <el-table-column label="单位" min-width="90">
               <template #default="{ row }">{{ row.unit || '—' }}</template>
             </el-table-column>
-            <el-table-column label="库存数量" width="100">
+            <el-table-column label="库存数量" min-width="120">
               <template #default="{ row }">{{ row.stock_qty ?? '—' }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="90" />
-            <el-table-column label="操作" width="160" fixed="right">
+            <el-table-column prop="status" label="状态" min-width="100" />
+            <el-table-column label="操作" min-width="170">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
                 <el-button
@@ -351,4 +351,15 @@ onMounted(async () => {
 .summary-line { color: #606266; font-size: 13px; line-height: 1.7; }
 .summary-break { display: block; color: #909399; }
 .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; }
+/* 表格横向滚动条常显，窄屏时可拖动查看右侧列 */
+.table-wrap :deep(.el-scrollbar__bar.is-horizontal) {
+  display: block !important;
+  opacity: 1 !important;
+  height: 10px !important;
+  z-index: 3;
+}
+.table-wrap :deep(.el-scrollbar__bar.is-horizontal > div) {
+  height: 100%;
+  border-radius: 5px;
+}
 </style>
