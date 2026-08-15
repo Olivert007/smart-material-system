@@ -167,15 +167,17 @@ def test_filter_location_and_intersection(client):
     assert both["items"][0]["location"] == "仓库A"
 
 
-def test_keyword_name_and_code_not_internal_id(client):
+def test_keyword_name_code_and_internal_id(client):
     _seed()
     by_name = client.get("/api/v1/materials/standardized", params={"q": "电力"}).json()
     assert by_name["total"] == 2
     assert {it["material_name"] for it in by_name["items"]} == {"电力电缆"}
     by_code = client.get("/api/v1/materials/standardized", params={"q": "WH-001"}).json()
     assert by_code["total"] == 2
+    # 内部编码同样可命中：展示仍为"未维护"，但按上传时填写的编码能定位到数据行
     by_internal = client.get("/api/v1/materials/standardized", params={"q": "M-1002"}).json()
-    assert by_internal["total"] == 0
+    assert by_internal["total"] == 2
+    assert {it["material_name"] for it in by_internal["items"]} == {"绝缘胶带"}
 
 
 def test_unknown_category_ignored(client):
