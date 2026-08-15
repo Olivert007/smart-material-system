@@ -1,20 +1,14 @@
 <template>
   <div class="audit">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="审计时间线"
-      description="按业务对象筛选治理确认与写操作记录；记录仅追加。客户端不得伪造 actor。"
-    />
+    <h2 class="page-title">操作记录</h2>
     <el-card shadow="never">
       <template #header>
         <div class="head">
           <el-space wrap>
             <el-input v-model="filterRelease" clearable placeholder="发布版本" style="width: 160px" />
-            <el-input v-model="filterFile" clearable placeholder="源文件 / file_id" style="width: 180px" />
+            <el-input v-model="filterFile" clearable placeholder="源文件" style="width: 180px" />
             <el-input v-model="filterQ" clearable placeholder="关键词（规则/物资等）" style="width: 180px" />
-            <el-input v-model="filterSource" clearable placeholder="来源" style="width: 120px" />
+            <el-input v-model="filterSource" clearable placeholder="记录来源" style="width: 120px" />
             <el-input v-model="filterActor" clearable placeholder="操作者" style="width: 120px" />
             <el-button type="primary" :loading="loading" @click="load">查询</el-button>
           </el-space>
@@ -24,8 +18,8 @@
       <el-table :data="items" v-loading="loading" border size="small" empty-text="暂无记录">
         <el-table-column prop="ts" label="时间" width="170" />
         <el-table-column prop="kind" label="类型" width="120" />
-        <el-table-column prop="source" label="来源" width="120" show-overflow-tooltip />
-        <el-table-column prop="action" label="动作" width="110" />
+        <el-table-column prop="source" label="记录来源" width="120" show-overflow-tooltip />
+        <el-table-column prop="action" label="操作内容" width="110" />
         <el-table-column prop="actor" label="操作者" width="90" />
         <el-table-column prop="release_id" label="发布版本" width="140" show-overflow-tooltip />
         <el-table-column prop="file_id" label="源文件" width="140" show-overflow-tooltip />
@@ -106,6 +100,7 @@ onMounted(() => {
 
 <style scoped>
 .audit { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.page-title { font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); margin: 0; }
 .head { display: flex; justify-content: space-between; align-items: center; }
 @media (max-width: 720px) { .head :deep(.el-space) { flex-wrap: wrap; } }
 </style>
