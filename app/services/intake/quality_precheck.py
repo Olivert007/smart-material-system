@@ -316,8 +316,10 @@ def run_quality_precheck(
                     )
 
     issue_total = sum(counters.values())
-    # severity: blocking if required missing or year-like qty; warning otherwise
-    blocking = counters["missing_required"] > 0 or counters["qty_year_like"] > 0
+    # severity: blocking on required-field gaps only. Year-like qty (19xx/20xx) is a
+    # suspect-value warning — stock 2000/2024 are legal quantities and blocking them
+    # deadlocks real ledgers (维护材料 sheet qty=2000 blocked GATE_BLOCKED:QUALITY_BLOCKING).
+    blocking = counters["missing_required"] > 0
     return {
         "step": "quality_precheck",
         "source": "rule",

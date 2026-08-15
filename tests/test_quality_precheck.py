@@ -44,7 +44,8 @@ def test_missing_required_and_dup_and_qty():
     assert counts["duplicate_pk"] >= 2
     assert counts["qty_non_numeric"] >= 1
     assert counts["qty_year_like"] >= 1
-    assert q["blocking"] is True  # year-like or missing
+    # year-like / non-numeric 是疑似值告警，不再阻塞发布（真实数量如 2000/2023 合法）
+    assert q["blocking"] is False
     codes = {i["code"] for i in q["issues_sample"]}
     assert "DUPLICATE_PK" in codes
     assert "QTY_YEAR_LIKE" in codes or "QTY_NON_NUMERIC" in codes
