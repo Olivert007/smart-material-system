@@ -5,22 +5,17 @@
       :closable="false"
       show-icon
       title="数据成果"
-      description="规整明细展示已规整后的物资台账，可筛选和导出；报表与趋势基于当前业务库可用候选数据，均非正式发布。"
-    />
+      description="本页查看规整后的业务库明细、报表和趋势。按物资种类、存放区域筛选并导出，请到「数据规整」。"
+    >
+      <el-button type="primary" link @click="$router.push('/govern')">去物资台账</el-button>
+    </el-alert>
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="规整明细" name="detail" />
       <el-tab-pane label="报表导出" name="report" />
       <el-tab-pane label="趋势分析" name="trend" />
     </el-tabs>
 
-    <template v-if="tab === 'detail'">
-      <MaterialStandardizedPanel />
-      <el-collapse class="advanced-browse">
-        <el-collapse-item title="其他表浏览（高级）" name="browse">
-          <BrowseView mode="staged" />
-        </el-collapse-item>
-      </el-collapse>
-    </template>
+    <BrowseView v-if="tab === 'detail'" mode="staged" />
     <ReportsCatalog v-else-if="tab === 'report'" />
     <FlowAnalytics v-else />
   </div>
@@ -30,7 +25,6 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrowseView from '@/pages/BrowseView.vue'
-import MaterialStandardizedPanel from '@/components/MaterialStandardizedPanel.vue'
 import ReportsCatalog from '@/components/ReportsCatalog.vue'
 import FlowAnalytics from '@/components/FlowAnalytics.vue'
 
@@ -46,7 +40,23 @@ function normalizeTab(v: unknown) {
   return 'detail'
 }
 
+const LEDGER_QUERY_KEYS = ['categories', 'locations', 'q', 'page', 'page_size'] as const
+
+/** 旧的物资台账筛选链接曾挂在本页，转到数据规整正门，避免筛选项落空。 */
+function redirectLegacyLedgerQuery() {
+  const hasLedgerFilter = Boolean(route.query.categories || route.query.locations)
+  if (!hasLedgerFilter) return false
+  const next: Record<string, string> = {}
+  for (const k of LEDGER_QUERY_KEYS) {
+    const v = route.query[k]
+    if (typeof v === 'string' && v) next[k] = v
+  }
+  router.replace({ path: '/govern', query: next })
+  return true
+}
+
 const tab = ref(normalizeTab(route.query.tab))
+redirectLegacyLedgerQuery()
 
 function onTab(name: string | number) {
   const t = String(name)
@@ -64,5 +74,4 @@ watch(
 
 <style scoped>
 .data-hub { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-.advanced-browse { margin-top: 4px; }
 </style>
