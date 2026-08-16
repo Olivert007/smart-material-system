@@ -1,7 +1,5 @@
 <template>
   <div class="govern-hub">
-    <MaterialStandardizedPanel />
-
     <el-alert
       v-if="isNoData"
       type="info"
@@ -135,7 +133,6 @@ import { ElMessage } from 'element-plus'
 import GovernView from '@/pages/GovernView.vue'
 import AssetsView from '@/pages/AssetsView.vue'
 import MetricsView from '@/pages/MetricsView.vue'
-import MaterialStandardizedPanel from '@/components/MaterialStandardizedPanel.vue'
 import { gateLabel } from '@/utils/gateLabels'
 import { formatApiError, flowReconcile, statsOverview, type StatsOverview } from '@/api/client'
 

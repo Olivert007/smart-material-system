@@ -5,17 +5,19 @@
       :closable="false"
       show-icon
       title="数据成果"
-      description="本页查看规整后的业务库明细、报表和趋势。按物资种类、存放区域筛选并导出，请到「数据规整」。"
+      description="查看规整后的物资台账、明细、报表和趋势。处理待确认问题请到「数据规整」。"
     >
-      <el-button type="primary" link @click="$router.push('/govern')">去物资台账</el-button>
+      <el-button type="primary" link @click="$router.push('/govern')">去数据规整</el-button>
     </el-alert>
     <el-tabs v-model="tab" @tab-change="onTab">
+      <el-tab-pane label="物资台账" name="materials" />
       <el-tab-pane label="规整明细" name="detail" />
       <el-tab-pane label="报表导出" name="report" />
       <el-tab-pane label="趋势分析" name="trend" />
     </el-tabs>
 
-    <BrowseView v-if="tab === 'detail'" mode="staged" />
+    <MaterialStandardizedPanel v-if="tab === 'materials'" />
+    <BrowseView v-else-if="tab === 'detail'" mode="staged" />
     <ReportsCatalog v-else-if="tab === 'report'" />
     <FlowAnalytics v-else />
   </div>
@@ -27,41 +29,35 @@ import { useRoute, useRouter } from 'vue-router'
 import BrowseView from '@/pages/BrowseView.vue'
 import ReportsCatalog from '@/components/ReportsCatalog.vue'
 import FlowAnalytics from '@/components/FlowAnalytics.vue'
+import MaterialStandardizedPanel from '@/components/MaterialStandardizedPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-/** 顶层 Tab 与参考项目一致：detail=规整明细、report=报表导出、trend=趋势分析。 */
 function normalizeTab(v: unknown) {
   const s = String(v || '')
   if (s === 'trend') return 'trend'
   if (s === 'report') return 'report'
-  // 兼容旧链接：available/staged/blocked 都回到「规整明细」
-  return 'detail'
-}
-
-const LEDGER_QUERY_KEYS = ['categories', 'locations', 'q', 'page', 'page_size'] as const
-
-/** 旧的物资台账筛选链接曾挂在本页，转到数据规整正门，避免筛选项落空。 */
-function redirectLegacyLedgerQuery() {
-  const hasLedgerFilter = Boolean(route.query.categories || route.query.locations)
-  if (!hasLedgerFilter) return false
-  const next: Record<string, string> = {}
-  for (const k of LEDGER_QUERY_KEYS) {
-    const v = route.query[k]
-    if (typeof v === 'string' && v) next[k] = v
-  }
-  router.replace({ path: '/govern', query: next })
-  return true
+  if (s === 'detail' || s === 'available' || s === 'staged' || s === 'blocked') return 'detail'
+  if (s === 'materials' || s === 'material' || s === 'ledger') return 'materials'
+  if (route.query.categories || route.query.locations || route.query.q) return 'materials'
+  return 'materials'
 }
 
 const tab = ref(normalizeTab(route.query.tab))
-redirectLegacyLedgerQuery()
 
 function onTab(name: string | number) {
   const t = String(name)
   tab.value = t
-  router.replace({ path: '/data', query: { ...route.query, tab: t } })
+  const next: Record<string, string | string[]> = { ...route.query, tab: t }
+  if (t !== 'materials') {
+    delete next.categories
+    delete next.locations
+    delete next.q
+    delete next.page
+    delete next.page_size
+  }
+  router.replace({ path: '/data', query: next })
 }
 
 watch(

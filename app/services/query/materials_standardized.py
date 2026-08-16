@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from io import BytesIO
 from typing import Any
 from urllib.parse import quote
 
@@ -17,7 +18,6 @@ from fastapi.responses import Response
 
 from app import config
 from app.repositories import biz_conn
-from app.services import csv_safe
 
 STANDARD_CATEGORIES = (
     "维护材料",
@@ -121,8 +121,7 @@ def _split_csv(raw: str | None) -> list[str]:
 
 
 def parse_categories(raw: str | None) -> list[str]:
-    allowed = set(STANDARD_CATEGORIES)
-    return [c for c in _split_csv(raw) if c in allowed]
+    return _split_csv(raw)
 
 
 def parse_locations(raw: str | None) -> list[str]:
@@ -149,16 +148,14 @@ def _where(categories: list[str], locations: list[str], q: str) -> tuple[str, li
         params.extend(locations)
     if q:
         # contains() 按字面匹配，避免 % / _ 被当成 SQL LIKE 通配符扫出全表。
-        # 匹配正式编码 / 物资名称 / 内部编码（material_id）：数据中大量物资尚无正式编码
-        # （material_code 为空或与 material_id 相同 → 展示"未维护"），按内部编码可定位到行。
+        # 关键字只查业务字段：物资编码、物资名称。不按内部 material_id 检索。
         clauses.append(
             "("
             " (material_code IS NOT NULL AND contains(lower(CAST(material_code AS VARCHAR)), lower(?)))"
             " OR (material_name IS NOT NULL AND contains(lower(CAST(material_name AS VARCHAR)), lower(?)))"
-            " OR (material_id IS NOT NULL AND contains(lower(CAST(material_id AS VARCHAR)), lower(?)))"
             ")"
         )
-        params.extend([q, q, q])
+        params.extend([q, q])
     if not clauses:
         return "", params
     return " WHERE " + " AND ".join(clauses), params
@@ -213,19 +210,31 @@ def _fetch_one(con, sql: str, params: list[Any]):
 def list_filters() -> dict[str, list[str]]:
     con = biz_conn()
     try:
-        df = con.execute(
+        loc_df = con.execute(
             f"SELECT DISTINCT location FROM ({LEDGER_SQL}) t "
             "WHERE location IS NOT NULL AND trim(CAST(location AS VARCHAR)) <> '' "
             "ORDER BY location"
+        ).fetchdf()
+        cat_df = con.execute(
+            f"SELECT DISTINCT category FROM ({LEDGER_SQL}) t "
+            "WHERE category IS NOT NULL AND trim(CAST(category AS VARCHAR)) <> '' "
+            "ORDER BY category"
         ).fetchdf()
     finally:
         con.close()
     locations = [
         str(v)
-        for v in (df["location"].tolist() if len(df) else [])
+        for v in (loc_df["location"].tolist() if len(loc_df) else [])
         if v is not None and str(v).strip() not in ("", "nan", "None", "<NA>")
     ]
-    return {"categories": list(STANDARD_CATEGORIES), "locations": locations}
+    extras = [
+        str(v)
+        for v in (cat_df["category"].tolist() if len(cat_df) else [])
+        if v is not None
+        and str(v).strip() not in ("", "nan", "None", "<NA>")
+        and str(v) not in STANDARD_CATEGORIES
+    ]
+    return {"categories": list(STANDARD_CATEGORIES) + extras, "locations": locations}
 
 
 def list_standardized(
@@ -338,15 +347,42 @@ def export_standardized(
     for col in ("material_name", "category", "location", "spec", "unit", "status"):
         out[col] = out[col].map(lambda v: _export_text(v, ""))
     out.columns = [c[1] for c in EXPORT_COLUMNS]
-    out = csv_safe.sanitize_df(out)
-    content = csv_safe.csv_bom() + out.to_csv(index=False)
-    filename = f"物资规整_筛选结果_{datetime.now().strftime('%Y%m%d')}.csv"
+
+    def _xlsx_cell(v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            try:
+                if v != v:
+                    return None
+            except Exception:
+                pass
+            return v
+        s = str(v)
+        if isinstance(v, str) and v[:1] in ("=", "+", "-", "@"):
+            return "'" + v
+        if s[:1] in ("=", "+", "-", "@"):
+            return "'" + s
+        return v
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "筛选结果"
+    headers = [c[1] for c in EXPORT_COLUMNS]
+    ws.append(headers)
+    for row in out.itertuples(index=False, name=None):
+        ws.append([_xlsx_cell(v) for v in row])
+    buf = BytesIO()
+    wb.save(buf)
+    filename = f"物资台账_筛选结果_{datetime.now().strftime('%Y%m%d')}.xlsx"
     return Response(
-        content=content,
-        media_type="text/csv; charset=utf-8",
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": (
-                'attachment; filename="material_filter.csv"; '
+                'attachment; filename="material_filter.xlsx"; '
                 f"filename*=UTF-8''{quote(filename)}"
             )
         },
