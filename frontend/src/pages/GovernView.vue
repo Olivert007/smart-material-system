@@ -1,109 +1,90 @@
 <template>
   <div class="govern">
-    <el-dialog v-model="guideVisible" title="治理向导" width="520px">
-      <p>本页处理机器不确定项，按顺序操作：</p>
-      <ol>
-        <li>表头映射：确认低置信字段映射</li>
-        <li>规则学习：从阻塞明细聚合候选规则</li>
-        <li>主数据待审：合并/批准独立物料</li>
-        <li>流水解析：确认 L2/L3 拆解</li>
-        <li>库存对账：查看差异并补录（允许非零）</li>
-      </ol>
-      <template #footer>
-        <el-button type="primary" @click="closeGuide">知道了</el-button>
-      </template>
-    </el-dialog>
-
     <el-tabs v-if="!hideOuterTabs" v-model="tab" @tab-change="onTab">
       <el-tab-pane label="字段规整" name="map" />
       <el-tab-pane label="规则沉淀" name="rulelearn" />
-      <el-tab-pane label="物资规整" name="master" />
+      <el-tab-pane label="待处理物资" name="master" />
       <el-tab-pane label="出入库记录处理" name="flow" />
       <el-tab-pane label="库存对账" name="reconcile" />
     </el-tabs>
 
-    <p v-if="!hideOuterTabs" class="outer-hint">
-      数据规整待确认：机器不确定的项进队列，人工确认后才写入规则与业务库。本地模型只提案、不自动发布。
-    </p>
+    <p class="outer-hint">{{ tabHint }}</p>
 
     <template v-if="tab === 'rulelearn'">
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="规则学习候选（只提案）"
-        description="从阻塞明细聚合高频原因 → 确认历史；接受前会预演影响范围，确认后才写规则字典 / 值规则。"
-      />
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>规则学习候选</span>
+            <span>待确认规则</span>
             <el-space>
-              <el-button :loading="rlBusy" type="primary" @click="runRuleLearn">扫描阻塞明细</el-button>
+              <el-button v-if="!opsTokenReady" type="primary" @click="goLocalSettings">去本地设置</el-button>
+              <el-button v-else type="primary" @click="openCreateRule">新建规则</el-button>
+              <el-button :loading="rlBusy" :disabled="!opsTokenReady" @click="runRuleLearn">从历史问题整理</el-button>
               <el-button link type="primary" @click="loadRuleLearn">刷新</el-button>
             </el-space>
           </div>
         </template>
-        <el-table :data="rlItems" v-loading="rlLoading" border size="small" empty-text="无候选">
-          <el-table-column prop="id" label="编号" width="70" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">{{ decisionLabel(row.decision) }}</template>
+        <el-table :data="rlPendingItems" v-loading="rlLoading" border size="small" empty-text="暂无待确认规则">
+          <el-table-column label="规则内容" min-width="280">
+            <template #default="{ row }">{{ proposalLabel(row.proposal) }}</template>
           </el-table-column>
-          <el-table-column label="影响行数" width="90">
+          <el-table-column label="影响数据" width="120">
             <template #default="{ row }">{{ row.proposal?.count ?? '—' }}</template>
           </el-table-column>
-          <el-table-column label="提案" min-width="280">
-            <template #default="{ row }">
-              <span class="hint">{{ proposalLabel(row.proposal) }}</span>
-            </template>
+          <el-table-column label="建议" min-width="180">
+            <template #default="{ row }">{{ String(row.proposal?.hint || '确认后才生效') }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="260" fixed="right">
+          <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
-              <el-button
-                v-if="row.decision === 'proposed'"
-                link
-                type="primary"
-                @click="acceptRl(row)"
-              >
-                接受（先预演）
-              </el-button>
-              <el-button
-                v-if="row.decision === 'proposed'"
-                link
-                type="danger"
-                @click="rejectRl(row.id)"
-              >
-                拒绝
-              </el-button>
+              <el-button v-if="!opsTokenReady" link type="primary" @click="goLocalSettings">去本地设置</el-button>
+              <template v-else>
+                <el-button link type="primary" @click="acceptRl(row)">采用</el-button>
+                <el-button link type="danger" @click="rejectRl(row.id)">不采用</el-button>
+              </template>
             </template>
           </el-table-column>
         </el-table>
       </el-card>
+      <el-dialog v-model="createRuleVisible" title="新建规则" width="520px" destroy-on-close>
+        <el-form label-width="110px">
+          <el-form-item label="规则类型">
+            <el-select v-model="createRule.rule_type" style="width: 240px">
+              <el-option label="字段叫法规则" value="field_alias" />
+              <el-option label="数据校验规则" value="value_check" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="createRule.rule_type === 'field_alias'" label="原始表头">
+            <el-input v-model="createRule.header" placeholder="例如：物料描述" />
+          </el-form-item>
+          <el-form-item label="标准字段">
+            <el-select v-model="createRule.std_field" filterable allow-create style="width: 240px">
+              <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="createRule.rule_type === 'value_check'" label="校验方式">
+            <el-select v-model="createRule.check_type" style="width: 240px">
+              <el-option label="必须为正数" value="numeric_positive" />
+              <el-option label="不能为空" value="required" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="影响范围说明">
+            <el-input v-model="createRule.scope_note" type="textarea" :rows="2" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="createRuleVisible = false">取消</el-button>
+          <el-button type="primary" :loading="createRuleBusy" @click="submitCreateRule">写入候选</el-button>
+        </template>
+      </el-dialog>
     </template>
 
     <!-- —— 表头映射 —— -->
     <template v-else-if="tab === 'map'">
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="表头映射治理（不可自动发布）"
-        description="低置信 / 多候选 / 字典冲突进入映射待定；人工确认后回写规则字典。发布业务库仍须走规整确认门。"
-      />
-      <el-alert
-        v-if="!opsTokenReady"
-        type="error"
-        :closable="false"
-        show-icon
-        title="字段规整操作需要操作令牌"
-        description="当前只能查看字段队列。请先在系统设置填写操作令牌，再执行接受、修正或忽略。"
-      />
-
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>待确认映射队列</span>
+            <span>待确认字段</span>
             <el-space>
+              <el-button v-if="!opsTokenReady" type="primary" @click="goLocalSettings">去本地设置</el-button>
               <el-button link type="primary" @click="loadMapPending">刷新</el-button>
             </el-space>
           </div>
@@ -116,37 +97,26 @@
         >
         <el-table :data="mapPending" v-loading="mapPendingLoading" border size="small" empty-text="暂无待确认">
           <el-table-column prop="header" label="表头" min-width="120" />
-          <el-table-column label="原因" width="120">
+          <el-table-column label="原因" width="160">
             <template #default="{ row }">{{ reasonLabel(row.reason) }}</template>
           </el-table-column>
           <el-table-column label="建议" width="120">
             <template #default="{ row }">{{ stdFieldLabel(row.suggested_field) }}</template>
           </el-table-column>
-          <el-table-column prop="sheet" label="工作表" width="100" />
-          <el-table-column prop="file_id" label="文件" width="110" />
-          <el-table-column label="候选" min-width="200">
+          <el-table-column v-if="mapShowSourceCols" prop="sheet" label="工作表" width="100" />
+          <el-table-column v-if="mapShowSourceCols" prop="file_id" label="文件" width="110" />
+          <el-table-column label="处理方式" min-width="180">
             <template #default="{ row }">
-              <el-space wrap>
-                <el-tag
-                  v-for="c in (row.candidates || []).slice(0, 4)"
-                  :key="c.std_field + String(c.score)"
-                  size="small"
-                  class="cand"
-                  @click="row.suggested_field = c.std_field"
-                >
-                  {{ stdFieldLabel(c.std_field) }}{{ c.score != null ? ` ${Number(c.score).toFixed(2)}` : '' }}
-                </el-tag>
-              </el-space>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
-            <template #default="{ row }">
-              <el-select v-model="row.suggested_field" filterable allow-create size="small" style="width: 110px; margin-right: 4px">
+              <el-select v-model="row.suggested_field" filterable allow-create size="small" style="width: 160px">
+                <el-option label="忽略该表头" value="ignore" />
                 <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
               </el-select>
-              <el-button link type="success" :disabled="!opsTokenReady" @click="decideMapPending(row, 'accept')">接受</el-button>
-              <el-button link type="warning" :disabled="!opsTokenReady" @click="decideMapPending(row, 'amend')">修正</el-button>
-              <el-button link type="info" :disabled="!opsTokenReady" @click="decideMapPending(row, 'ignore')">忽略</el-button>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="{ row }">
+              <el-button v-if="!opsTokenReady" link type="primary" @click="goLocalSettings">去本地设置</el-button>
+              <el-button v-else link type="primary" @click="confirmMapRow(row)">确认处理</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -166,7 +136,7 @@
           <el-button @click="headersText = '物资编码\n物资名称\n现有数量\n库位号\n型号规格'">填入库存示例</el-button>
           <el-tag v-if="suggestMeta.state" size="small" type="info">{{ modelStateLabel(suggestMeta.state) }}</el-tag>
           <el-tag v-if="suggestMeta.invoked != null" size="small">
-            AI {{ suggestMeta.invoked ? '已调用' : '跳过' }}
+            智能建议 {{ suggestMeta.invoked ? '已调用' : '跳过' }}
           </el-tag>
           <el-tag v-if="suggestMeta.latency != null" size="small" type="warning">
             {{ suggestMeta.latency }} ms
@@ -235,19 +205,12 @@
 
     <!-- —— 主数据待审 —— -->
     <template v-else-if="tab === 'master'">
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="主数据待审（三级解析 → 人工确认）"
-        description="扫描主数据表中三级解析的独立物料入待审队列；审批/合并经写入器写业务库并记审计。冲突仅进人工，不可自动发布。"
-      />
-
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>待审队列</span>
+            <span>待处理物资</span>
             <el-space>
+              <el-button v-if="!opsTokenReady" type="primary" @click="goLocalSettings">去本地设置</el-button>
               <el-button type="primary" :loading="masterProposeBusy" :disabled="!opsTokenReady" @click="runMasterPropose">
                 扫描入队
               </el-button>
@@ -262,51 +225,75 @@
           @change="loadMasterPending"
         >
         <el-table :data="masterPending" v-loading="masterPendingLoading" border size="small" empty-text="暂无待审">
-          <el-table-column prop="material_code" label="编码" width="120" show-overflow-tooltip />
-          <el-table-column prop="material_name" label="名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="spec" label="规格" width="120" show-overflow-tooltip />
-          <el-table-column prop="match_level" label="级别" width="80" />
+          <el-table-column prop="material_code" label="物资编码" width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.material_code || '未维护' }}</template>
+          </el-table-column>
+          <el-table-column prop="material_name" label="物资名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="spec" label="规格型号" width="120" show-overflow-tooltip />
+          <el-table-column label="识别方式" width="140">
+            <template #default="{ row }">{{ parseLevelLabel(row.match_level) }}</template>
+          </el-table-column>
           <el-table-column label="冲突" width="150" show-overflow-tooltip>
             <template #default="{ row }">{{ conflictLabel(row.conflict_type) }}</template>
           </el-table-column>
-          <el-table-column prop="source_file" label="来源" width="120" show-overflow-tooltip />
-          <el-table-column label="候选" min-width="180">
+          <el-table-column label="候选" min-width="200">
             <template #default="{ row }">
-              <el-space wrap>
+              <span v-if="!(row.candidates || []).length" class="hint">暂无可合并目标</span>
+              <el-space v-else wrap>
                 <el-tag
                   v-for="c in (row.candidates || []).slice(0, 3)"
                   :key="String(c.material_id) + String(c.why)"
                   size="small"
                   class="cand"
+                  :type="row._mergeTo === c.material_id ? 'primary' : 'info'"
                   @click="row._mergeTo = c.material_id"
                 >
-                  {{ c.material_code || c.material_id }}{{ c.why ? ` · ${conflictLabel(c.why)}` : '' }}
+                  {{ candidateLabel(c) }}
                 </el-tag>
               </el-space>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
+          <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
-              <el-button link type="success" :disabled="!opsTokenReady" @click="decideMaster(row, 'approve')">批准</el-button>
-              <el-button link type="warning" :disabled="!opsTokenReady" @click="decideMaster(row, 'merge')">合并</el-button>
-              <el-button link type="info" :disabled="!opsTokenReady" @click="decideMaster(row, 'reject')">拒绝</el-button>
+              <el-button v-if="!opsTokenReady" link type="primary" @click="goLocalSettings">去本地设置</el-button>
+              <template v-else>
+                <el-button link type="success" @click="decideMaster(row, 'approve')">批准</el-button>
+                <el-button link type="primary" @click="openAmendMaster(row)">修正</el-button>
+                <el-button link type="warning" @click="decideMaster(row, 'merge')">合并</el-button>
+                <el-button link type="info" @click="decideMaster(row, 'reject')">拒绝</el-button>
+              </template>
             </template>
           </el-table-column>
         </el-table>
         </PagedTable>
       </el-card>
+      <el-dialog v-model="amendMasterVisible" title="修正物资" width="520px" destroy-on-close>
+        <el-form label-width="110px">
+          <el-form-item label="物资编码">
+            <el-input v-model="amendMaster.material_code" />
+          </el-form-item>
+          <el-form-item label="物资名称">
+            <el-input v-model="amendMaster.material_name" />
+          </el-form-item>
+          <el-form-item label="规格型号">
+            <el-input v-model="amendMaster.spec" />
+          </el-form-item>
+          <el-form-item label="单位">
+            <el-input v-model="amendMaster.unit" />
+          </el-form-item>
+          <el-form-item label="物资种类">
+            <el-input v-model="amendMaster.category" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="amendMasterVisible = false">取消</el-button>
+          <el-button type="primary" :loading="amendMasterBusy" @click="submitAmendMaster">保存并批准</el-button>
+        </template>
+      </el-dialog>
     </template>
 
     <!-- —— 流水解析 —— -->
     <template v-else-if="tab === 'flow'">
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="流水解析确认（需人工确认）"
-        description="接受/修正/忽略会回写流水拆解示例；不会直接改业务库。AI 建议仅预填，须人工确认。"
-      />
-
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
@@ -316,10 +303,9 @@
         </template>
         <el-space wrap>
           <el-tag>已发布 {{ flowStats.published_total ?? '—' }}</el-tag>
-          <el-tag>规则直出 {{ flowStats.published_by_level?.L1 ?? 0 }}</el-tag>
-          <el-tag type="warning">规则+校验 {{ flowStats.published_by_level?.L2 ?? 0 }}</el-tag>
-          <el-tag type="danger">模型兜底 {{ flowStats.published_by_level?.L3 ?? 0 }}</el-tag>
-          <el-tag>规则直出占比 {{ flowStats.l1_ratio ?? '—' }}</el-tag>
+          <el-tag>规则直接识别 {{ flowStats.published_by_level?.L1 ?? 0 }}</el-tag>
+          <el-tag type="warning">规则校验后识别 {{ flowStats.published_by_level?.L2 ?? 0 }}</el-tag>
+          <el-tag type="danger">需要人工确认 {{ flowStats.published_by_level?.L3 ?? 0 }}</el-tag>
           <el-tag type="info">待确认 {{ flowStats.pending ?? '—' }}</el-tag>
           <el-tag
             v-for="(n, lvl) in flowStats.pending_by_level || {}"
@@ -327,7 +313,7 @@
             size="small"
             type="warning"
           >
-            待确认 {{ lvl }}: {{ n }}
+            待确认 {{ parseLevelLabel(String(lvl)) }}: {{ n }}
           </el-tag>
         </el-space>
       </el-card>
@@ -346,13 +332,13 @@
               <el-select
                 v-model="flowLevelFilter"
                 clearable
-                placeholder="级别"
+                placeholder="识别方式"
                 style="width: 100px"
                 @change="onFlowFilter"
               >
-                <el-option label="L1" value="L1" />
-                <el-option label="L2" value="L2" />
-                <el-option label="L3" value="L3" />
+                <el-option label="规则直接识别" value="L1" />
+                <el-option label="规则校验后识别" value="L2" />
+                <el-option label="需要人工确认" value="L3" />
               </el-select>
               <el-input-number v-model="flowSuggestLimit" :min="1" :max="50" size="small" />
               <el-button :loading="flowLoading" @click="loadFlowPending">刷新</el-button>
@@ -363,7 +349,7 @@
                 :disabled="flowStatus !== 'pending'"
                 @click="runFlowSuggestQueue"
               >
-                队列批处理（AI建议）
+                队列批处理（智能建议）
               </el-button>
               <el-button
                 type="primary"
@@ -372,7 +358,7 @@
                 :disabled="!selectedPending.length"
                 @click="runFlowSuggestSelected"
               >
-                生成 AI 建议
+                生成智能建议
               </el-button>
               <el-button
                 type="success"
@@ -414,7 +400,9 @@
             width="42"
             :selectable="() => flowStatus === 'pending' || flowStatus === 'conflict'"
           />
-          <el-table-column prop="parse_level" label="级别" width="70" />
+          <el-table-column label="识别方式" width="140">
+            <template #default="{ row }">{{ parseLevelLabel(row.parse_level) }}</template>
+          </el-table-column>
           <el-table-column label="方向" width="70">
             <template #default="{ row }">{{ flowTypeLabel(row.flow_type) }}</template>
           </el-table-column>
@@ -425,7 +413,7 @@
               <span class="mono">{{ summarizeSuggest(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="AI状态" width="90">
+          <el-table-column label="建议状态" width="90">
             <template #default="{ row }">{{ modelStateLabel(row.llm_state) }}</template>
           </el-table-column>
           <el-table-column label="角色" width="70">
@@ -471,7 +459,9 @@
           </div>
         </template>
         <el-table :data="flowExamples" v-loading="examplesLoading" size="small" border>
-          <el-table-column prop="level" label="级别" width="70" />
+          <el-table-column label="识别方式" width="140">
+            <template #default="{ row }">{{ parseLevelLabel(String(row.level)) }}</template>
+          </el-table-column>
           <el-table-column prop="text_norm" label="原文归一" min-width="220" show-overflow-tooltip />
           <el-table-column prop="hits" label="命中" width="70" />
           <el-table-column prop="confirmed_by" label="确认人" width="120" />
@@ -506,11 +496,11 @@
           <el-form-item label="用途">
             <el-input v-model="amendForm.purpose" />
           </el-form-item>
-          <el-form-item label="级别">
-            <el-select v-model="amendForm.parse_level" style="width: 140px">
-              <el-option label="L1" value="L1" />
-              <el-option label="L2" value="L2" />
-              <el-option label="L3" value="L3" />
+          <el-form-item label="识别方式">
+            <el-select v-model="amendForm.parse_level" style="width: 180px">
+              <el-option label="规则直接识别" value="L1" />
+              <el-option label="规则校验后识别" value="L2" />
+              <el-option label="需要人工确认" value="L3" />
             </el-select>
           </el-form-item>
           <el-form-item label="备注">
@@ -526,32 +516,22 @@
 
     <!-- —— 库存对账 —— -->
     <template v-else>
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        title="库存对账（允许非零）"
-        :description="reconcileAlertDesc"
-      />
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>差异清单 · 共 {{ reconcileTotal }} 行，当前展示前 {{ reconcileItems.length }} 行（阈值 {{ reconcileThreshold }}）</span>
+            <span>差异清单 · 共 {{ reconcileTotal }} 行</span>
             <el-space>
-              <el-button :loading="reconcileLoading" @click="loadReconcile">刷新（只读）</el-button>
-              <el-button :loading="openingSeedBusy" @click="seedOpening">期初种子（仅库存无流水）</el-button>
+              <el-button :loading="reconcileLoading" @click="loadReconcile">刷新</el-button>
+              <el-button :loading="openingSeedBusy" @click="seedOpening">补期初库存</el-button>
               <el-button type="primary" :loading="reconcilePersistBusy" @click="persistReconcile">
-                重算并落库
+                保存结果
               </el-button>
-              <el-tooltip content="仅导出当前展示的明细行" placement="top">
-                <el-button :disabled="!reconcileItems.length" @click="exportReconcile">
-                  导出 CSV（{{ reconcileItems.length }} 行）
-                </el-button>
-              </el-tooltip>
+              <el-button :disabled="!reconcileItems.length" @click="exportReconcile">
+                导出当前结果
+              </el-button>
             </el-space>
           </div>
         </template>
-        <p v-if="reconcileFormulaBiz" class="hint">{{ reconcileFormulaBiz }}</p>
         <el-row :gutter="12" style="margin-bottom: 12px">
           <el-col v-for="c in reconcileCards" :key="c.key" :span="6">
             <el-card shadow="never" body-style="padding: 12px">
@@ -575,7 +555,9 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column prop="material_id" label="物料编号" min-width="160" show-overflow-tooltip />
+          <el-table-column label="物资" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.material_name || row.material_code || '未维护' }}</template>
+          </el-table-column>
           <el-table-column prop="stock_qty" label="库存" width="90" />
           <el-table-column prop="opening_qty" label="期初" width="90" />
           <el-table-column prop="expected_net" label="库存−期初" width="110" />
@@ -617,22 +599,24 @@ import {
   proposeRuleLearn,
   listRuleLearnCandidates,
   confirmRuleLearn,
+  createRuleLearnCandidate,
   type FlowPendingItem,
   type FlowReconcileItem,
   type MapPendingItem,
   type MasterPendingItem,
 } from '@/api/client'
+import { parseLevelLabel } from '@/utils/parseLevel'
 
 const router = useRouter()
 
 /** 治理确认成功后提示，并带"去台账浏览验证"快捷链接（ledger-browse LB-3.3）。 */
-function notifyBrowse(title: string, table: string) {
+function notifyBrowse(title: string, _table?: string) {
   ElNotification({
     title,
     message: h(
       ElLink,
-      { type: 'primary', underline: false, onClick: () => router.push(`/browse?table=${table}`) },
-      () => '去台账浏览验证',
+      { type: 'primary', underline: false, onClick: () => router.push('/data?tab=materials') },
+      () => '去数据成果查看',
     ),
     type: 'success',
     duration: 4500,
@@ -647,13 +631,14 @@ type Row = {
 
 const props = withDefaults(
   defineProps<{ initialTab?: string; hideOuterTabs?: boolean }>(),
-  { initialTab: 'map', hideOuterTabs: true },
+  { initialTab: 'map', hideOuterTabs: false },
 )
 
 const emit = defineEmits<{ (e: 'tab-change', tab: string): void }>()
 
 const tab = ref(props.initialTab || 'map')
-const guideVisible = ref(false)
+
+const TOKEN_HINT = '请先到本地设置点击「一键启用本地验证」'
 
 /** 操作令牌是否就绪（响应式：页面 focus / storage 变化时刷新）。 */
 const opsTokenReady = ref(Boolean(localStorage.getItem('ops_token')))
@@ -662,11 +647,28 @@ function refreshTokenState() {
 }
 window.addEventListener('focus', refreshTokenState)
 window.addEventListener('storage', refreshTokenState)
+window.addEventListener('ops-settings-changed', refreshTokenState)
 
-function closeGuide() {
-  guideVisible.value = false
-  localStorage.setItem('govern_guide_seen', '1')
+function goLocalSettings() {
+  router.push({ path: '/system', query: { tab: 'settings' } })
 }
+
+function requireOpsToken() {
+  if (opsTokenReady.value) return true
+  ElMessage.warning(TOKEN_HINT)
+  return false
+}
+
+const tabHint = computed(() => {
+  const map: Record<string, string> = {
+    map: '确认系统不确定的字段。',
+    rulelearn: '采用后变成后续可复用规则。',
+    master: '批准、修正、合并或拒绝候选物资。',
+    flow: '审核无法自动确认的出入库记录。',
+    reconcile: '查看库存与流水差异，必要时补期初库存或保存结果。',
+  }
+  return map[tab.value] || '处理完成后刷新数量。'
+})
 
 const headersText = ref('')
 const rows = ref<Row[]>([])
@@ -685,6 +687,19 @@ const rlItems = ref<
 >([])
 const rlLoading = ref(false)
 const rlBusy = ref(false)
+const createRuleVisible = ref(false)
+const createRuleBusy = ref(false)
+const createRule = reactive({
+  rule_type: 'field_alias' as 'field_alias' | 'value_check',
+  header: '',
+  std_field: '',
+  check_type: 'numeric_positive',
+  scope_note: '',
+})
+const rlPendingItems = computed(() => rlItems.value.filter((x) => x.decision === 'proposed'))
+const mapShowSourceCols = computed(() =>
+  mapPending.value.some((r) => Boolean(r.sheet) || Boolean(r.file_id)),
+)
 const mapPending = ref<MapPendingItem[]>([])
 const mapPendingTotal = ref(0)
 const mapPendingLoading = ref(false)
@@ -697,6 +712,16 @@ const masterPendingLoading = ref(false)
 const masterPage = ref(1)
 const masterPageSize = ref(20)
 const masterProposeBusy = ref(false)
+const amendMasterVisible = ref(false)
+const amendMasterBusy = ref(false)
+const amendMasterRow = ref<(MasterPendingItem & { _mergeTo?: string }) | null>(null)
+const amendMaster = reactive({
+  material_code: '',
+  material_name: '',
+  spec: '',
+  unit: '',
+  category: '',
+})
 
 const flowStatus = ref('pending')
 const flowLevelFilter = ref<string | undefined>()
@@ -736,13 +761,9 @@ const amendForm = reactive({
 
 const reconcileItems = ref<FlowReconcileItem[]>([])
 const reconcileTotal = ref(0)
-const reconcileThreshold = ref(0.01)
 const reconcileLoading = ref(false)
 const reconcilePersistBusy = ref(false)
 const openingSeedBusy = ref(false)
-const reconcileFormula = ref('')
-const reconcileNote = ref('')
-const reconcileClassHint = ref('')
 const reconcileByClass = ref<Record<string, number>>({})
 
 const reconcileCards = computed(() => [
@@ -751,11 +772,6 @@ const reconcileCards = computed(() => [
   { key: 'mismatch', label: '两边有但不符', value: reconcileByClass.value.mismatch ?? 0 },
   { key: 'opening', label: '期初已填行', value: reconcileByClass.value.opening_populated_rows ?? 0 },
 ])
-
-const reconcileAlertDesc = computed(() => {
-  const base = reconcileNoteBiz(reconcileNote.value)
-  return reconcileClassHint.value ? `${base} ${reconcileClassHint.value}` : base
-})
 
 function gapClassLabel(cls: string) {
   const map: Record<string, string> = {
@@ -792,14 +808,8 @@ function applyReconcilePayload(res: {
 }) {
   reconcileItems.value = res.items || []
   reconcileTotal.value = res.total
-  reconcileThreshold.value = res.threshold
-  reconcileFormula.value = res.formula || ''
-  reconcileNote.value = res.note || ''
   const bc = res.by_class || {}
   reconcileByClass.value = { ...bc, opening_populated_rows: res.opening_populated_rows ?? 0 }
-  reconcileClassHint.value =
-    `分类 库存有流水无=${bc.inv_only ?? 0} / 流水有库存无=${bc.flow_only ?? 0} / 两边有但不符=${bc.mismatch ?? 0}` +
-    ` · 编码交集=${res.material_id_overlap ?? '?'} · 期初已填行=${res.opening_populated_rows ?? '?'}`
 }
 
 function parseHeaders(text: string): string[] {
@@ -830,9 +840,9 @@ function modelStateLabel(s?: string | null) {
     embed_high_confidence: '高置信匹配',
     local_model_unavailable: '本地模型不可用',
     circuit_open: '模型熔断',
-    llm_analysis_available: 'AI 分析成功',
-    llm_output_invalid: 'AI 输出无效',
-    llm_invocation_failed: 'AI 调用失败',
+    llm_analysis_available: '智能建议成功',
+    llm_output_invalid: '智能建议输出无效',
+    llm_invocation_failed: '智能建议调用失败',
     fallback: '降级方案',
     none: '未运行',
     queued: '排队中',
@@ -863,9 +873,8 @@ function conflictLabel(c?: string | null) {
 function reasonLabel(r?: string | null) {
   const map: Record<string, string> = {
     conflict: '冲突',
-    multi_candidate: '多候选',
-    low_confidence: '低置信',
-    unmapped: '未映射',
+    multi_candidate: '存在多个候选',
+    low_confidence: '匹配置信度低',
   }
   return map[String(r ?? '')] || String(r ?? '—')
 }
@@ -923,29 +932,6 @@ function decisionLabel(d: string) {
   return map[d] || d
 }
 
-/** 库存对账说明业务化：不暴露 PoC / 接口路径等技术文案。 */
-function reconcileNoteBiz(note: string) {
-  const base =
-    'Σ入−Σ出 ≟ 库存−期初；缺期初按 0 处理。差异是常态，本页用于可见、可导出、可补录，不自动轧平。'
-  if (!note) return base
-  return (
-    String(note)
-      .replace(/PoC:\s*/g, '')
-      .replace(/via POST \S+\.?/g, '')
-      .replace(/missing opening_qty treated as 0/g, '缺期初按 0 处理')
-      .trim() || base
-  )
-}
-
-/** 库存对账公式业务化显示。 */
-const reconcileFormulaBiz = computed(() => {
-  if (!reconcileFormula.value) return ''
-  return reconcileFormula.value
-    .replace(/flow_net\(ΣIN−ΣOUT\)/, '流水净额(Σ入−Σ出)')
-    .replace(/COALESCE\(opening_qty,\s*0\)/g, '期初(缺省按0)')
-    .replace(/stock_qty/g, '库存')
-})
-
 function summarizeSuggest(row: FlowPendingItem): string {
   const s = (row.suggested || {}) as Record<string, unknown>
   const qty = s.quantity
@@ -988,7 +974,7 @@ async function loadRuleLearn() {
 
 async function runRuleLearn() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   rlBusy.value = true
@@ -1003,16 +989,49 @@ async function runRuleLearn() {
   }
 }
 
+function openCreateRule() {
+  if (!requireOpsToken()) return
+  createRule.rule_type = 'field_alias'
+  createRule.header = ''
+  createRule.std_field = ''
+  createRule.check_type = 'numeric_positive'
+  createRule.scope_note = ''
+  createRuleVisible.value = true
+}
+
+async function submitCreateRule() {
+  createRuleBusy.value = true
+  try {
+    await createRuleLearnCandidate({
+      rule_type: createRule.rule_type,
+      header: createRule.header,
+      std_field: createRule.std_field,
+      check_type: createRule.check_type,
+      scope_note: createRule.scope_note,
+    })
+    createRuleVisible.value = false
+    ElMessage.success('已写入待确认规则')
+    await loadRuleLearn()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    createRuleBusy.value = false
+  }
+}
+
 async function acceptRl(row: { id: number; proposal?: Record<string, unknown> }) {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   let std_field: string | undefined
   const kind = row.proposal?.kind
   if (kind === 'map_alias') {
-    std_field = window.prompt('确认映射到 std_field', String(row.proposal?.suggested_std_field || '')) || undefined
-    if (!std_field) return
+    std_field = String(row.proposal?.suggested_std_field || row.proposal?.std_field || '')
+    if (!std_field) {
+      ElMessage.warning('请先在新建规则时填写标准字段')
+      return
+    }
   }
   let previewNote = ''
   try {
@@ -1033,8 +1052,8 @@ async function acceptRl(row: { id: number; proposal?: Record<string, unknown> })
   }
   try {
     await ElMessageBox.confirm(
-      `接受该规则候选？\n${previewNote}`,
-      '规则变更影响预演',
+      `采用该规则？\n${previewNote}`,
+      '确认采用',
       { type: 'warning' },
     )
   } catch {
@@ -1042,7 +1061,7 @@ async function acceptRl(row: { id: number; proposal?: Record<string, unknown> })
   }
   try {
     await confirmRuleLearn(row.id, { decision: 'accepted', std_field })
-    ElMessage.success('已接受')
+    ElMessage.success('已采用')
     await loadRuleLearn()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1051,12 +1070,12 @@ async function acceptRl(row: { id: number; proposal?: Record<string, unknown> })
 
 async function rejectRl(id: number) {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   try {
     await confirmRuleLearn(id, { decision: 'rejected' })
-    ElMessage.success('已拒绝')
+    ElMessage.success('未采用')
     await loadRuleLearn()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1099,35 +1118,37 @@ async function runEnqueue() {
   }
 }
 
-async function decideMapPending(row: MapPendingItem, decision: 'accept' | 'amend' | 'ignore') {
-  if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
-    return
-  }
-  if (decision === 'amend' && !row.suggested_field) {
-    ElMessage.warning('修正请先选择标准字段')
-    return
-  }
+async function confirmMapRow(row: MapPendingItem) {
+  if (!requireOpsToken()) return
+  const ignore = !row.suggested_field || row.suggested_field === 'ignore'
+  const msg = ignore
+    ? `确认处理「${row.header}」？将忽略该表头。`
+    : `确认处理「${row.header}」→ ${stdFieldLabel(row.suggested_field)}？`
   try {
-    await ElMessageBox.confirm(
-      `${decisionLabel(decision)}「${row.header}」→ ${decision === 'ignore' ? '忽略' : stdFieldLabel(row.suggested_field)}？仅写规则字典。`,
-      '映射确认门',
-      { type: 'warning' },
-    )
+    await ElMessageBox.confirm(msg, '确认处理', { type: 'warning' })
   } catch {
     return
   }
   try {
     await confirmMapPending({
       pending_id: row.pending_id,
-      decision,
-      std_field: decision === 'ignore' ? 'ignore' : row.suggested_field || undefined,
+      decision: ignore ? 'ignore' : 'accept',
+      std_field: ignore ? 'ignore' : row.suggested_field || undefined,
     })
-    ElMessage.success('已确认映射，已写入规则字典')
+    ElMessage.success('已确认处理')
     await Promise.all([loadMapPending(), loadRules()])
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   }
+}
+
+function candidateLabel(c: { material_code?: string; material_name?: string }) {
+  const code = (c.material_code || '').trim()
+  const name = (c.material_name || '').trim()
+  if (code && name) return `${code} · ${name}`
+  if (name) return name
+  if (code) return code
+  return '未维护编码'
 }
 
 async function loadMasterPending() {
@@ -1138,10 +1159,7 @@ async function loadMasterPending() {
       limit: masterPageSize.value,
       offset: (masterPage.value - 1) * masterPageSize.value,
     })
-    masterPending.value = (res.items || []).map((i) => ({
-      ...i,
-      _mergeTo: i.candidates?.[0]?.material_id,
-    }))
+    masterPending.value = (res.items || []).map((i) => ({ ...i }))
     masterPendingTotal.value = res.total
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1152,7 +1170,7 @@ async function loadMasterPending() {
 
 async function runMasterPropose() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   masterProposeBusy.value = true
@@ -1172,14 +1190,22 @@ async function decideMaster(
   decision: 'approve' | 'reject' | 'merge',
 ) {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   if (decision === 'merge' && !row._mergeTo && !(row.candidates || []).length) {
-    ElMessage.warning('合并需要候选目标 material_id')
+    ElMessageBox.alert(
+      '当前没有可合并的候选物资。信息有误请点「修正」，确认是新物资请点「批准」，不需要则点「拒绝」。',
+      '无法合并',
+      { type: 'info' },
+    )
     return
   }
-  const label = row.material_name || row.material_code || row.material_id || row.pending_id
+  if (decision === 'merge' && !row._mergeTo) {
+    ElMessage.warning('请先选择要合并到的候选物资')
+    return
+  }
+  const label = row.material_name || row.material_code || '未维护编码'
   try {
     await ElMessageBox.confirm(
       `${decisionLabel(decision)}「${label}」？将经写入器写业务库。`,
@@ -1199,6 +1225,47 @@ async function decideMaster(
     await loadMasterPending()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
+  }
+}
+
+function openAmendMaster(row: MasterPendingItem & { _mergeTo?: string }) {
+  if (!requireOpsToken()) return
+  amendMasterRow.value = row
+  amendMaster.material_code = String(row.material_code || '')
+  amendMaster.material_name = String(row.material_name || '')
+  amendMaster.spec = String(row.spec || '')
+  amendMaster.unit = String(row.unit || '')
+  amendMaster.category = String(row.category || '')
+  amendMasterVisible.value = true
+}
+
+async function submitAmendMaster() {
+  const row = amendMasterRow.value
+  if (!row) return
+  if (!amendMaster.material_name.trim() && !amendMaster.material_code.trim()) {
+    ElMessage.warning('至少填写物资名称或物资编码')
+    return
+  }
+  amendMasterBusy.value = true
+  try {
+    await confirmMasterPending({
+      pending_id: row.pending_id,
+      decision: 'approve',
+      material_patch: {
+        material_code: amendMaster.material_code.trim(),
+        material_name: amendMaster.material_name.trim(),
+        spec: amendMaster.spec.trim(),
+        unit: amendMaster.unit.trim(),
+        category: amendMaster.category.trim(),
+      },
+    })
+    amendMasterVisible.value = false
+    notifyBrowse('已修正并批准', 'dim_material')
+    await loadMasterPending()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    amendMasterBusy.value = false
   }
 }
 
@@ -1238,7 +1305,7 @@ async function runSuggest() {
 
 async function runConfirm() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   if (!rows.value.length) return
@@ -1336,7 +1403,7 @@ async function decideOne(
   overwrite = false,
 ) {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   flowBatchBusy.value = true
@@ -1366,7 +1433,7 @@ async function decideOne(
 
 async function batchAccept() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   const ids = selectedPending.value.map((x) => x.pending_id)
@@ -1409,13 +1476,13 @@ async function batchAccept() {
 
 async function batchIgnore() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   const ids = selectedPending.value.map((x) => x.pending_id)
   if (!ids.length) return
   try {
-    await ElMessageBox.confirm(`批量忽略 ${ids.length} 条？写入 L3 负例。`, '批量忽略', {
+    await ElMessageBox.confirm(`批量忽略 ${ids.length} 条？记录为需要人工确认的负例。`, '批量忽略', {
       type: 'warning',
     })
   } catch {
@@ -1443,7 +1510,7 @@ async function batchIgnore() {
 
 async function runFlowSuggestSelected() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   flowSuggestBusy.value = true
@@ -1454,7 +1521,7 @@ async function runFlowSuggestSelected() {
       const res = await suggestFlowPending({ pending_id: row.pending_id })
       if (res && (res as { ok?: boolean }).ok) ok += 1
     }
-    ElMessage.success(`AI 建议完成 ${ok}/${selectedPending.value.length}`)
+    ElMessage.success(`智能建议完成 ${ok}/${selectedPending.value.length}`)
     await loadFlowPending()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1465,7 +1532,7 @@ async function runFlowSuggestSelected() {
 
 async function runFlowSuggestQueue() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   const limit = flowSuggestLimit.value
@@ -1512,7 +1579,7 @@ function openAmend(row: FlowPendingItem) {
 async function submitAmend() {
   if (!amendRow.value) return
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   const qtyRaw = amendForm.quantity.trim()
@@ -1567,7 +1634,7 @@ async function loadReconcile() {
 
 async function seedOpening() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   try {
@@ -1600,7 +1667,7 @@ async function seedOpening() {
 
 async function persistReconcile() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在设置页填写操作令牌')
+    ElMessage.warning(TOKEN_HINT)
     return
   }
   try {
@@ -1651,7 +1718,7 @@ function exportReconcile() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `flow_reconcile_${Date.now()}.csv`
+  a.download = `库存对账_当前结果.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -1666,7 +1733,6 @@ watch(
 )
 
 onMounted(async () => {
-  if (!props.hideOuterTabs && !localStorage.getItem('govern_guide_seen')) guideVisible.value = true
   try {
     const sf = await listStdFields()
     stdFields.value = sf.fields
@@ -1680,6 +1746,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('focus', refreshTokenState)
   window.removeEventListener('storage', refreshTokenState)
+  window.removeEventListener('ops-settings-changed', refreshTokenState)
 })
 </script>
 

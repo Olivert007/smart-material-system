@@ -91,9 +91,9 @@ echarts.use([
 
 /** 发布级别业务含义（评审 §9）：可见内容只展示业务语义，不裸展示 L1/L2/L3。 */
 const LEVEL_LABEL: Record<string, string> = {
-  L1: '规则直出（L1）',
-  L2: '规则 + 校验（L2）',
-  L3: '模型兜底或人工治理（L3）',
+  L1: '规则直接识别',
+  L2: '规则校验后识别',
+  L3: '需要人工确认',
 }
 
 const loading = ref(true)
@@ -113,7 +113,7 @@ const charts: echarts.ECharts[] = []
 const levelNote = computed(() => {
   const lv = level.value
   if (!lv?.items?.length) return ''
-  const base = '可信级别含义：L1 规则直出；L2 规则 + 校验；L3 模型兜底或人工治理后发布。'
+  const base = '识别方式：规则直接识别、规则校验后识别、需要人工确认。'
   if (lv.items.length === 1 && lv.total) {
     return `${base} 当前全部为 ${lv.items[0].name}，因此占比图只有一个扇区。`
   }

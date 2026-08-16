@@ -74,6 +74,7 @@ function onStorage() {
 onMounted(async () => {
   window.addEventListener('ops-auth-required', onAuthRequired)
   window.addEventListener('storage', onStorage)
+  window.addEventListener('ops-settings-changed', onStorage)
   try {
     const h = await healthReady()
     systemReady.value = h.status === 'ready'
@@ -85,6 +86,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('ops-auth-required', onAuthRequired)
   window.removeEventListener('storage', onStorage)
+  window.removeEventListener('ops-settings-changed', onStorage)
 })
 </script>
 
