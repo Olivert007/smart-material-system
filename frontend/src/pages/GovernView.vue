@@ -1,14 +1,14 @@
 <template>
   <div class="govern">
     <el-tabs v-if="!hideOuterTabs" v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="字段规整" name="map" />
-      <el-tab-pane label="规则沉淀" name="rulelearn" />
-      <el-tab-pane label="待处理物资" name="master" />
-      <el-tab-pane label="出入库记录处理" name="flow" />
-      <el-tab-pane label="库存对账" name="reconcile" />
+      <el-tab-pane label="待确认字段" name="map" />
+      <el-tab-pane label="待确认规则" name="rulelearn" />
+      <el-tab-pane label="待匹配物资" name="master" />
+      <el-tab-pane label="待解析流水" name="flow" />
+      <el-tab-pane label="对账差异" name="reconcile" />
     </el-tabs>
 
-    <p class="outer-hint">{{ tabHint }}</p>
+    <p v-if="tabHint && !hideOuterTabs" class="outer-hint">{{ tabHint }}</p>
 
     <template v-if="tab === 'rulelearn'">
       <el-card shadow="never">
@@ -208,7 +208,7 @@
       <el-card shadow="never">
         <template #header>
           <div class="result-head">
-            <span>待处理物资</span>
+            <span>待匹配物资</span>
             <el-space>
               <el-button v-if="!opsTokenReady" type="primary" @click="goLocalSettings">去本地设置</el-button>
               <el-button type="primary" :loading="masterProposeBusy" :disabled="!opsTokenReady" @click="runMasterPropose">
@@ -634,7 +634,14 @@ const props = withDefaults(
   { initialTab: 'map', hideOuterTabs: false },
 )
 
-const emit = defineEmits<{ (e: 'tab-change', tab: string): void }>()
+const emit = defineEmits<{
+  (e: 'tab-change', tab: string): void
+  (e: 'queue-changed'): void
+}>()
+
+function notifyQueueChanged() {
+  emit('queue-changed')
+}
 
 const tab = ref(props.initialTab || 'map')
 
@@ -667,7 +674,7 @@ const tabHint = computed(() => {
     flow: '审核无法自动确认的出入库记录。',
     reconcile: '查看库存与流水差异，必要时补期初库存或保存结果。',
   }
-  return map[tab.value] || '处理完成后刷新数量。'
+  return map[tab.value] || ''
 })
 
 const headersText = ref('')
@@ -872,7 +879,9 @@ function conflictLabel(c?: string | null) {
 /** 表头映射原因显示名。 */
 function reasonLabel(r?: string | null) {
   const map: Record<string, string> = {
-    conflict: '冲突',
+    unmapped: '未匹配到标准字段',
+    conflict: '与已有规则冲突',
+    dict_conflict: '与已有规则冲突',
     multi_candidate: '存在多个候选',
     low_confidence: '匹配置信度低',
   }
@@ -982,6 +991,7 @@ async function runRuleLearn() {
     const out = await proposeRuleLearn({ min_count: 2 })
     ElMessage.success(`扫描 ${out.scanned_groups} 组，新建 ${out.created}`)
     await loadRuleLearn()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1012,6 +1022,7 @@ async function submitCreateRule() {
     createRuleVisible.value = false
     ElMessage.success('已写入待确认规则')
     await loadRuleLearn()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1063,6 +1074,7 @@ async function acceptRl(row: { id: number; proposal?: Record<string, unknown> })
     await confirmRuleLearn(row.id, { decision: 'accepted', std_field })
     ElMessage.success('已采用')
     await loadRuleLearn()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   }
@@ -1077,6 +1089,7 @@ async function rejectRl(id: number) {
     await confirmRuleLearn(id, { decision: 'rejected' })
     ElMessage.success('未采用')
     await loadRuleLearn()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   }
@@ -1111,6 +1124,7 @@ async function runEnqueue() {
     ElMessage.success(`已入队 ${res.enqueued} 条低置信/冲突项`)
     hint.value = res.hint || hint.value
     await loadMapPending()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1137,6 +1151,7 @@ async function confirmMapRow(row: MapPendingItem) {
     })
     ElMessage.success('已确认处理')
     await Promise.all([loadMapPending(), loadRules()])
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   }
@@ -1178,6 +1193,7 @@ async function runMasterPropose() {
     const res = await proposeMasterPending(500)
     ElMessage.success(`扫描 ${res.scanned}，入队 ${res.enqueued}，刷新 ${res.refreshed}`)
     await loadMasterPending()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1223,6 +1239,7 @@ async function decideMaster(
     })
     notifyBrowse('已确认', 'dim_material')
     await loadMasterPending()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   }
@@ -1262,6 +1279,7 @@ async function submitAmendMaster() {
     amendMasterVisible.value = false
     notifyBrowse('已修正并批准', 'dim_material')
     await loadMasterPending()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1424,6 +1442,7 @@ async function decideOne(
       )
     }
     await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1467,6 +1486,7 @@ async function batchAccept() {
     ElMessage.success(`完成：接受 ${ok}/${ids.length}` + (conflict ? `，冲突 ${conflict}` : ''))
     notifyBrowse('已回写，可到台账验证', 'fact_stock_flow')
     await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1501,6 +1521,7 @@ async function batchIgnore() {
     }
     ElMessage.success(`已忽略 ${ok}/${ids.length}`)
     await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1613,6 +1634,7 @@ async function submitAmend() {
     ElMessage.success('已修正并回写示例')
     amendVisible.value = false
     await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1658,6 +1680,7 @@ async function seedOpening() {
     const res = await flowOpeningSeed(false)
     ElMessage.success(`已写入期初 ${res.updated ?? 0} 行`)
     await loadReconcile()
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1684,6 +1707,7 @@ async function persistReconcile() {
     const res = await flowReconcilePersist()
     applyReconcilePayload(res)
     notifyBrowse(`已落库 ${res.total} 条差异`, 'fact_stock_flow')
+    notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
