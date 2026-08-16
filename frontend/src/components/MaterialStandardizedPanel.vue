@@ -1,57 +1,48 @@
 <template>
-  <div class="std-panel">
-    <div class="page-head">
-      <div>
-        <h2 class="title">物资规整</h2>
-        <p class="desc">展示已规整的物资台账，可按物资种类、存放区域筛选，并导出当前筛选结果。</p>
-      </div>
-      <el-space wrap>
-        <el-button :loading="loading" @click="load">刷新</el-button>
+  <div class="material-panel">
+    <div class="filters">
+      <el-select
+        v-model="categories"
+        multiple
+        collapse-tags
+        collapse-tags-tooltip
+        clearable
+        placeholder="物资种类：全部"
+        class="filter-select"
+      >
+        <el-option v-for="c in categoryOptions" :key="c" :label="c" :value="c" />
+      </el-select>
+      <el-select
+        v-model="locations"
+        multiple
+        collapse-tags
+        collapse-tags-tooltip
+        clearable
+        filterable
+        placeholder="存放区域：全部"
+        class="filter-select"
+      >
+        <el-option v-for="loc in locationOptions" :key="loc" :label="loc" :value="loc" />
+      </el-select>
+      <el-input
+        v-model="keyword"
+        clearable
+        placeholder="请输入物资编码或物资名称"
+        class="keyword"
+        @keyup.enter="onSearch"
+      />
+      <el-button type="primary" @click="onSearch">查询</el-button>
+      <el-button @click="onReset">重置</el-button>
+    </div>
+
+    <div class="panel-head">
+      <h3 class="result-title">筛选结果</h3>
+      <div class="result-meta">
+        <span>当前共查询到 {{ result?.total ?? 0 }} 条物资记录</span>
         <el-button type="primary" plain :loading="exporting" @click="onExport">导出筛选结果</el-button>
-      </el-space>
-    </div>
-
-    <el-card shadow="never" class="filter-card">
-      <div class="filter-bar">
-        <el-select
-          v-model="categories"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          clearable
-          placeholder="物资种类（默认全部）"
-          class="filter-item"
-        >
-          <el-option v-for="c in categoryOptions" :key="c" :label="c" :value="c" />
-        </el-select>
-        <el-select
-          v-model="locations"
-          multiple
-          collapse-tags
-          collapse-tags-tooltip
-          clearable
-          filterable
-          placeholder="存放区域（默认全部）"
-          class="filter-item"
-        >
-          <el-option v-for="loc in locationOptions" :key="loc" :label="loc" :value="loc" />
-        </el-select>
-        <el-input
-          v-model="keyword"
-          clearable
-          placeholder="请输入物资编码或物资名称"
-          class="filter-keyword"
-          @keyup.enter="onSearch"
-        />
-        <el-button type="primary" @click="onSearch">查询</el-button>
-        <el-button @click="onReset">重置</el-button>
       </div>
-    </el-card>
-
-    <div class="summary-line">
-      当前共查询到 {{ result?.total ?? 0 }} 条物资记录
-      <span v-if="categorySummaryText" class="summary-break">{{ categorySummaryText }}</span>
     </div>
+    <div v-if="categorySummaryText" class="summary-break">{{ categorySummaryText }}</div>
 
     <el-card shadow="never">
       <el-empty
@@ -102,7 +93,7 @@
                   :disabled="!canTrace(row)"
                   @click="goTrace(row)"
                 >
-                  追溯来源
+                  追溯
                 </el-button>
               </template>
             </el-table-column>
@@ -126,7 +117,7 @@
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
         <el-button type="primary" :disabled="!detailRow || !canTrace(detailRow)" @click="detailRow && goTrace(detailRow)">
-          追溯来源
+          追溯
         </el-button>
       </template>
     </el-dialog>
@@ -143,7 +134,7 @@ import {
   exportMaterialStandardized,
   formatApiError,
   listMaterialStandardized,
-  listMaterialStandardizedFilters,
+  materialStandardizedFilters,
   MATERIAL_CATEGORIES,
   type MaterialStandardizedItem,
   type MaterialStandardizedResult,
@@ -169,21 +160,17 @@ const detailVisible = ref(false)
 const detailRow = ref<MaterialStandardizedItem | null>(null)
 
 const categorySummaryText = computed(() => {
-  const rows = result.value?.summary?.by_category || []
+  const rows = (result.value?.summary?.by_category || []).filter((r) => r.count > 0)
   if (!rows.length) return ''
-  return rows.map((r) => `${r.category}${r.count}条`).join('/')
+  return rows.map((r) => `物资种类 ${r.category} ${r.count} 条`).join(' / ')
 })
 
 function displayCode(row: MaterialStandardizedItem) {
-  // 优先正式编码；未维护时回退内部编码（material_id / asset_code），避免整列"未维护"
   const s = (row.material_code || '').trim()
-  if (s) return s
-  const internal = (row.material_id || '').trim()
-  return internal || '未维护'
+  return s || '未维护'
 }
 
 function canTrace(row: MaterialStandardizedItem) {
-  // 有发布版本或源文件即可追溯（来源概览）；无 row_key 时仅看来源，不显示行级证据
   return Boolean(row.source_release_id || row.source_file)
 }
 
@@ -200,9 +187,7 @@ function applyForm() {
 }
 
 function readQuery() {
-  categories.value = csvList(route.query.categories).filter((c) =>
-    categoryOptions.value.includes(c),
-  )
+  categories.value = csvList(route.query.categories)
   locations.value = csvList(route.query.locations)
   keyword.value = typeof route.query.q === 'string' ? route.query.q : ''
   applyForm()
@@ -214,6 +199,7 @@ function readQuery() {
 
 function syncQuery() {
   const q: Record<string, string | string[]> = { ...route.query } as Record<string, string | string[]>
+  if (route.path === '/data') q.tab = 'materials'
   if (appliedCategories.value.length) q.categories = appliedCategories.value.join(',')
   else delete q.categories
   if (appliedLocations.value.length) q.locations = appliedLocations.value.join(',')
@@ -229,7 +215,7 @@ function syncQuery() {
 
 async function loadFilters() {
   try {
-    const f = await listMaterialStandardizedFilters()
+    const f = await materialStandardizedFilters()
     if (f.categories?.length) categoryOptions.value = f.categories
     locationOptions.value = f.locations || []
   } catch (e: unknown) {
@@ -288,7 +274,7 @@ async function onExport() {
   }
   try {
     await ElMessageBox.confirm(
-      `当前筛选条件共查询到【${total}】条物资记录，确认导出表格文件？`,
+      `当前筛选条件共查询到【${total}】条物资记录，确认导出电子表格？`,
       '导出确认',
       { type: 'info', confirmButtonText: '导出', cancelButtonText: '取消' },
     )
@@ -341,17 +327,32 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.std-panel { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 100%; }
-.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.title { margin: 0; font-size: 18px; font-weight: 600; }
-.desc { margin: 6px 0 0; color: #606266; font-size: 13px; line-height: 1.6; }
-.filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.filter-item { width: 240px; max-width: 100%; }
-.filter-keyword { width: 280px; max-width: 100%; }
-.summary-line { color: #606266; font-size: 13px; line-height: 1.7; }
-.summary-break { display: block; color: #909399; }
+.material-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.filter-select { width: 240px; max-width: 100%; }
+.keyword { width: 280px; max-width: 100%; }
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.result-title { margin: 0; font-size: 16px; font-weight: 600; }
+.result-meta { display: flex; align-items: center; gap: 12px; color: #606266; font-size: 13px; }
+.summary-break { color: #909399; font-size: 13px; }
 .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; }
-/* 表格横向滚动条常显，窄屏时可拖动查看右侧列 */
 .table-wrap :deep(.el-scrollbar__bar.is-horizontal) {
   display: block !important;
   opacity: 1 !important;
@@ -361,5 +362,15 @@ onMounted(async () => {
 .table-wrap :deep(.el-scrollbar__bar.is-horizontal > div) {
   height: 100%;
   border-radius: 5px;
+}
+@media (max-width: 720px) {
+  .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .filter-select,
+  .keyword {
+    width: 100%;
+  }
 }
 </style>

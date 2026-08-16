@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
 from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 from app.main import app
 from app.workers import intake_worker
@@ -128,7 +130,7 @@ def test_default_lists_all(client):
     assert "GJ-01" in codes
     assert "M-1001" not in codes
     assert "M-1002" not in codes
-    assert None in codes  # 无正式编码 → material_code 为空，前端回退展示内部编码
+    assert None in codes  # 无正式编码 → material_code 为空，前端展示「未维护」
     tape = next(it for it in body["items"] if it["material_name"] == "绝缘胶带")
     assert tape["material_code"] is None
     assert tape["material_id"] == "M-1002"
@@ -168,26 +170,31 @@ def test_filter_location_and_intersection(client):
     assert both["items"][0]["location"] == "仓库A"
 
 
-def test_keyword_name_code_and_internal_id(client):
+def test_keyword_name_and_code_not_internal_id(client):
     _seed()
     by_name = client.get("/api/v1/materials/standardized", params={"q": "电力"}).json()
     assert by_name["total"] == 2
     assert {it["material_name"] for it in by_name["items"]} == {"电力电缆"}
     by_code = client.get("/api/v1/materials/standardized", params={"q": "WH-001"}).json()
     assert by_code["total"] == 2
-    # 内部编码同样可命中：material_code 为空但按上传时填写的内部编码可定位到数据行
     by_internal = client.get("/api/v1/materials/standardized", params={"q": "M-1002"}).json()
-    assert by_internal["total"] == 2
-    assert {it["material_name"] for it in by_internal["items"]} == {"绝缘胶带"}
+    assert by_internal["total"] == 0
 
 
-def test_unknown_category_ignored(client):
+def test_unknown_category_returns_empty_intersection(client):
     _seed()
     r = client.get("/api/v1/materials/standardized", params={"categories": "不存在,维护材料"})
     assert r.status_code == 200
     body = r.json()
-    assert body["filters"]["categories"] == ["维护材料"]
+    assert body["filters"]["categories"] == ["不存在", "维护材料"]
     assert body["total"] == 3
+    assert {it["category"] for it in body["items"]} == {"维护材料"}
+
+
+def _xlsx_rows(content: bytes) -> list[tuple]:
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    return list(ws.iter_rows(values_only=True))
 
 
 def test_export_follows_filter_and_rejects_empty(client):
@@ -197,18 +204,19 @@ def test_export_follows_filter_and_rejects_empty(client):
         params={"categories": "备品备件", "locations": "仓库A"},
     )
     assert ok.status_code == 200, ok.text[:300]
-    assert "text/csv" in ok.headers.get("content-type", "")
+    assert "spreadsheetml" in ok.headers.get("content-type", "")
     disp = unquote(ok.headers.get("content-disposition") or "")
-    assert f"物资规整_筛选结果_{datetime.now().strftime('%Y%m%d')}" in disp
-    text = ok.text.lstrip("\ufeff")
-    header, *rows = text.splitlines()
-    assert header.startswith("物资编码")
+    assert f"物资台账_筛选结果_{datetime.now().strftime('%Y%m%d')}" in disp
+    rows = _xlsx_rows(ok.content)
+    header = [str(x) for x in rows[0]]
+    assert header[0] == "物资编码"
     assert "物资名称" in header and "存放区域" in header
     assert "material_id" not in header and "row_key" not in header
-    assert len(rows) == 1
-    assert "内部编码物资" in rows[0]
-    assert "未维护" in rows[0]
-    assert "M-1003" not in rows[0]
+    assert len(rows) == 2
+    values = " ".join(str(c) for c in rows[1])
+    assert "内部编码物资" in values
+    assert "未维护" in values
+    assert "M-1003" not in values
 
     empty = client.get(
         "/api/v1/materials/standardized/export",
@@ -222,9 +230,11 @@ def test_export_formula_injection_and_no_internal_id(client):
     _seed()
     r = client.get("/api/v1/materials/standardized/export", params={"locations": "=CMD"})
     assert r.status_code == 200
-    text = r.text.lstrip("\ufeff")
-    assert "'=CMD" in text
-    assert "M-1002" not in text.splitlines()[0]
+    rows = _xlsx_rows(r.content)
+    header = [str(x) for x in rows[0]]
+    assert "M-1002" not in header
+    loc_idx = header.index("存放区域")
+    assert any(str(row[loc_idx] or "").startswith("'=") for row in rows[1:])
 
 
 def test_sort_whitelist_ignores_injection(client):
@@ -296,8 +306,8 @@ def test_locations_or_and_export_count_matches(client):
         params={"locations": "仓库A,车间1区"},
     )
     assert exp.status_code == 200
-    rows = exp.text.lstrip("\ufeff").splitlines()[1:]
-    assert len(rows) == listed["total"]
+    rows = _xlsx_rows(exp.content)
+    assert len(rows) - 1 == listed["total"]
 
 
 def test_orphan_inventory_and_asset_without_code(client):
@@ -356,10 +366,11 @@ def test_e2e_browse_filter_export_flow(client):
         params={"categories": "维护材料", "q": "电缆"},
     )
     assert exp.status_code == 200
-    header, *rows = exp.text.lstrip("\ufeff").splitlines()
+    rows = _xlsx_rows(exp.content)
+    header = [str(x) for x in rows[0]]
     assert "物资编码" in header
     assert "source_release_id" not in header
-    assert len(rows) == 2
+    assert len(rows) - 1 == 2
     empty = client.get(
         "/api/v1/materials/standardized/export",
         params={"categories": "维护材料", "q": "不存在的物资"},

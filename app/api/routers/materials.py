@@ -46,7 +46,7 @@ def export_standardized(
     sort_by: str | None = None,
     sort_order: str | None = None,
 ):
-    """按当前筛选条件导出 CSV（白名单字段 + 公式注入防护）。0 条拒绝导出。"""
+    """按当前筛选条件导出 xlsx（白名单字段 + 公式注入防护）。0 条拒绝导出。"""
     return svc.export_standardized(
         categories=categories,
         locations=locations,

@@ -1683,7 +1683,7 @@ export const MATERIAL_CATEGORIES = ['维护材料', '低值易耗品', '备品�
 
 export type MaterialStandardizedItem = {
   material_code: string | null
-  /** 内部编码（material_id / asset_code），无正式编码时用于展示兜底 */
+  /** 内部编码，仅追溯使用，表格不展示 */
   material_id?: string | null
   material_name: string
   category: string
@@ -1732,13 +1732,21 @@ function materialQueryString(q: MaterialStandardizedQuery, withPage = true) {
 }
 
 /** 物资种类 / 存放区域筛选项。 */
-export async function listMaterialStandardizedFilters() {
+export async function materialStandardizedFilters() {
   return apiJson<{ categories: string[]; locations: string[] }>('/materials/standardized/filters')
 }
+
+/** @deprecated 使用 materialStandardizedFilters */
+export const listMaterialStandardizedFilters = materialStandardizedFilters
 
 /** 已规整物资台账分页浏览。 */
 export async function listMaterialStandardized(q: MaterialStandardizedQuery = {}) {
   return apiJson<MaterialStandardizedResult>(`/materials/standardized${materialQueryString(q)}`)
+}
+
+/** 导出 URL，复用同一套筛选参数。 */
+export function materialStandardizedExportUrl(q: MaterialStandardizedQuery = {}) {
+  return `${API_BASE}/materials/standardized/export${materialQueryString(q, false)}`
 }
 
 function filenameFromDisposition(header: string | null, fallback: string) {
@@ -1760,7 +1768,7 @@ export async function exportMaterialStandardized(q: MaterialStandardizedQuery = 
   const headers = new Headers()
   headers.set('X-Request-ID', newRequestId())
   for (const [k, v] of Object.entries(opsHeaders())) headers.set(k, v)
-  const res = await fetch(`${API_BASE}/materials/standardized/export${materialQueryString(q, false)}`, {
+  const res = await fetch(materialStandardizedExportUrl(q), {
     headers,
   })
   if (!res.ok) {
@@ -1777,7 +1785,7 @@ export async function exportMaterialStandardized(q: MaterialStandardizedQuery = 
   const blob = await res.blob()
   const filename = filenameFromDisposition(
     res.headers.get('content-disposition'),
-    '物资规整_筛选结果.csv',
+    '物资台账_筛选结果.xlsx',
   )
   downloadBlob(blob, filename)
 }
