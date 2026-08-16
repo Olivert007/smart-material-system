@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="系统运维"
-      description="面向运维：查看系统运行状态、本地模型可用性与本地体验配置。指标口径请到「数据规整 → 高级能力」；血缘与审计请使用「追溯审计」。"
+      description="面向运维：查看系统运行状态、本地模型可用性与本地体验配置。指标口径可从数据规整的门禁阻断进入；血缘与审计请使用「追溯审计」。"
     />
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="系统状态" name="ops" />
