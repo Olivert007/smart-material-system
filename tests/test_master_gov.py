@@ -152,6 +152,28 @@ def test_reject_marks_dim() -> None:
     assert row[0] == "L3_rejected" and row[1] == "master_reject"
 
 
+def test_approve_applies_material_patch() -> None:
+    _seed()
+    propose_from_dim()
+    listed = list_pending(status="pending")
+    pid = next(i["pending_id"] for i in listed["items"] if i["material_id"] == "L3_NEW")
+    res = confirm_pending(
+        pending_id=pid,
+        decision="approve",
+        actor="tester",
+        material_patch={"material_code": "C900-FIX", "material_name": "修正后物料"},
+    )
+    assert res["ok"] and res["status"] == "approved"
+    con = writer_conn()
+    try:
+        row = con.execute(
+            "SELECT material_code, material_name FROM dim_material WHERE material_id='L3_NEW'"
+        ).fetchone()
+    finally:
+        con.close()
+    assert row[0] == "C900-FIX" and row[1] == "修正后物料"
+
+
 def main() -> None:
     test_propose_enqueues_l3_with_conflict()
     print("OK propose")

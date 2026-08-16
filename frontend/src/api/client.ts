@@ -759,6 +759,13 @@ export async function confirmMasterPending(body: {
   decision: 'approve' | 'reject' | 'merge'
   note?: string
   merge_to_material_id?: string
+  material_patch?: {
+    material_code?: string
+    material_name?: string
+    spec?: string
+    unit?: string
+    category?: string
+  }
 }) {
   return apiJson<{
     ok: boolean
@@ -1150,7 +1157,7 @@ export async function proposeRuleLearn(opts?: { limit?: number; min_count?: numb
   })
 }
 
-export async function listRuleLearnCandidates(limit = 50) {
+export async function listRuleLearnCandidates(limit = 50, status = 'proposed') {
   return apiJson<{
     total: number
     items: Array<{
@@ -1160,7 +1167,20 @@ export async function listRuleLearnCandidates(limit = 50) {
       note?: string
       created_at?: string
     }>
-  }>(`/govern/rule-learn/candidates?limit=${limit}`)
+  }>(`/govern/rule-learn/candidates?limit=${limit}&status=${encodeURIComponent(status)}`)
+}
+
+export async function createRuleLearnCandidate(body: {
+  rule_type: 'field_alias' | 'value_check'
+  header?: string
+  std_field?: string
+  check_type?: string
+  scope_note?: string
+}) {
+  return apiJson<{ ok: boolean; id: number; decision: string; proposal?: Record<string, unknown> }>(
+    '/govern/rule-learn/candidates',
+    { method: 'POST', body: JSON.stringify(body) },
+  )
 }
 
 export async function confirmRuleLearn(

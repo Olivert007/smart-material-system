@@ -39,6 +39,7 @@ from app.api.routers._schemas import (
     ReleaseDiffBody,
     ReleaseSupersedeBody,
     RuleLearnConfirmBody,
+    RuleLearnCreateBody,
     RuleLearnProposeBody,
     TodoDecisionBody,
     ValueRuleBody,
@@ -293,6 +294,7 @@ def master_pending_confirm(body: MasterConfirmBody, actor: str = Depends(require
             actor=actor,
             note=body.note,
             merge_to_material_id=body.merge_to_material_id,
+            material_patch=body.material_patch,
         )
     except KeyError:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "pending not found"})
@@ -466,10 +468,28 @@ def govern_rule_learn_propose(
 
 
 @router.get("/govern/rule-learn/candidates")
-def govern_rule_learn_candidates(limit: int = 50):
+def govern_rule_learn_candidates(limit: int = 50, status: str = "proposed"):
     from app.services import rule_learn as rl
 
-    return rl.list_candidates(limit=limit)
+    return rl.list_candidates(limit=limit, status=status)
+
+
+@router.post("/govern/rule-learn/candidates")
+def govern_rule_learn_create(body: RuleLearnCreateBody, actor: str = Depends(require_ops)):
+    from app.services import rule_learn as rl
+
+    try:
+        return rl.create_candidate(
+            rule_type=body.rule_type,
+            header=body.header,
+            std_field=body.std_field,
+            check_type=body.check_type,
+            scope_note=body.scope_note,
+            domain=body.domain,
+            actor=actor,
+        )
+    except ValueError as e:
+        raise HTTPException(400, detail={"code": "INVALID", "message": str(e)}) from e
 
 
 @router.post("/govern/rule-learn/{confirm_id}/confirm")
