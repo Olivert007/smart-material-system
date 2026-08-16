@@ -109,18 +109,31 @@ def propose_from_blocked(*, limit: int = 50, min_count: int = 2) -> dict[str, An
     }
 
 
-def list_candidates(*, limit: int = 50) -> dict[str, Any]:
+def list_candidates(*, limit: int = 50, status: str = "proposed") -> dict[str, Any]:
+    status = (status or "").strip() or "proposed"
     with meta_tx() as con:
-        rows = con.execute(
-            """
-            SELECT id, source, detail, decision, note, actor, created_at
-            FROM govern_confirm
-            WHERE source='rule_learn'
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            [max(1, min(limit, 200))],
-        ).fetchall()
+        if status == "all":
+            rows = con.execute(
+                """
+                SELECT id, source, detail, decision, note, actor, created_at
+                FROM govern_confirm
+                WHERE source='rule_learn'
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                [max(1, min(limit, 200))],
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT id, source, detail, decision, note, actor, created_at
+                FROM govern_confirm
+                WHERE source='rule_learn' AND decision=?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                [status, max(1, min(limit, 200))],
+            ).fetchall()
     items = []
     for r in rows:
         d = dict(r)
@@ -130,6 +143,61 @@ def list_candidates(*, limit: int = 50) -> dict[str, Any]:
             d["proposal"] = {}
         items.append(d)
     return {"total": len(items), "items": items}
+
+
+def create_candidate(
+    *,
+    rule_type: str,
+    header: str = "",
+    std_field: str = "",
+    check_type: str = "",
+    scope_note: str = "",
+    domain: str = "inventory",
+    actor: str = "ops",
+) -> dict[str, Any]:
+    """Manually create a proposed rule candidate. Does not write formal rules."""
+    kind_map = {"field_alias": "map_alias", "value_check": "value_rule", "map_alias": "map_alias", "value_rule": "value_rule"}
+    kind = kind_map.get((rule_type or "").strip())
+    if not kind:
+        raise ValueError("规则类型无效")
+    header = (header or "").strip()
+    std_field = (std_field or "").strip()
+    check_type = (check_type or "").strip()
+    domain = (domain or "inventory").strip() or "inventory"
+    note = (scope_note or "").strip()
+    if kind == "map_alias":
+        if not header or not std_field:
+            raise ValueError("字段叫法规则需要填写原始表头和标准字段")
+        proposal = {
+            "kind": kind,
+            "domain": domain,
+            "header": header,
+            "suggested_std_field": std_field,
+            "count": 0,
+            "hint": note or "手动新建，确认后才生效",
+        }
+    else:
+        if not std_field:
+            raise ValueError("数据校验规则需要填写标准字段")
+        proposal = {
+            "kind": kind,
+            "domain": domain,
+            "std_field": std_field,
+            "check_type": check_type or "numeric_positive",
+            "severity": "block",
+            "count": 0,
+            "hint": note or "手动新建，确认后才生效",
+        }
+    with meta_tx() as con:
+        con.execute(
+            """
+            INSERT INTO govern_confirm (source, detail, decision, note, actor)
+            VALUES ('rule_learn', ?, 'proposed', ?, ?)
+            """,
+            [json.dumps(proposal, ensure_ascii=False), note[:200], actor],
+        )
+        rid = con.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+    return {"ok": True, "id": rid, "decision": "proposed", "proposal": proposal}
 
 
 def confirm_candidate(

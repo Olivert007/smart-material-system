@@ -248,11 +248,21 @@ def confirm_pending(
     actor: str,
     note: str = "",
     merge_to_material_id: str | None = None,
+    material_patch: dict | None = None,
 ) -> dict[str, Any]:
     """approve | reject | merge — biz write only via writer."""
     decision = (decision or "").strip().lower()
     if decision not in ("approve", "reject", "merge"):
         raise ValueError("decision must be approve|reject|merge")
+
+    patch_keys = ("material_code", "material_name", "spec", "unit", "category")
+    patch: dict[str, Any] = {}
+    if material_patch:
+        for k in patch_keys:
+            if k in material_patch and material_patch[k] is not None:
+                patch[k] = str(material_patch[k]).strip()
+        if patch and not (patch.get("material_name") or patch.get("material_code")):
+            raise ValueError("修正时至少填写物资名称或物资编码")
 
     with meta_tx() as con:
         _ensure_table(con)
@@ -264,6 +274,8 @@ def confirm_pending(
         if row["status"] != "pending":
             raise RuntimeError(f"invalid status: {row['status']}")
         drow = dict(row)
+        if patch and decision == "approve":
+            drow.update(patch)
 
     applied = None
     new_status = "rejected"

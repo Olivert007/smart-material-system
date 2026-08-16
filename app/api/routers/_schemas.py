@@ -147,6 +147,7 @@ class MasterConfirmBody(BaseModel):
     decision: str  # approve | reject | merge
     note: str = ""
     merge_to_material_id: str | None = None
+    material_patch: dict | None = None
 
 
 class ReleaseDiffBody(BaseModel):
@@ -189,6 +190,15 @@ class ReportRunBody(BaseModel):
 class RuleLearnProposeBody(BaseModel):
     limit: int = 50
     min_count: int = 2
+
+
+class RuleLearnCreateBody(BaseModel):
+    rule_type: str  # field_alias | value_check
+    header: str = ""
+    std_field: str = ""
+    check_type: str = ""
+    scope_note: str = ""
+    domain: str = "inventory"
 
 
 class RuleLearnConfirmBody(BaseModel):
