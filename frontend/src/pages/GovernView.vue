@@ -1718,7 +1718,7 @@ function exportReconcile() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `库存对账_当前结果.xlsx`
+  a.download = `库存对账_当前结果.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
