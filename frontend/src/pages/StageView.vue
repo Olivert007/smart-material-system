@@ -453,7 +453,7 @@ async function refreshPlan() {
 
 async function runConfirmPlan(force: boolean) {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在系统设置填写操作令牌')
+    ElMessage.warning('请先到本地设置点击「一键启用本地验证」')
     return
   }
   try {
@@ -515,7 +515,7 @@ async function runAnalyze() {
 
 async function runConfirm() {
   if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning('请先在系统设置填写操作令牌')
+    ElMessage.warning('请先到本地设置点击「一键启用本地验证」')
     return
   }
   if (!staging.value) {

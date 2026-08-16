@@ -80,7 +80,7 @@
         <el-descriptions :column="3" border size="small">
           <el-descriptions-item label="物资编码">{{ data.material.material_code || '—' }}</el-descriptions-item>
           <el-descriptions-item label="物资名称">{{ data.material.material_name || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="匹配级别">{{ data.material.match_level || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="匹配方式">{{ parseLevelLabel(String(data.material.match_level || '')) }}</el-descriptions-item>
         </el-descriptions>
       </template>
 
@@ -100,6 +100,7 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatApiError, getRowEvidence, type RowEvidence } from '@/api/client'
 import { fileStatusLabel } from '@/utils/dataStates'
+import { parseLevelLabel } from '@/utils/parseLevel'
 
 const props = defineProps<{ releaseId: string; rowKey: string }>()
 defineEmits<{ (e: 'close'): void }>()

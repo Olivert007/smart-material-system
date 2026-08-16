@@ -97,7 +97,9 @@
           @change="loadFlow"
         >
           <el-table :data="flowItems" v-loading="loading" border size="small">
-            <el-table-column prop="level" label="级别" width="70" />
+            <el-table-column label="识别方式" width="140">
+              <template #default="{ row }">{{ parseLevelLabel(row.level) }}</template>
+            </el-table-column>
             <el-table-column prop="text_norm" label="原文归一" min-width="220" show-overflow-tooltip />
             <el-table-column label="结构化" min-width="220">
               <template #default="{ row }">
@@ -254,6 +256,7 @@ import {
   ruleDictPreview,
   type RuleDictPreview,
 } from '@/api/client'
+import { parseLevelLabel } from '@/utils/parseLevel'
 
 const tab = ref('rules')
 const loading = ref(false)

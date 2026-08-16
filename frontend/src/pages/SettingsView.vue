@@ -20,11 +20,12 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="save">保存到本机</el-button>
+        <el-button type="primary" @click="enableLocalVerify">一键启用本地验证</el-button>
+        <el-button @click="save">保存到本机</el-button>
         <el-button @click="clear">清除</el-button>
       </el-form-item>
     </el-form>
-    <p class="hint">运维：全部写操作 · 治理：治理确认 · 接入：接入/发布 · 只读：只读。客户端 payload 不得定义 actor 或授权范围。</p>
+    <p class="hint">请先到本地设置点击「一键启用本地验证」，返回数据规整后即可验证完整处理流程。若后端配置了自定义操作令牌，请填写真实令牌，不要使用默认开发令牌。</p>
   </div>
 </template>
 
@@ -32,6 +33,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
+const LOCAL_DEV_TOKEN = 'dev-ops-token-change-me'
 const token = ref('')
 const role = ref('viewer')
 
@@ -40,9 +42,21 @@ onMounted(() => {
   role.value = localStorage.getItem('ops_role') || 'viewer'
 })
 
-function save() {
+function persist() {
   localStorage.setItem('ops_token', token.value.trim())
   localStorage.setItem('ops_role', role.value)
+  window.dispatchEvent(new Event('ops-settings-changed'))
+}
+
+function enableLocalVerify() {
+  token.value = LOCAL_DEV_TOKEN
+  role.value = 'ops'
+  persist()
+  ElMessage.success('已启用本地验证，可返回数据规整处理问题')
+}
+
+function save() {
+  persist()
   ElMessage.success('已保存到本机浏览器')
 }
 
@@ -51,6 +65,7 @@ function clear() {
   localStorage.removeItem('ops_role')
   token.value = ''
   role.value = 'viewer'
+  window.dispatchEvent(new Event('ops-settings-changed'))
   ElMessage.success('已清除')
 }
 </script>
