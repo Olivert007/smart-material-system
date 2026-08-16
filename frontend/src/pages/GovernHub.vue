@@ -1,14 +1,11 @@
 <template>
   <div class="govern-hub">
     <div class="page-head">
-      <div>
-        <h2 class="title">数据规整</h2>
-        <p class="desc">处理新数据中的待确认问题。完整结果在数据成果查看。</p>
-      </div>
-      <el-space wrap>
-        <el-button type="primary" plain @click="$router.push('/data?tab=materials')">查看物资台账</el-button>
+      <p class="desc">处理新数据里还没确认的问题。</p>
+      <div class="head-actions">
+        <el-button text type="primary" @click="$router.push('/data?tab=materials')">查看物资台账</el-button>
         <el-button :loading="summaryLoading" @click="loadAll">刷新</el-button>
-      </el-space>
+      </div>
     </div>
 
     <el-alert
@@ -23,48 +20,80 @@
     </el-alert>
 
     <template v-else-if="summary">
-      <section class="pending-bar">
-        <div class="pending-head">待处理问题</div>
-        <p class="pending-hint">点击卡片进入处理。</p>
-        <div class="pending-chips">
-          <button class="chip" type="button" @click="openDetailByType('map')">
-            待确认字段 <strong>{{ summary.todos?.map_pending ?? 0 }}</strong>
-          </button>
-          <button class="chip" type="button" @click="openDetailByType('master')">
-            待匹配物资 <strong>{{ summary.todos?.master_pending ?? 0 }}</strong>
-          </button>
-          <button class="chip" type="button" @click="openDetailByType('flow')">
-            待解析流水 <strong>{{ summary.flow?.pending ?? 0 }}</strong>
-          </button>
-          <button class="chip" type="button" @click="openDetailByType('reconcile')">
-            对账差异 <strong>{{ reconcileTotal }}</strong>
-          </button>
-          <button class="chip warn" type="button" @click="openDetailByType('release_blocker')">
-            门禁阻断 <strong>{{ gateMissing }}</strong>
+      <section class="queue">
+        <p v-if="!activeItems.length" class="all-clear">当前没有待处理问题。</p>
+        <div v-if="activeItems.length" class="work-grid">
+          <button
+            v-for="item in activeItems"
+            :key="item.id"
+            class="work-card"
+            :class="{
+              primary: item.primary,
+              'is-open': isOpen(item.id),
+              warn: item.warn,
+            }"
+            type="button"
+            :aria-pressed="isOpen(item.id)"
+            @click="openDetailByType(item.id)"
+          >
+            <div class="work-name">{{ item.label }}</div>
+            <div class="work-count">{{ item.count }}</div>
+            <p class="work-hint">{{ item.hint }}</p>
+            <span v-if="item.primary" class="work-cta">去处理</span>
           </button>
         </div>
-        <p class="pending-foot">处理完成后刷新数量；完整结果在数据成果查看。</p>
+        <div v-if="idleItems.length" class="idle-row">
+          <span class="idle-label">其余队列</span>
+          <button
+            v-for="item in idleItems"
+            :key="item.id"
+            class="idle-chip"
+            :class="{ 'is-open': isOpen(item.id) }"
+            type="button"
+            @click="openDetailByType(item.id)"
+          >
+            {{ item.label }} 0
+          </button>
+        </div>
       </section>
 
       <section v-if="detailVisible" ref="detailPanel" class="detail-section">
         <div class="section-head">
-          <h3>处理详情：{{ detailTitle }}</h3>
+          <h3 v-if="!showFieldFamilyTabs">{{ detailTitle }}</h3>
+          <div v-else class="family-tabs">
+            <button
+              class="family-tab"
+              :class="{ on: activeGovernTab === 'map' }"
+              type="button"
+              @click="openDetailByType('map')"
+            >
+              待确认字段
+            </button>
+            <button
+              class="family-tab"
+              :class="{ on: activeGovernTab === 'rulelearn' }"
+              type="button"
+              @click="openDetailByType('rulelearn')"
+            >
+              待确认规则
+            </button>
+          </div>
           <el-button size="small" text @click="closeDetail">收起</el-button>
         </div>
-        <p class="hint">处理完成后刷新数量。</p>
 
         <GovernView
           v-if="detailInnerTab"
+          :key="activeGovernTab"
           :initial-tab="activeGovernTab"
-          :hide-outer-tabs="false"
+          :hide-outer-tabs="true"
           @tab-change="onGovernTabChange"
+          @queue-changed="onQueueChanged"
         />
         <template v-else-if="detailType === 'release_blocker'">
           <p class="hint">指标口径尚未就绪时，先完成相关规整，再启用指标口径。</p>
           <MetricsView :editable="metricsEditable" />
         </template>
         <AssetsView v-else-if="detailType === 'assets'" />
-        <p v-else class="hint">请从上方待处理问题进入对应处理。</p>
       </section>
     </template>
 
@@ -79,7 +108,33 @@ import { ElMessage } from 'element-plus'
 import GovernView from '@/pages/GovernView.vue'
 import AssetsView from '@/pages/AssetsView.vue'
 import MetricsView from '@/pages/MetricsView.vue'
-import { formatApiError, flowReconcile, statsOverview, type StatsOverview } from '@/api/client'
+import {
+  formatApiError,
+  flowReconcile,
+  listRuleLearnCandidates,
+  statsOverview,
+  type StatsOverview,
+} from '@/api/client'
+
+type QueueId = 'map' | 'rulelearn' | 'master' | 'flow' | 'reconcile' | 'release_blocker' | 'assets'
+
+type QueueItem = {
+  id: QueueId
+  label: string
+  hint: string
+  count: number
+  warn?: boolean
+  primary?: boolean
+}
+
+const QUEUE_META: Array<Omit<QueueItem, 'count' | 'primary'>> = [
+  { id: 'map', label: '待确认字段', hint: '确认系统不确定的字段。' },
+  { id: 'rulelearn', label: '待确认规则', hint: '采用后变成后续可复用规则。' },
+  { id: 'master', label: '待匹配物资', hint: '批准、修正、合并或拒绝候选物资。' },
+  { id: 'flow', label: '待解析流水', hint: '审核无法自动确认的出入库记录。' },
+  { id: 'reconcile', label: '对账差异', hint: '查看库存与流水差异，必要时补期初库存。' },
+  { id: 'release_blocker', label: '门禁阻断', hint: '先完成相关规整，再启用指标口径。' },
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -100,16 +155,19 @@ const DETAIL_TAB_MAP: Record<string, string> = {
 const summary = ref<StatsOverview | null>(null)
 const summaryLoading = ref(false)
 const reconcileTotal = ref(0)
+const ruleLearnTotal = ref(0)
 const detailVisible = ref(false)
 const detailType = ref('')
 const activeGovernTab = ref('map')
 const detailPanel = ref<HTMLElement | null>(null)
+let queueRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
 const isNoData = computed(
   () =>
     summary.value != null &&
     summary.value.recent_files.length === 0 &&
-    (summary.value.todos?.total ?? 0) === 0,
+    (summary.value.todos?.total ?? 0) === 0 &&
+    reconcileTotal.value === 0,
 )
 
 const metricsEditable = computed(() => {
@@ -122,18 +180,39 @@ const gateMissing = computed(() => {
   return 0
 })
 
-const detailTitle = computed(() => {
-  const innerMap: Record<string, string> = {
-    map: '字段规整',
-    rulelearn: '规则沉淀',
-    master: '待处理物资',
-    flow: '出入库记录处理',
-    reconcile: '库存对账',
+const queueItems = computed<QueueItem[]>(() => {
+  const counts: Record<string, number> = {
+    map: summary.value?.todos?.map_pending ?? 0,
+    rulelearn: ruleLearnTotal.value,
+    master: summary.value?.todos?.master_pending ?? 0,
+    flow: summary.value?.flow?.pending ?? 0,
+    reconcile: reconcileTotal.value,
+    release_blocker: gateMissing.value,
   }
-  if (innerMap[activeGovernTab.value]) return innerMap[activeGovernTab.value]
-  if (detailType.value === 'release_blocker') return '门禁阻断'
+  return QUEUE_META.map((meta) => ({
+    ...meta,
+    count: counts[meta.id] ?? 0,
+    warn: meta.id === 'release_blocker' && (counts[meta.id] ?? 0) > 0,
+  }))
+})
+
+const activeItems = computed(() => {
+  const items = queueItems.value.filter((i) => i.count > 0)
+  items.sort((a, b) => {
+    if (Boolean(a.warn) !== Boolean(b.warn)) return a.warn ? -1 : 1
+    if (b.count !== a.count) return b.count - a.count
+    return 0
+  })
+  return items.map((item, idx) => ({ ...item, primary: idx === 0 }))
+})
+
+const idleItems = computed(() => queueItems.value.filter((i) => i.count <= 0))
+
+const detailTitle = computed(() => {
+  const found = QUEUE_META.find((m) => m.id === (detailInnerTab.value || detailType.value))
+  if (found) return found.label
   if (detailType.value === 'assets') return '规则资产'
-  return '字段规整 / 规则沉淀 / 待处理物资 / 出入库记录处理 / 库存对账'
+  return '待处理问题'
 })
 
 const detailInnerTab = computed(() => {
@@ -141,6 +220,16 @@ const detailInnerTab = computed(() => {
   if (t === 'release_blocker' || t === 'assets') return ''
   return DETAIL_TAB_MAP[t] || activeGovernTab.value || ''
 })
+
+const showFieldFamilyTabs = computed(() => {
+  return detailVisible.value && (activeGovernTab.value === 'map' || activeGovernTab.value === 'rulelearn')
+})
+
+function isOpen(id: string) {
+  if (!detailVisible.value) return false
+  if (id === 'release_blocker') return detailType.value === 'release_blocker'
+  return activeGovernTab.value === id || detailType.value === id
+}
 
 function syncQuery() {
   const q: Record<string, string | string[]> = { ...route.query } as Record<string, string | string[]>
@@ -155,14 +244,7 @@ function syncQuery() {
 }
 
 async function loadSummary() {
-  summaryLoading.value = true
-  try {
-    summary.value = await statsOverview()
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    summaryLoading.value = false
-  }
+  summary.value = await statsOverview()
 }
 
 async function loadReconcileTotal() {
@@ -174,8 +256,43 @@ async function loadReconcileTotal() {
   }
 }
 
+async function loadRuleLearnCount() {
+  try {
+    const res = await listRuleLearnCandidates(200, 'proposed')
+    ruleLearnTotal.value = res.total ?? 0
+  } catch {
+    ruleLearnTotal.value = 0
+  }
+}
+
 async function loadAll() {
-  await Promise.all([loadSummary(), loadReconcileTotal()])
+  summaryLoading.value = true
+  try {
+    await Promise.all([loadSummary(), loadReconcileTotal(), loadRuleLearnCount()])
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+async function refreshCounts(includeReconcile: boolean) {
+  try {
+    const tasks: Array<Promise<unknown>> = [loadSummary(), loadRuleLearnCount()]
+    if (includeReconcile) tasks.push(loadReconcileTotal())
+    await Promise.all(tasks)
+  } catch {
+    /* keep last counts */
+  }
+}
+
+function onQueueChanged() {
+  if (queueRefreshTimer) clearTimeout(queueRefreshTimer)
+  queueRefreshTimer = setTimeout(() => {
+    const needReconcile =
+      activeGovernTab.value === 'reconcile' || detailType.value === 'release_blocker'
+    void refreshCounts(needReconcile)
+  }, 280)
 }
 
 function openDetailByType(t: string) {
@@ -248,32 +365,75 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.govern-hub { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.title { margin: 0; font-size: 18px; font-weight: 600; }
-.desc { margin: 6px 0 0; color: #606266; font-size: 13px; line-height: 1.6; }
-.pending-bar {
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: var(--el-fill-color-blank);
+.govern-hub { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.pending-head { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-.pending-hint { margin: 0 0 8px; color: #909399; font-size: 12px; line-height: 1.6; }
-.pending-foot { margin: 8px 0 0; color: #909399; font-size: 12px; line-height: 1.6; }
-.pending-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
+.desc { margin: 0; color: #606266; font-size: 13px; line-height: 1.6; }
+.head-actions { display: flex; align-items: center; gap: 4px; }
+.all-clear { margin: 0 0 8px; color: #67c23a; font-size: 13px; }
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.work-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
   border: 1px solid var(--el-border-color);
   background: var(--el-bg-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  color: inherit;
+}
+.work-card:hover { border-color: var(--el-color-primary-light-5); }
+.work-card.primary { border-color: var(--el-color-primary-light-5); background: var(--el-color-primary-light-9); }
+.work-card.is-open { border-color: var(--el-color-primary); }
+.work-card.warn { border-color: var(--el-color-warning); background: var(--el-color-warning-light-9); }
+.work-name { font-size: 14px; font-weight: 600; color: #303133; }
+.work-count {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: #303133;
+}
+.work-card.primary .work-count { color: var(--el-color-primary); }
+.work-card.warn .work-count { color: var(--el-color-warning-dark-2); }
+.work-hint { margin: 8px 0 0; color: #909399; font-size: 12px; line-height: 1.5; }
+.work-cta {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+.idle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.idle-label { font-size: 12px; color: #c0c4cc; }
+.idle-chip {
+  border: 1px dashed var(--el-border-color);
+  background: transparent;
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   font-size: 12px;
-  color: #606266;
+  color: #c0c4cc;
   cursor: pointer;
 }
-.chip strong { color: #303133; font-size: 14px; margin-left: 4px; font-variant-numeric: tabular-nums; }
-.chip.warn { border-color: var(--el-color-warning-light-5); }
-.chip:hover { border-color: var(--el-color-primary-light-5); }
+.idle-chip:hover { color: #606266; border-color: #c0c4cc; }
+.idle-chip.is-open { color: var(--el-color-primary); border-color: var(--el-color-primary-light-5); border-style: solid; }
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -282,6 +442,21 @@ onMounted(async () => {
 }
 .section-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .hint { color: #909399; font-size: 12px; margin: 0 0 8px; }
+.family-tabs { display: flex; gap: 8px; }
+.family-tab {
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+}
+.family-tab.on {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
 .detail-section {
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
