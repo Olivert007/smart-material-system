@@ -28,10 +28,10 @@
             <template #default="{ row }">{{ proposalLabel(row.proposal) }}</template>
           </el-table-column>
           <el-table-column label="影响数据" width="120">
-            <template #default="{ row }">{{ row.proposal?.count ?? '—' }}</template>
+            <template #default="{ row }">影响 {{ row.proposal?.count ?? 0 }} 行</template>
           </el-table-column>
           <el-table-column label="建议" min-width="180">
-            <template #default="{ row }">{{ String(row.proposal?.hint || '确认后才生效') }}</template>
+            <template #default="{ row }">{{ proposalHint(row.proposal) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
@@ -96,19 +96,31 @@
           @change="loadMapPending"
         >
         <el-table :data="mapPending" v-loading="mapPendingLoading" border size="small" empty-text="暂无待确认">
-          <el-table-column prop="header" label="表头" min-width="120" />
+          <el-table-column label="表头" min-width="120">
+            <template #default="{ row }">{{ headerLabel(row.header) }}</template>
+          </el-table-column>
           <el-table-column label="原因" width="160">
             <template #default="{ row }">{{ reasonLabel(row.reason) }}</template>
           </el-table-column>
           <el-table-column label="建议" width="120">
             <template #default="{ row }">{{ stdFieldLabel(row.suggested_field) }}</template>
           </el-table-column>
-          <el-table-column v-if="mapShowSourceCols" prop="sheet" label="工作表" width="100" />
-          <el-table-column v-if="mapShowSourceCols" prop="file_id" label="文件" width="110" />
+          <el-table-column v-if="mapShowSourceCols" label="工作表" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span :title="fileLabel(row) !== '—' ? `来源文件：${fileLabel(row)}` : undefined">
+                {{ sheetLabel(row.sheet) }}
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column label="处理方式" min-width="180">
             <template #default="{ row }">
               <el-select v-model="row.suggested_field" filterable allow-create size="small" style="width: 160px">
                 <el-option label="忽略该表头" value="ignore" />
+                <el-option
+                  v-if="extraSelectField(row.suggested_field)"
+                  :label="stdFieldLabel(row.suggested_field)"
+                  :value="row.suggested_field"
+                />
                 <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
               </el-select>
             </template>
@@ -576,6 +588,7 @@ import { ElLink, ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PagedTable from '@/components/PagedTable.vue'
 import { fieldZh as fieldzh } from '@/utils/fields'
+import { gateLabel } from '@/utils/gateLabels'
 import {
   confirmFlowPending,
   flowOpeningSeed,
@@ -839,6 +852,40 @@ function stdFieldLabel(f: string | null | undefined) {
   return fieldzh(f)
 }
 
+/** 原始表头展示：已知英文字段名译成中文，未知保持原样。 */
+function headerLabel(h?: string | null) {
+  const s = String(h ?? '').trim()
+  if (!s) return '—'
+  return fieldzh(s)
+}
+
+/** 工作表名展示：内部名 tabular / Sheet1 等译成中文。 */
+function sheetLabel(s?: string | null) {
+  const raw = String(s ?? '').trim()
+  if (!raw) return '—'
+  const map: Record<string, string> = {
+    tabular: '表格数据',
+    Sheet1: '工作表1',
+    sheet1: '工作表1',
+  }
+  return map[raw] || raw
+}
+
+/** 文件列：优先文件名，其次 file_id。 */
+function fileLabel(row: { source_file?: string | null; filename?: string | null; file_id?: string | null }) {
+  const name = String(row.source_file || row.filename || '').trim()
+  if (name) return name
+  const fid = String(row.file_id || '').trim()
+  return fid || '—'
+}
+
+/** 当前建议值不在标准字段列表时，补一条选项以免下拉显示英文原值。 */
+function extraSelectField(f?: string | null) {
+  const v = String(f ?? '').trim()
+  if (!v || v === 'ignore') return false
+  return !stdFields.value.includes(v)
+}
+
 /** AI/模型状态显示名：把 model_state / llm_state 等翻译为中文。 */
 function modelStateLabel(s?: string | null) {
   const map: Record<string, string> = {
@@ -898,30 +945,98 @@ function ruleSourceLabel(s?: string | null) {
   return map[String(s ?? '')] || String(s ?? '—')
 }
 
-/** 规则学习候选提案摘要：替代原始 JSON，将 kind / std_field 等翻译为中文。 */
+/** 业务域中文名。 */
+function domainZh(d?: string | null) {
+  const map: Record<string, string> = {
+    inventory: '库存',
+    asset: '资产',
+    demand: '需求',
+    stock_flow: '出入库流水',
+    flow: '出入库流水',
+  }
+  return map[String(d ?? '')] || String(d ?? '')
+}
+
+/** 规则学习候选 reason_code / fingerprint.code 中文名。 */
+function reasonCodeZh(code?: string | null) {
+  const map: Record<string, string> = {
+    EMPTY_ROW: '整行空白',
+    MISSING_REQUIRED: '必填字段为空',
+    MISSING_COL: '缺少必填字段',
+    REQUIRED: '必填校验失败',
+    REQUIRED_UNMAPPED: '必填列未映射',
+    VALUE_RANGE: '取值越界',
+    UNKNOWN_HEADER: '未知表头',
+    TYPE_ERROR: '类型错误（应为数字）',
+    DATE_FORMAT: '日期格式不统一',
+    EMPTY_SERIAL: '出厂编号为空或占位',
+    CELL_MARKER: '单元格标记异常',
+    OTHER: '其他质量问题',
+  }
+  const c = String(code ?? '')
+  return map[c] || gateLabel(c) || c
+}
+
+/** 从候选提案中取原因编码（优先 reason_code，其次 fingerprint.code）。 */
+function proposalCode(p?: Record<string, unknown>): string {
+  if (!p) return ''
+  const direct = String(p.reason_code || '')
+  if (direct) return direct
+  const fp = p.fingerprint
+  if (typeof fp === 'string') {
+    try {
+      return String((JSON.parse(fp) as { code?: string }).code || '')
+    } catch {
+      return ''
+    }
+  }
+  if (fp && typeof fp === 'object') {
+    return String((fp as { code?: string }).code || '')
+  }
+  return ''
+}
+
+/** 数据校验方式的用户可读描述：按原因编码优先，避免「资产名称必须为正数」这类错位表述。 */
+function checkDesc(p?: Record<string, unknown>): string {
+  const code = proposalCode(p)
+  if (['MISSING_REQUIRED', 'MISSING_COL', 'REQUIRED'].includes(code)) return '不能为空'
+  if (code === 'VALUE_RANGE') return '取值须为正数'
+  const checkZh: Record<string, string> = {
+    required: '不能为空',
+    numeric_positive: '取值须为正数',
+  }
+  return checkZh[String(p?.check_type || '')] || String(p?.check_type || '')
+}
+
+/** 规则学习候选提案摘要：全中文，按 kind 组织成一句用户能看懂的话。 */
 function proposalLabel(p?: Record<string, unknown>) {
   if (!p) return '—'
-  const kindZh: Record<string, string> = {
-    map_alias: '表头映射',
-    value_rule: '值规则',
-    review: '人工复核',
-  }
-  const checkZh: Record<string, string> = {
-    required: '必填',
-    numeric_positive: '数字正数',
-  }
-  const sevZh: Record<string, string> = { block: '阻断' }
-  const parts: string[] = []
   const kind = String(p.kind || '')
-  if (kind) parts.push(`类型=${kindZh[kind] || kind}`)
-  if (p.header) parts.push(`表头=${p.header}`)
-  if (p.suggested_std_field) parts.push(`建议字段=${stdFieldLabel(String(p.suggested_std_field))}`)
-  if (p.std_field) parts.push(`字段=${stdFieldLabel(String(p.std_field))}`)
-  if (p.check_type) parts.push(`校验=${checkZh[String(p.check_type)] || p.check_type}`)
-  if (p.severity) parts.push(`级别=${sevZh[String(p.severity)] || p.severity}`)
-  if (p.reason_code) parts.push(`原因=${p.reason_code}`)
-  if (p.hint) parts.push(String(p.hint))
-  return parts.join(' · ')
+  const dom = domainZh(String(p.domain || ''))
+  if (kind === 'map_alias') {
+    const from = String(p.header || '')
+    const to = stdFieldLabel(String(p.suggested_std_field || ''))
+    return `表头映射：${dom}「${from || '未命名表头'}」→「${to}」`
+  }
+  if (kind === 'value_rule') {
+    const field = stdFieldLabel(String(p.std_field || ''))
+    return `数据校验：${dom}「${field}」${checkDesc(p)}`
+  }
+  const code = proposalCode(p)
+  const zh = reasonCodeZh(code)
+  const header = String(p.header || '')
+  const headPart = header ? `「${fieldzh(header)}」` : ''
+  return `人工复核：${dom}${headPart}${zh || '存在异常'}`
+}
+
+/** 规则学习候选「建议」列文案：全中文。 */
+function proposalHint(p?: Record<string, unknown>) {
+  if (!p) return '—'
+  const kind = String(p.kind || '')
+  if (kind === 'map_alias') return '确认映射后写入字段叫法规则，后续同类表头自动识别'
+  if (kind === 'value_rule') return '该字段高频异常，建议新增数据校验规则（确认后生效）'
+  if (kind === 'review') return '需人工复核源数据，确认后决定是否采纳'
+  return String(p.hint || '确认后才生效')
 }
 
 /** 决策/状态显示名：把 accept/amend/ignore/proposed 等翻译为中文。 */

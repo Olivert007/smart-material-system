@@ -152,6 +152,14 @@ def list_pending(
             """,
             [*args, limit, offset],
         ).fetchall()
+        file_names: dict[str, str] = {}
+        try:
+            for fr in con.execute("SELECT file_id, filename FROM file_batch").fetchall():
+                fid = str(fr["file_id"] or "").strip()
+                if fid:
+                    file_names[fid] = str(fr["filename"] or "").strip() or fid
+        except Exception:
+            file_names = {}
     items = []
     for r in rows:
         d = dict(r)
@@ -162,6 +170,8 @@ def list_pending(
             d.pop("candidates_json", None)
         else:
             d.pop("candidates_json", None)
+        fid = str(d.get("file_id") or "").strip()
+        d["source_file"] = file_names.get(fid) or fid or None
         items.append(d)
     return {"total": total, "items": items, "limit": limit, "offset": offset}
 

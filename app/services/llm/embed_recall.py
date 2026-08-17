@@ -33,6 +33,10 @@ STD_FIELDS: dict[str, list[str]] = {
     "stock_value": ["金额", "库存金额", "总价", "库存值", "单价", "合价"],
     "flow_type": ["入库", "出库", "流向"],
     "flow_date": ["出入库日期", "业务日期"],
+    "flow_in_text": ["入库记录", "入库文本", "flow_in_text"],
+    "flow_out_text": ["出库记录", "出库记录（ZW）", "出库文本", "flow_out_text"],
+    "qty_in": ["入库数量", "qty_in"],
+    "qty_out": ["出库数量", "qty_out"],
     "demand_period": ["期次", "计划期", "年度", "需求期次"],
     "quota_qty": ["定额", "调整数量", "定额数量"],
     # T2: ledger-export-plan §8.4（LD-1/LD-2 锁定 2026-08-10）

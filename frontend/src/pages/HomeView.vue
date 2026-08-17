@@ -117,13 +117,15 @@
       </el-empty>
     </el-card>
 
-    <el-collapse v-model="bizOpen" class="biz-fold" @change="onBizFold">
-      <el-collapse-item :title="businessSnapshotTitle" name="biz">
-        <template v-if="shouldShowBusinessSnapshot">
-        <div class="head fold-head">
-          <span class="hint" style="margin: 0">基于已入库可用候选数据；不等于正式发布报表。</span>
+    <el-card shadow="never">
+      <template #header>
+        <div class="head">
+          <span>{{ businessSnapshotTitle }}</span>
           <el-button size="small" type="primary" plain @click="$router.push('/data')">进入数据成果</el-button>
         </div>
+      </template>
+      <template v-if="shouldShowBusinessSnapshot">
+        <p class="hint">基于已入库可用候选数据；不等于正式发布报表。</p>
         <div class="cards compact" v-loading="loading">
           <el-tooltip v-for="c in bizCards" :key="c.key" :content="c.hint" placement="top">
             <div class="card biz-card" @click="goMetric(c.metric_id)">
@@ -147,28 +149,20 @@
               <el-table-column prop="value" label="库存量" width="100" />
             </el-table>
           </div>
-          <div>
-            <div class="sub">按单位 Top（不同单位不能直接相加）</div>
-            <el-table :data="overview.business.top_by_unit || []" border size="small" empty-text="暂无可用单位数据">
-              <el-table-column prop="name" label="单位" min-width="120" />
-              <el-table-column prop="value" label="库存量" width="100" />
-            </el-table>
-          </div>
         </div>
         <div v-if="mini?.months?.length" class="spark">
           <div class="sub">近 6 月出入库趋势</div>
           <div ref="sparkEl" class="spark-chart" />
         </div>
-        </template>
-        <div v-else class="biz-empty">
-          <div class="biz-empty-title">{{ businessSnapshotEmptyReason }}</div>
-          <div class="biz-empty-desc">{{ businessSnapshotDescription }}</div>
-          <el-button type="primary" plain @click="$router.push(snapshotEmptyAction.path)">
-            {{ snapshotEmptyAction.label }}
-          </el-button>
-        </div>
-      </el-collapse-item>
-    </el-collapse>
+      </template>
+      <div v-else class="biz-empty">
+        <div class="biz-empty-title">{{ businessSnapshotEmptyReason }}</div>
+        <div class="biz-empty-desc">{{ businessSnapshotDescription }}</div>
+        <el-button type="primary" plain @click="$router.push(snapshotEmptyAction.path)">
+          {{ snapshotEmptyAction.label }}
+        </el-button>
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -194,11 +188,10 @@ const loading = ref(false)
 const overview = ref<StatsOverview | null>(null)
 const mini = ref<FlowMonthly | null>(null)
 const sparkEl = ref<HTMLDivElement | null>(null)
-const bizOpen = ref<string[]>([])
 let sparkChart: echarts.ECharts | null = null
 
 const BIZ_METRICS: Record<string, { metric_id: string; hint: string }> = {
-  sq: { metric_id: 'INV_QTY_TOTAL', hint: '库存总量 = 各库存记录的现有数量合计' },
+  sq: { metric_id: 'INV_QTY_TOTAL', hint: '米、个、包等计量单位不同，不能加总，故显示 —' },
   sv: { metric_id: 'INV_VALUE_TOTAL', hint: '库存金额（无有效单价时可能暂无数据）' },
   qf: { metric_id: 'INV_QUOTA_FILL_RATIO', hint: '定额利用率' },
   oq: { metric_id: 'INV_OVER_QUOTA_CNT', hint: '超定额物资行数' },
@@ -426,17 +419,11 @@ function renderSpark() {
 async function loadSpark() {
   try {
     mini.value = await flowMonthly()
+    await nextTick()
     renderSpark()
   } catch {
     /* optional */
   }
-}
-
-async function onBizFold() {
-  if (!bizOpen.value.includes('biz')) return
-  await nextTick()
-  renderSpark()
-  sparkChart?.resize()
 }
 
 function onResize() {
@@ -478,18 +465,16 @@ onUnmounted(() => {
 .card-label { color: #909399; font-size: 12px; margin-bottom: 6px; }
 .card-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .card-hint { color: #a8abb2; font-size: 11px; margin-top: 6px; line-height: 1.3; }
-.tops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.tops { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
 .sub { color: #606266; font-size: 13px; margin-bottom: 6px; }
 .spark { margin-top: 14px; }
 .spark-chart { width: 100%; height: 150px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.fold-head { margin-bottom: 12px; }
 .hint { color: #909399; font-size: 13px; margin: 0 0 12px; }
 .next-block { display: flex; flex-direction: column; gap: 12px; }
 .next-reason { color: #606266; font-size: 14px; line-height: 1.5; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-.biz-fold { background: #fff; border: 1px solid #ebeef5; border-radius: 4px; padding: 0 12px; }
-.biz-empty { padding: 16px 2px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.biz-empty { padding: 4px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .biz-empty-title { font-size: 14px; font-weight: 600; color: #606266; }
 .biz-empty-desc { color: #909399; font-size: 13px; line-height: 1.6; }
 @media (max-width: 960px) { .tops { grid-template-columns: 1fr; } }

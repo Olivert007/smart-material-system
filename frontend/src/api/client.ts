@@ -547,6 +547,7 @@ export async function mapConfirm(mapping: Record<string, string>, note = '', bus
 export type MapPendingItem = {
   pending_id: string
   file_id?: string | null
+  source_file?: string | null
   sheet?: string | null
   header: string
   suggested_field?: string | null

@@ -102,6 +102,17 @@ FIELD_ZH = {
     "flow_date": "日期",
     "person": "经手人",
     "purpose": "用途",
+    # 宽表出入库列（台账/导出常用，映射建议与待确认字段展示）
+    "flow_in_text": "入库记录",
+    "qty_in": "入库数量",
+    "flow_out_text": "出库记录",
+    "qty_out": "出库数量",
+    # embed_recall.STD_FIELDS 别名键（与库表字段名并存，下拉展示用）
+    "item_name": "物资名称",
+    "specification": "规格型号",
+    "department": "所属部门",
+    "keeper_or_user": "保管/使用人",
+    "serial_or_factory_no": "出厂编号",
 }
 
 # 溯源/解析/治理类技术字段：业务表格与导出中隐藏（zh=0 可还原）
