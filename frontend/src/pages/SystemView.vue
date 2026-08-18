@@ -1,9 +1,9 @@
 <template>
   <div class="system-hub">
     <el-tabs v-model="tab" @tab-change="onTab">
-      <el-tab-pane label="系统状态" name="ops" />
-      <el-tab-pane label="模型状态" name="models" />
-      <el-tab-pane label="本地设置" name="settings" />
+      <el-tab-pane label="运行概览" name="ops" />
+      <el-tab-pane label="本地模型" name="models" />
+      <el-tab-pane label="操作令牌" name="settings" />
     </el-tabs>
     <OpsView v-if="tab === 'ops'" />
     <ModelsView v-else-if="tab === 'models'" />
