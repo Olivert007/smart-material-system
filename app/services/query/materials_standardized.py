@@ -59,6 +59,7 @@ SELECT
   END AS material_code,
   COALESCE(m.material_name, '') AS material_name,
   CASE
+    WHEN i.source_sheet IN ('低值易耗', '低值易耗品') THEN '低值易耗品'
     WHEN i.source_sheet IN ({_CATS_SQL}) THEN i.source_sheet
     WHEN COALESCE(i.category, m.category) IN ({_CATS_SQL}) THEN COALESCE(i.category, m.category)
     ELSE COALESCE(

@@ -94,6 +94,15 @@ ALIASES: dict[str, dict[str, list[str]]] = {
 }
 
 
+def _sheet_token(sheet: str | None) -> str:
+    s = str(sheet or "").strip() or "row"
+    return re.sub(r"\s+", "", s)[:24]
+
+
+def _synthetic_id(prefix: str, file_id: str, sheet: str | None, i: int) -> str:
+    return f"{prefix}-{file_id}-{_sheet_token(sheet)}-{i}"
+
+
 def _norm(s: str) -> str:
     return str(s).strip().lower().replace(" ", "").replace("\n", "").replace("\r", "")
 
@@ -246,7 +255,8 @@ def build_domain_rows(
             code = _str(_get(data, mapping, "material_code"))
             if not name and not code:
                 continue
-            mid = code or f"M-{file_id}-{i}"
+            sheet = _str(_get(data, mapping, "source_sheet")) or _str(data.get("sheet"))
+            mid = code or _synthetic_id("M", file_id, sheet, i)
             rows.append(
                 {
                     "inventory_id": f"INV-{release_id}-{i}",
@@ -301,7 +311,8 @@ def build_domain_rows(
             code = _str(_get(data, mapping, "material_code"))
             if not name and not code and "quantity" not in mapping:
                 continue
-            mid = code or f"M-{file_id}-{i}"
+            sheet = _str(_get(data, mapping, "source_sheet")) or _str(data.get("sheet"))
+            mid = code or _synthetic_id("M", file_id, sheet, i)
             rows.append(
                 {
                     "demand_id": f"DEM-{release_id}-{i}",
@@ -323,7 +334,8 @@ def build_domain_rows(
 
     if domain == "asset":
         for i, data in enumerate(df.to_dict(orient="records"), 1):
-            code = _str(_get(data, mapping, "asset_code")) or f"A-{file_id}-{i}"
+            sheet = _str(_get(data, mapping, "source_sheet")) or _str(data.get("sheet"))
+            code = _str(_get(data, mapping, "asset_code")) or _synthetic_id("A", file_id, sheet, i)
             name = _str(_get(data, mapping, "asset_name"))
             if not name and "asset_code" not in mapping:
                 continue
@@ -415,12 +427,14 @@ def build_stock_flow_bundle(
         if not name and not code:
             continue
         spec = _str(_get(data, mapping, "spec"))
+        sheet = _str(_get(data, mapping, "source_sheet")) or _str(data.get("sheet")) or "Sheet1"
         mid, align_hit = resolve_material_id(
             code=code,
             name=name,
             spec=spec,
             file_id=file_id,
             row_index=i,
+            sheet=sheet,
             universe=inv_universe,
             maps=align_maps,
         )
@@ -429,7 +443,6 @@ def build_stock_flow_bundle(
         ):
             stats["material_aligned"] = int(stats.get("material_aligned") or 0) + 1
         unit_col = _str(_get(data, mapping, "unit")) or None
-        sheet = _str(_get(data, mapping, "source_sheet")) or "Sheet1"
         if sheet not in cfg_cache:
             cfg_cache[sheet] = get_flow_config(sheet)
         cfg = cfg_cache[sheet]

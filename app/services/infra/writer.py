@@ -155,9 +155,27 @@ def _upsert_materials_impl(con, rows: list[dict], release_id: str, source_file: 
         code = r.pop("_material_code", "") or ""
         spec = r.pop("_spec", "") or ""
         existing = con.execute(
-            "SELECT material_id FROM dim_material WHERE material_id = ?", [mid]
+            "SELECT material_id, material_name, spec FROM dim_material WHERE material_id = ?",
+            [mid],
         ).fetchone()
         if existing:
+            old_name = str(existing[1] or "").strip()
+            old_spec = str(existing[2] or "").strip()
+            new_name = str(name or "").strip()
+            new_spec = str(spec or "").strip()
+            if (not old_name and new_name) or (not old_spec and new_spec):
+                con.execute(
+                    """
+                    UPDATE dim_material SET
+                      material_name = CASE WHEN (material_name IS NULL OR trim(CAST(material_name AS VARCHAR)) = '')
+                                           THEN ? ELSE material_name END,
+                      spec = CASE WHEN (spec IS NULL OR trim(CAST(spec AS VARCHAR)) = '')
+                                  THEN ? ELSE spec END
+                    WHERE material_id = ?
+                    """,
+                    [new_name or old_name, new_spec or old_spec, mid],
+                )
+                n += 1
             continue
         con.execute(
             """
