@@ -38,7 +38,7 @@ export const DATA_STATES: Record<DataStateCode, DataStateMeta> = {
     code: 'available',
     label: '可用',
     tagType: 'success',
-    hint: '通过门禁的可用候选；不等于正式发布',
+    hint: '通过门禁的可用数据',
   },
   blocked: {
     code: 'blocked',
@@ -50,7 +50,7 @@ export const DATA_STATES: Record<DataStateCode, DataStateMeta> = {
     code: 'published',
     label: '已发布',
     tagType: 'warning',
-    hint: '已写入业务库的发布版本；报表/问数仍非正式定稿',
+    hint: '已写入业务库的发布版本',
   },
 }
 
