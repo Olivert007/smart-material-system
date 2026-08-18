@@ -1,13 +1,5 @@
 <template>
   <div class="metrics">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="指标字典"
-      description="同一个指标（如“库存总金额”），不同人口径不同。本页登记所有指标的统一口径，问答与报表都以它为准。"
-    />
-
     <el-card v-if="editable" shadow="never">
       <template #header>
         <div class="head">
@@ -28,7 +20,16 @@
         </div>
       </template>
       <el-space wrap>
-        <el-tag :type="gate?.ready ? 'success' : 'warning'">
+        <el-tooltip
+          v-if="gate?.missing?.length"
+          :content="`缺失：${gate.missing.join('、')}`"
+          placement="top"
+        >
+          <el-tag :type="gate?.ready ? 'success' : 'warning'">
+            {{ gate?.ready ? '就绪' : '阻塞' }}
+          </el-tag>
+        </el-tooltip>
+        <el-tag v-else :type="gate?.ready ? 'success' : 'warning'">
           {{ gate?.ready ? '就绪' : '阻塞' }}
         </el-tag>
         <el-tooltip
@@ -42,7 +43,6 @@
           </el-tag>
         </el-tooltip>
       </el-space>
-      <p v-if="gate?.missing?.length" class="hint">缺失：{{ gate.missing.join(', ') }}</p>
       <p v-if="fxSummary" class="hint">夹具：{{ fxSummary }}</p>
       <p v-if="conflictHint" class="hint">{{ conflictHint }}</p>
       <el-table

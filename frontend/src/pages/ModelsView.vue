@@ -1,21 +1,11 @@
 <template>
   <div class="models">
     <el-alert
-      type="info"
+      :type="impactLines.length ? 'warning' : 'info'"
       :closable="false"
       show-icon
       title="本地模型状态"
-      description="面向运维：查看模型是否可用及能力影响。模型输出只做建议，不能自动写入业务事实或发布。"
-    />
-
-    <el-alert
-      v-if="impactLines.length"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="当前降级 / 不可用影响"
-      :description="impactLines.join(' ')"
-      style="margin-bottom: 8px"
+      :description="impactLines.length ? impactLines.join(' ') : '模型输出只做建议，不能自动写入业务事实或发布。'"
     />
     <div class="toolbar">
       <el-space wrap>
@@ -69,10 +59,6 @@
 
     <el-card shadow="never" class="topology">
       <template #header>当前拓扑说明</template>
-      <p class="hint">
-        单卡难以同时驻留全部模型。当前常见：快速模型与主模型双驻时，向量模型停用并走词法兜底；
-        或主模型与向量模型（阶段 1）。评测门槛未过前，仅作过渡探测，不宣称生产双常驻达标。
-      </p>
       <el-button link type="primary" @click="$router.push('/system?tab=ops')">打开运维面板（备份 / 自检）</el-button>
     </el-card>
   </div>
