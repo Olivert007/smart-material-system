@@ -86,11 +86,9 @@
 
       <div class="sub">人工确认与审计</div>
       <p class="hint">
-        确认 {{ data.confirms?.length || 0 }} 条 · 写操作审计 {{ data.audit?.length || 0 }} 条（最近：
-        {{ (data.audit || []).slice(0, 3).map((a) => a.action).join('、') || '—' }}）
+        确认 {{ data.confirms?.length || 0 }} 条 · 写操作审计 {{ data.audit?.length || 0 }} 条
+        <template v-if="data.note"> · {{ data.note }}</template>
       </p>
-
-      <p class="hint">{{ data.note }}</p>
     </template>
   </el-card>
 </template>

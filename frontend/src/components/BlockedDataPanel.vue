@@ -1,12 +1,5 @@
 <template>
   <div class="blocked">
-    <el-alert
-      type="warning"
-      :closable="false"
-      show-icon
-      title="阻塞数据"
-      description="状态：阻塞。以下记录因缺字段、低置信匹配、异常值或未确认等原因，不能进入可用结果。忽略待办不会自动解除阻塞。"
-    />
     <div class="toolbar">
       <el-select
         v-model="fileId"
@@ -28,7 +21,7 @@
       <el-button @click="$router.push('/govern')">去数据规整</el-button>
     </div>
     <div v-if="stats" class="meta">
-      可用候选 {{ stats.clean_rows }} · 阻塞 {{ stats.blocked_rows }} · 阻塞率
+      可用 {{ stats.clean_rows }} · 阻塞 {{ stats.blocked_rows }} · 阻塞率
       {{ Number(stats.block_rate || 0).toFixed(3) }}
     </div>
     <PagedTable

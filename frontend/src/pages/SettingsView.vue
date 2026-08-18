@@ -4,8 +4,8 @@
       type="warning"
       :closable="false"
       show-icon
-      title="受控内网 · 可信操作主体"
-      description="当前阶段适合受控内网部署。浏览器中的角色与令牌仅用于本地体验分流，不能作为真实授权依据；扩大访问范围前须补正式身份与权限设计。"
+      title="受控内网"
+      description="角色与令牌仅用于本地体验分流，不能作为正式授权。"
     />
     <el-form label-width="120px" style="max-width: 520px">
       <el-form-item label="操作令牌">
