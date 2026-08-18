@@ -49,6 +49,12 @@ def test_missing_required_and_dup_and_qty():
     codes = {i["code"] for i in q["issues_sample"]}
     assert "DUPLICATE_PK" in codes
     assert "QTY_YEAR_LIKE" in codes or "QTY_NON_NUMERIC" in codes
+    blob = str(q.get("hint") or "") + " " + " ".join(str(i.get("detail") or "") for i in q["issues_sample"])
+    assert "blocking=true" not in blob
+    assert "required group blank" not in blob
+    assert "LLM" not in blob
+    assert "key=" not in blob
+    assert any("异常" in str(i.get("detail") or "") for i in q["issues_sample"])
 
 
 def test_required_unmapped_blocking():

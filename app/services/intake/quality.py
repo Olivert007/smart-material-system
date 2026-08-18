@@ -53,7 +53,7 @@ def quality_report(file_id: str) -> dict[str, Any]:
             """
             SELECT * FROM staging_record
             WHERE file_id=?
-            ORDER BY updated_at DESC LIMIT 1
+            ORDER BY updated_at DESC, rowid DESC LIMIT 1
             """,
             [file_id],
         ).fetchone()
@@ -128,7 +128,7 @@ def list_blocked(
                     """
                     SELECT staging_id FROM staging_record
                     WHERE file_id=? AND target_domain=?
-                    ORDER BY updated_at DESC LIMIT 1
+                    ORDER BY updated_at DESC, rowid DESC LIMIT 1
                     """,
                     [file_id, target_domain],
                 ).fetchone()
@@ -136,7 +136,7 @@ def list_blocked(
                 st = con.execute(
                     """
                     SELECT staging_id FROM staging_record
-                    WHERE file_id=? ORDER BY updated_at DESC LIMIT 1
+                    WHERE file_id=? ORDER BY updated_at DESC, rowid DESC LIMIT 1
                     """,
                     [file_id],
                 ).fetchone()

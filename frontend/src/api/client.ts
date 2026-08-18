@@ -447,6 +447,8 @@ export async function confirmStaging(fileId: string, opts?: {
   expected_status?: string
   idempotencyKey?: string
   force?: boolean
+  target_domain?: string
+  staging_id?: string
 }) {
   const headers: HeadersInit = {}
   if (opts?.idempotencyKey) {
@@ -457,6 +459,7 @@ export async function confirmStaging(fileId: string, opts?: {
     idempotent?: boolean
     idempotency_replay?: boolean
     target_table?: string
+    target_domain?: string
     rows?: number
     release: { release_id: string; clean_rows?: number }
   }>(`/intake/stage/${fileId}/confirm`, {
@@ -466,6 +469,8 @@ export async function confirmStaging(fileId: string, opts?: {
       version: opts?.version ?? null,
       expected_status: opts?.expected_status ?? 'STAGED',
       force: !!opts?.force,
+      target_domain: opts?.target_domain ?? null,
+      staging_id: opts?.staging_id ?? null,
     }),
   })
 }
