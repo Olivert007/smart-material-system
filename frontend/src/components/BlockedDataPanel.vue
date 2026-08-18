@@ -41,8 +41,8 @@
         <el-table-column prop="reason_detail" label="详情" min-width="180" show-overflow-tooltip />
         <el-table-column prop="raw_value" label="原始值" width="120" show-overflow-tooltip />
         <el-table-column label="追溯" width="100">
-          <template #default>
-            <el-button link type="primary" @click="goTrace">追溯</el-button>
+          <template #default="{ row }">
+            <el-button link type="primary" @click="goTrace(row)">追溯</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -81,10 +81,14 @@ function reasonLabel(code: string) {
   return gateLabel(code)
 }
 
-function goTrace() {
+function goTrace(row: { source_row?: number }) {
   router.push({
     path: '/trace',
-    query: { tab: 'lineage', file_id: fileId.value || undefined },
+    query: {
+      tab: 'lineage',
+      file_id: fileId.value || undefined,
+      ...(row.source_row != null ? { blocked_row: String(row.source_row) } : {}),
+    },
   })
 }
 
