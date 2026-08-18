@@ -211,7 +211,6 @@
           <el-table-column prop="confirmed_by" label="确认人" width="120" />
           <el-table-column prop="created_at" label="时间" width="170" />
         </el-table>
-        <div class="hint">共 {{ rulesTotal }} 条</div>
       </el-card>
     </template>
 
@@ -479,7 +478,6 @@
           <el-table-column prop="confirmed_by" label="确认人" width="120" />
           <el-table-column prop="updated_at" label="更新" width="170" />
         </el-table>
-        <div class="hint">共 {{ examplesTotal }} 条（只读）</div>
       </el-card>
 
       <el-dialog v-model="amendVisible" title="修正流水建议" width="560px" destroy-on-close>
@@ -644,7 +642,7 @@ type Row = {
 
 const props = withDefaults(
   defineProps<{ initialTab?: string; hideOuterTabs?: boolean }>(),
-  { initialTab: 'map', hideOuterTabs: false },
+  { initialTab: 'map', hideOuterTabs: true },
 )
 
 const emit = defineEmits<{
@@ -700,7 +698,6 @@ const enqueueBusy = ref(false)
 const confirmBusy = ref(false)
 const suggestMeta = ref<{ state?: string; invoked?: boolean; latency?: number }>({})
 const rules = ref<Array<Record<string, unknown>>>([])
-const rulesTotal = ref(0)
 const rulesLoading = ref(false)
 const rlItems = ref<
   Array<{ id: number; decision: string; proposal?: Record<string, unknown> }>
@@ -763,7 +760,6 @@ const flowStats = reactive<{
   pending?: number
 }>({})
 const flowExamples = ref<Array<Record<string, unknown>>>([])
-const examplesTotal = ref(0)
 const examplesLoading = ref(false)
 
 const amendVisible = ref(false)
@@ -1476,7 +1472,6 @@ async function loadRules() {
   try {
     const res = await listRuleDict(50, 0)
     rules.value = res.items
-    rulesTotal.value = res.total
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -1522,7 +1517,6 @@ async function loadFlowExamples() {
   try {
     const res = await listFlowExamples(50, 0)
     flowExamples.value = res.items
-    examplesTotal.value = res.total
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {

@@ -16,43 +16,22 @@
         </div>
       </template>
       <div class="cards">
+        <div class="card clickable" @click="$router.push('/govern')">
+          <div class="card-label">待办合计</div>
+          <div class="card-value">{{ fmt(todos.total) }}</div>
+        </div>
         <div class="card">
-          <div class="card-label">可用记录（候选）</div>
+          <div class="card-label">可用行数</div>
           <div class="card-value">{{ fmt(quality.clean_rows) }}</div>
         </div>
         <div class="card warn">
-          <div class="card-label">阻塞记录</div>
+          <div class="card-label">阻塞行数</div>
           <div class="card-value">{{ fmt(quality.blocked_rows) }}</div>
           <div class="card-hint">未解决异常或未确认项</div>
-        </div>
-        <div class="card">
-          <div class="card-label">可用率</div>
-          <div class="card-value">{{ availabilityRate }}</div>
-        </div>
-        <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
-          <div class="card-label">待确认字段</div>
-          <div class="card-value">{{ fmt(todos.map_pending) }}</div>
-        </div>
-        <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'master' } })">
-          <div class="card-label">待匹配物资</div>
-          <div class="card-value">{{ fmt((todos.master_pending || 0) + (todos.material_align || 0)) }}</div>
-        </div>
-        <div class="card clickable warn" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
-          <div class="card-label">待审核 AI 建议</div>
-          <div class="card-value">{{ fmt(aiSuggestionPending) }}</div>
         </div>
         <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'flow' } })">
           <div class="card-label">流水待确认</div>
           <div class="card-value">{{ fmt(todos.flow_pending) }}</div>
-        </div>
-        <div class="card clickable" @click="$router.push({ path: '/govern' })">
-          <div class="card-label">待办合计</div>
-          <div class="card-value">{{ fmt(todos.total) }}</div>
-        </div>
-        <div class="card ok clickable" @click="$router.push({ path: '/govern' })">
-          <div class="card-label">处理后预计释放</div>
-          <div class="card-value">{{ fmt(releasableRows) }}</div>
-          <div class="card-hint">处理本批待办后约可进入可用的行数（估算）</div>
         </div>
       </div>
     </el-card>
@@ -66,8 +45,6 @@
             {{ nextAction.label || '继续' }}
           </el-button>
           <el-button v-if="(todos.total || 0) > 0 && nextAction.path !== '/govern'" @click="$router.push('/govern')">去数据规整</el-button>
-          <el-button @click="$router.push('/data')">查看数据成果</el-button>
-          <el-button @click="$router.push('/ask')">问数助手</el-button>
         </div>
       </div>
     </el-card>
@@ -130,26 +107,6 @@
             </div>
           </el-tooltip>
         </div>
-        <div class="tops" v-if="overview?.business">
-          <div>
-            <div class="sub">按类别 Top</div>
-            <el-table :data="overview.business.top_by_category || []" border size="small" empty-text="暂无可用分类数据">
-              <el-table-column prop="name" label="类别" min-width="120" />
-              <el-table-column prop="value" label="库存量" width="100" />
-            </el-table>
-          </div>
-          <div>
-            <div class="sub">按库位 Top</div>
-            <el-table :data="overview.business.top_by_location || []" border size="small" empty-text="暂无可用库位数据">
-              <el-table-column prop="name" label="库位" min-width="120" />
-              <el-table-column prop="value" label="库存量" width="100" />
-            </el-table>
-          </div>
-        </div>
-        <div v-if="mini?.months?.length" class="spark">
-          <div class="sub">近 6 月出入库趋势</div>
-          <div ref="sparkEl" class="spark-chart" />
-        </div>
       </template>
       <div v-else class="biz-empty">
         <div class="biz-empty-title">{{ businessSnapshotEmptyReason }}</div>
@@ -163,14 +120,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts/core'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
-import { flowMonthly, formatApiError, statsOverview, type FlowMonthly, type StatsOverview } from '@/api/client'
+import { formatApiError, statsOverview, type StatsOverview } from '@/api/client'
 import {
   dataStateLabel,
   dataStateTagType,
@@ -178,22 +131,12 @@ import {
 } from '@/utils/dataStates'
 import { DATA_SCOPE_DISCLAIMER } from '@/utils/copywriting'
 
-echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
-
 const router = useRouter()
 const loading = ref(false)
 const overview = ref<StatsOverview | null>(null)
-const mini = ref<FlowMonthly | null>(null)
-const sparkEl = ref<HTMLDivElement | null>(null)
-let sparkChart: echarts.ECharts | null = null
 
 const BIZ_METRICS: Record<string, { metric_id: string; hint: string }> = {
   sq: { metric_id: 'INV_QTY_TOTAL', hint: '米、个、包等计量单位不同，不能加总，故显示 —' },
-  sv: { metric_id: 'INV_VALUE_TOTAL', hint: '库存金额（无有效单价时可能暂无数据）' },
-  qf: { metric_id: 'INV_QUOTA_FILL_RATIO', hint: '定额利用率' },
-  oq: { metric_id: 'INV_OVER_QUOTA_CNT', hint: '超定额物资行数' },
-  st: { metric_id: 'INV_STALE_CNT', hint: '呆滞料行' },
-  dq: { metric_id: 'DEMAND_QTY_TOTAL', hint: '需求总量' },
   ac: { metric_id: 'ASSET_COUNT_TOTAL', hint: '资产台数' },
   fi: { metric_id: 'FLOW_IN_QTY_TOTAL', hint: '入库合计' },
   fo: { metric_id: 'FLOW_OUT_QTY_TOTAL', hint: '出库合计' },
@@ -238,16 +181,6 @@ const todos = computed(
     },
 )
 
-const aiSuggestionPending = computed(() => {
-  const t = todos.value
-  if (t.ai_suggestion_pending != null) return t.ai_suggestion_pending
-  return (
-    (t.map_pending || 0) +
-    (t.master_pending || 0) +
-    (t.material_align || 0) +
-    (t.flow_pending || 0)
-  )
-})
 const nextAction = computed(
   () =>
     overview.value?.next_action ?? {
@@ -316,18 +249,6 @@ const snapshotEmptyAction = computed(() => {
   return { label: '去数据接入', path: '/intake' }
 })
 
-const availabilityRate = computed(() => {
-  const clean = Number(quality.value.clean_rows) || 0
-  const blocked = Number(quality.value.blocked_rows) || 0
-  const denom = clean + blocked
-  if (denom <= 0) return '—'
-  return `${((clean / denom) * 100).toFixed(1)}%`
-})
-
-const releasableRows = computed(
-  () => overview.value?.estimated_releasable_rows ?? 0,
-)
-
 const statusType = computed(() => {
   if ((todos.value.total || 0) > 0 || (quality.value.blocked_rows || 0) > 0) return 'warning'
   if ((quality.value.clean_rows || 0) > 0) return 'success'
@@ -343,16 +264,11 @@ const statusTitle = computed(() => {
 })
 
 const statusDesc = computed(() => {
-  const parts = [
+  return [
     `可用 ${fmt(quality.value.clean_rows)} 条`,
     `阻塞 ${fmt(quality.value.blocked_rows)} 条`,
-    `可用率 ${availabilityRate.value}`,
     `待办 ${fmt(todos.value.total)} 项`,
-  ]
-  if ((releasableRows.value || 0) > 0) {
-    parts.push(`处理后预计释放 ${fmt(releasableRows.value)} 条`)
-  }
-  return parts.join(' · ')
+  ].join(' · ')
 })
 
 const alertDesc = computed(() => {
@@ -366,11 +282,6 @@ const bizCards = computed(() => {
   const b = overview.value?.business
   const defs = [
     { key: 'sq', label: '库存总量', value: fmtBusinessMetric(b?.stock_qty_total) },
-    { key: 'sv', label: '库存金额', value: fmtBusinessMetric(b?.stock_value_total) },
-    { key: 'qf', label: '定额利用率', value: fmtBusinessMetric(b?.quota_fill_ratio) },
-    { key: 'oq', label: '超定额物资', value: fmtBusinessMetric(b?.over_quota_count) },
-    { key: 'st', label: '呆滞料行', value: fmtBusinessMetric(b?.stale_count) },
-    { key: 'dq', label: '需求总量', value: fmtBusinessMetric(b?.demand_qty_total) },
     { key: 'ac', label: '资产台数', value: fmtBusinessMetric(b?.asset_count) },
     { key: 'fi', label: '入库合计', value: fmtBusinessMetric(b?.flow_in_qty) },
     { key: 'fo', label: '出库合计', value: fmtBusinessMetric(b?.flow_out_qty) },
@@ -398,48 +309,8 @@ async function load() {
   }
 }
 
-function renderSpark() {
-  const m = mini.value
-  if (!m?.months?.length || !sparkEl.value) return
-  if (!sparkChart) sparkChart = echarts.init(sparkEl.value)
-  const n = 6
-  sparkChart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['入库', '出库'], bottom: 0 },
-    grid: { left: 44, right: 12, top: 12, bottom: 28 },
-    xAxis: { type: 'category', data: m.months.slice(-n), boundaryGap: false },
-    yAxis: { type: 'value', minInterval: 1 },
-    series: [
-      { name: '入库', type: 'line', data: m.in.slice(-n), smooth: true, areaStyle: { opacity: 0.12 } },
-      { name: '出库', type: 'line', data: m.out.slice(-n), smooth: true, areaStyle: { opacity: 0.12 } },
-    ],
-  })
-}
-
-async function loadSpark() {
-  try {
-    mini.value = await flowMonthly()
-    await nextTick()
-    renderSpark()
-  } catch {
-    /* optional */
-  }
-}
-
-function onResize() {
-  sparkChart?.resize()
-}
-
-onMounted(async () => {
-  await load()
-  await loadSpark()
-  window.addEventListener('resize', onResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
-  sparkChart?.dispose()
-  sparkChart = null
+onMounted(() => {
+  void load()
 })
 </script>
 
@@ -447,10 +318,10 @@ onUnmounted(() => {
 .home { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
-.cards.compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.cards.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .biz-card, .card {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
@@ -461,21 +332,18 @@ onUnmounted(() => {
 .biz-card, .card.clickable { cursor: pointer; }
 .biz-card:hover, .card.clickable:hover { border-color: var(--el-color-primary); }
 .card.warn { border-color: var(--el-color-warning-light-5); }
-.card.ok { border-color: var(--el-color-success-light-5); }
 .card-label { color: #909399; font-size: 12px; margin-bottom: 6px; }
 .card-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .card-hint { color: #a8abb2; font-size: 11px; margin-top: 6px; line-height: 1.3; }
-.tops { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
-.sub { color: #606266; font-size: 13px; margin-bottom: 6px; }
-.spark { margin-top: 14px; }
-.spark-chart { width: 100%; height: 150px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.hint { color: #909399; font-size: 13px; margin: 0 0 12px; }
 .next-block { display: flex; flex-direction: column; gap: 12px; }
 .next-reason { color: #606266; font-size: 14px; line-height: 1.5; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; }
 .biz-empty { padding: 4px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .biz-empty-title { font-size: 14px; font-weight: 600; color: #606266; }
 .biz-empty-desc { color: #909399; font-size: 13px; line-height: 1.6; }
-@media (max-width: 960px) { .tops { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  .cards,
+  .cards.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 </style>
