@@ -25,7 +25,7 @@
         <el-button @click="clear">清除</el-button>
       </el-form-item>
     </el-form>
-    <p class="hint">请先到本地设置点击「一键启用本地验证」，返回数据规整后即可验证完整处理流程。若后端配置了自定义操作令牌，请填写真实令牌，不要使用默认开发令牌。</p>
+    <p class="hint">填写操作令牌后可确认写入。</p>
   </div>
 </template>
 

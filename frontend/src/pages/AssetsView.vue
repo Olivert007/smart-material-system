@@ -1,13 +1,5 @@
 <template>
   <div class="assets">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="自学习资产"
-      description="每次确认都让系统更准：表头映射 / 流水拆解 / SQL 修正确认后回写，下次同输入自动命中、不耗本地模型。本页只读浏览这些资产。"
-    />
-
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="规则字典" name="rules" />
       <el-tab-pane label="流水示例" name="flow" />
@@ -27,9 +19,6 @@
             </el-space>
           </div>
         </template>
-        <p class="hint" style="margin: 0 0 10px">
-          命中 = 该表头被自动命中的次数，命中一次即省一次本地模型调用。
-        </p>
         <PagedTable
           v-model:page="rulesPage"
           v-model:page-size="rulesPageSize"
@@ -87,9 +76,6 @@
             <el-button :loading="loading" @click="loadFlow">刷新</el-button>
           </div>
         </template>
-        <p class="hint" style="margin: 0 0 10px">
-          命中 = 该原文被直接复用的次数，复用即不耗本地模型。
-        </p>
         <PagedTable
           v-model:page="flowPage"
           v-model:page-size="flowPageSize"
@@ -154,9 +140,6 @@
             <el-button :loading="loading" @click="loadFewshot">刷新</el-button>
           </div>
         </template>
-        <p class="hint" style="margin: 0 0 10px">
-          命中 = 该示例被选为问答模板的次数，模板命中即不调本地模型生成 SQL。
-        </p>
         <el-alert
           v-if="fewshotNote"
           type="warning"

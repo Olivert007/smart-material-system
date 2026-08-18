@@ -49,7 +49,6 @@
         :description="m.desc"
         style="margin-bottom: 8px"
       />
-      <p class="hint">规则路径仍可用；需要模型建议的事项将进入待审核或稍后重试。</p>
     </el-card>
 
     <el-card shadow="never">
@@ -113,7 +112,6 @@
           <el-input v-model="drillNote" placeholder="演练备注（可选）" style="max-width: 360px" />
           <el-button type="primary" plain :loading="drillBusy" @click="doDrill">登记已完成恢复演练</el-button>
         </div>
-        <p class="hint">登记仅写入演练记录，不会自动执行全量恢复，避免误伤数据。</p>
       </div>
       <el-button link type="primary" @click="$router.push('/trace?tab=lineage')">打开追溯审计 / 数据来源</el-button>
     </el-card>
