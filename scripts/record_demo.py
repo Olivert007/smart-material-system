@@ -223,7 +223,7 @@ def main() -> int:
             lambda: page.locator(".work-card", has_text="对账差异").first.click()
         )
         page.wait_for_timeout(2200)
-        rec.hold(14, "对账差异 · 自动勾稽「期初+入库−出库 vs 现有库存」39 条")
+        rec.hold(14, "对账差异 · 自动勾稽「期初+入库−出库 vs 现有库存」16 条")
         rec.safe(
             lambda: page.locator(".work-card", has_text="待确认字段").first.click()
         )
@@ -238,13 +238,29 @@ def main() -> int:
         page.wait_for_timeout(1500)
         rec.hold(9, "操作记录 · 发布全流程审计，可追溯可回滚")
 
-        # ===== 幕6 数据成果：标准库存 / 流水 =====
+        # ===== 幕6 数据成果：标准库存 / 组合筛选 / 流水 =====
         rec.goto("/data")
         page.wait_for_timeout(1200)
-        rec.hold(12, "数据成果 · 标准化库存台账（49 行，字段统一带血缘）")
+        rec.hold(12, "数据成果 · 标准化库存台账（52 行，字段统一带血缘）")
+        # 组合筛选演示：物资种类=维护材料 + 存放区域=213仓库（虚构区域）
+        rec.safe(lambda: page.locator(".el-select", has_text="物资种类").first.click())
+        page.wait_for_timeout(900)
+        rec.safe(lambda: page.locator(".el-select-dropdown__item", has_text="维护材料").first.click())
+        page.wait_for_timeout(900)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        rec.safe(lambda: page.locator(".el-select", has_text="存放区域").first.click())
+        page.wait_for_timeout(900)
+        rec.safe(lambda: page.locator(".el-select-dropdown__item", has_text="213仓库").first.click())
+        page.wait_for_timeout(900)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        rec.safe(lambda: page.get_by_role("button", name="查询").click())
+        page.wait_for_timeout(2200)
+        rec.hold(9, "数据成果 · 组合筛选：维护材料 × 213仓库，命中 5 条")
         rec.safe(lambda: page.get_by_text("规整明细").first.click())
         page.wait_for_timeout(1500)
-        rec.hold(8, "规整明细 · 出入库流水 48 段，L1 自动拆解")
+        rec.hold(8, "规整明细 · 出入库流水 50 段，L1 自动拆解")
 
         # ===== 幕7 问数助手：自然语言 → SQL → 结果 =====
         rec.goto("/ask")
@@ -266,7 +282,7 @@ def main() -> int:
             page.wait_for_timeout(int(wait_sec * 1000))
 
         rec.safe(lambda: ask("库存总量是多少"))
-        rec.hold(10, "问数助手① · 指标模板命中：库存总量 = 278 件（未调生成模型）")
+        rec.hold(10, "问数助手① · 指标模板命中：库存总量 = 248 件（未调生成模型）")
         rec.safe(lambda: ask("库存表有多少行"))
         rec.hold(10, "问数助手② · 自然语言问数秒级出数")
 
