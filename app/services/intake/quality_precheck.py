@@ -13,6 +13,7 @@ from typing import Any
 import pandas as pd
 
 from app.repositories import meta_tx
+from app.services.govern.field_dict import field_zh
 
 # domain → required std fields (at least one of each group if nested list)
 REQUIRED: dict[str, list[str | list[str]]] = {
@@ -177,7 +178,7 @@ def run_quality_precheck(
         empty_idx = df.index[empty_mask].tolist()
         counters["empty_rows"] = len(empty_idx)
         for i in empty_idx[:sample_limit]:
-            issues.append({"code": "EMPTY_ROW", "row": int(i), "detail": "all mapped cells blank"})
+            issues.append({"code": "EMPTY_ROW", "row": int(i), "detail": "整行空白"})
 
     # required fields
     for req in REQUIRED.get(domain, []):
@@ -190,7 +191,7 @@ def run_quality_precheck(
                         "code": "REQUIRED_UNMAPPED",
                         "row": None,
                         "fields": req,
-                        "detail": f"none of {req} mapped",
+                        "detail": "必填列未映射：" + "、".join(field_zh(str(x)) for x in req),
                     }
                 )
                 continue
@@ -211,7 +212,7 @@ def run_quality_precheck(
                         "code": "MISSING_REQUIRED",
                         "row": int(i),
                         "fields": present,
-                        "detail": "required group blank",
+                        "detail": "必填项为空",
                     }
                 )
         else:
@@ -222,7 +223,7 @@ def run_quality_precheck(
                         "code": "REQUIRED_UNMAPPED",
                         "row": None,
                         "fields": [req],
-                        "detail": f"{req} not mapped",
+                        "detail": f"字段「{field_zh(req)}」未映射",
                     }
                 )
                 continue
@@ -236,7 +237,7 @@ def run_quality_precheck(
                         "code": "MISSING_REQUIRED",
                         "row": int(i),
                         "fields": [req],
-                        "detail": f"{req} blank",
+                        "detail": f"{field_zh(req)}不能为空",
                     }
                 )
 
@@ -265,7 +266,7 @@ def run_quality_precheck(
                     "code": "DUPLICATE_PK",
                     "row": None,
                     "fields": pk,
-                    "detail": f"key={k} count={int(cnt)}",
+                    "detail": f"字段「{k}」异常，共 {int(cnt)} 行",
                 }
             )
 
@@ -287,7 +288,7 @@ def run_quality_precheck(
                             "code": "QTY_YEAR_LIKE",
                             "row": int(i),
                             "fields": [qf],
-                            "detail": f"value={s}",
+                            "detail": f"取值 {s}",
                         }
                     )
                 continue
@@ -300,7 +301,7 @@ def run_quality_precheck(
                             "code": "QTY_NON_NUMERIC",
                             "row": int(i),
                             "fields": [qf],
-                            "detail": f"value={s[:40]}",
+                            "detail": f"取值 {s[:40]}",
                         }
                     )
             elif num < 0:
@@ -311,7 +312,7 @@ def run_quality_precheck(
                             "code": "QTY_NEGATIVE",
                             "row": int(i),
                             "fields": [qf],
-                            "detail": f"value={num}",
+                            "detail": f"取值 {num}",
                         }
                     )
 
@@ -335,8 +336,9 @@ def run_quality_precheck(
         "mapped_fields": list(col_map.keys()),
         "money": _money_check(df, domain=domain, col_map=col_map),
         "hint": (
-            "质量预检为规则全量结果；blocking=true 时建议先治理再 confirm。"
-            "LLM 解读未启用。"
+            "质量预检为规则全量结果；存在阻塞项时建议先处理再确认写入。"
+            if blocking
+            else "质量预检为规则全量结果。"
         ),
     }
 
