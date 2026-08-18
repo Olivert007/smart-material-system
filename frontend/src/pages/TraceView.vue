@@ -23,7 +23,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { listFiles } from '@/api/client'
+import { listFiles, listLineageReleases } from '@/api/client'
+import { DOMAIN_ZH, mapZh } from '@/utils/auditLabels'
 import LineageView from '@/pages/LineageView.vue'
 import AuditView from '@/pages/AuditView.vue'
 
@@ -40,6 +41,7 @@ const tab = ref(
 )
 
 const fileNameById = ref<Record<string, string>>({})
+const releaseById = ref<Record<string, { file_id: string; target_domain?: string }>>({})
 
 const hasTraceContext = computed(() =>
   TRACE_QUERY_KEYS.some((k) => {
@@ -48,15 +50,27 @@ const hasTraceContext = computed(() =>
   }),
 )
 
+function shortId(id: string): string {
+  return id.length > 8 ? id.slice(-8) : id
+}
+
 const contextLine = computed(() => {
   const parts: string[] = []
-  if (route.query.release_id) parts.push(`发布版本 ${route.query.release_id}`)
+  const releaseId = typeof route.query.release_id === 'string' ? route.query.release_id : ''
+  if (releaseId) {
+    const rel = releaseById.value[releaseId]
+    const domain = rel ? mapZh(DOMAIN_ZH, rel.target_domain) : ''
+    const fname = rel ? fileNameById.value[rel.file_id] || '' : ''
+    const title = [domain, fname].filter(Boolean).join(' · ')
+    parts.push(title ? `发布 ${title}` : `发布版本 …${shortId(releaseId)}`)
+  }
   const sourceFile = typeof route.query.source_file === 'string' ? route.query.source_file : ''
   const fileId = typeof route.query.file_id === 'string' ? route.query.file_id : ''
   if (sourceFile) {
     parts.push(`源文件 ${sourceFile}`)
   } else if (fileId) {
-    parts.push(`源文件 ${fileNameById.value[fileId] || fileId}`)
+    const name = fileNameById.value[fileId]
+    if (name) parts.push(`源文件 ${name}`)
   }
   if (route.query.q) parts.push(`关键词 ${route.query.q}`)
   if (route.query.blocked_row) parts.push(`阻塞行 ${route.query.blocked_row}`)
@@ -72,12 +86,18 @@ function onTab(name: string | number) {
 
 onMounted(async () => {
   try {
-    const files = await listFiles(50)
+    const [files, releases] = await Promise.all([
+      listFiles(50),
+      listLineageReleases({ limit: 50 }),
+    ])
     fileNameById.value = Object.fromEntries(
       (files.items || []).map((f) => [f.file_id, f.filename || f.file_id]),
     )
+    releaseById.value = Object.fromEntries(
+      (releases.items || []).map((r) => [r.release_id, r]),
+    )
   } catch {
-    /* 文件名解析失败时回退显示 id */
+    /* 文件名解析失败时回退显示短号 */
   }
 })
 

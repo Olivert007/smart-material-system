@@ -18,13 +18,13 @@
         <el-descriptions-item label="来源文件">{{ data.source_file }}</el-descriptions-item>
         <el-descriptions-item label="工作表">{{ data.source_sheet || '—' }}</el-descriptions-item>
         <el-descriptions-item label="来源行号">{{ data.source_row ?? '—' }}</el-descriptions-item>
-        <el-descriptions-item label="发布版本">{{ data.release_id }}</el-descriptions-item>
-        <el-descriptions-item label="业务域">{{ data.domain }}</el-descriptions-item>
+        <el-descriptions-item label="发布版本">{{ shortRelease(data.release_id) }}</el-descriptions-item>
+        <el-descriptions-item label="业务域">{{ domainZh(data.domain) }}</el-descriptions-item>
         <el-descriptions-item label="配置版本">{{ data.staging?.config_version || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="发布人">{{ data.release?.released_by || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="发布人">{{ actorZh(data.release?.released_by) }}</el-descriptions-item>
         <el-descriptions-item label="发布时间">{{ data.release?.released_at || '—' }}</el-descriptions-item>
         <el-descriptions-item label="处理任务">
-          {{ data.task ? `${data.task.task_type || ''} · ${fileStatusLabel(String(data.task.status))}` : '—' }}
+          {{ data.task ? `${taskTypeZh(data.task.task_type)} · ${fileStatusLabel(String(data.task.status))}` : '—' }}
         </el-descriptions-item>
       </el-descriptions>
 
@@ -36,13 +36,13 @@
         </el-table-column>
         <el-table-column label="来源值" min-width="160">
           <template #default="{ row }">
-            <span v-if="row.raw_value != null">{{ String(row.raw_value) }}</span>
+            <span v-if="row.raw_value != null">{{ String(valueZh(row.field, row.raw_value)) }}</span>
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
         <el-table-column label="规整值" min-width="160">
           <template #default="{ row }">
-            <span v-if="row.clean_value != null">{{ String(row.clean_value) }}</span>
+            <span v-if="row.clean_value != null">{{ String(valueZh(row.field, row.clean_value)) }}</span>
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
@@ -58,7 +58,7 @@
       <div class="sub">字段映射</div>
       <el-space wrap>
         <el-tag v-for="m in data.mapping" :key="m.std_field" size="small" type="info">
-          {{ m.std_field }} ← {{ m.source_header }}
+          {{ fieldZh(m.std_field) }} ← {{ m.source_header }}
         </el-tag>
       </el-space>
 
@@ -66,9 +66,15 @@
         <div class="sub">规则依据</div>
         <el-table :data="data.rule_hits" border size="small">
           <el-table-column prop="header" label="表头" width="140" />
-          <el-table-column prop="std_field" label="标准字段" width="140" />
-          <el-table-column prop="source" label="来源" width="120" />
-          <el-table-column prop="confirmed_by" label="确认人" width="100" />
+          <el-table-column label="标准字段" width="140">
+            <template #default="{ row }">{{ fieldZh(String(row.std_field || '')) }}</template>
+          </el-table-column>
+          <el-table-column label="来源" width="120">
+            <template #default="{ row }">{{ ruleSourceZh(row.source) }}</template>
+          </el-table-column>
+          <el-table-column label="确认人" width="100">
+            <template #default="{ row }">{{ actorZh(row.confirmed_by) }}</template>
+          </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="{ row }">{{ ruleStatusLabel(row.status) }}</template>
           </el-table-column>
@@ -99,6 +105,14 @@ import { ElMessage } from 'element-plus'
 import { formatApiError, getRowEvidence, type RowEvidence } from '@/api/client'
 import { fileStatusLabel } from '@/utils/dataStates'
 import { parseLevelLabel } from '@/utils/parseLevel'
+import { fieldZh, valueZh } from '@/utils/fields'
+import {
+  ACTOR_ZH,
+  DOMAIN_ZH,
+  mapZh,
+  ruleSourceZh,
+  taskTypeZh,
+} from '@/utils/auditLabels'
 
 const props = defineProps<{ releaseId: string; rowKey: string }>()
 defineEmits<{ (e: 'close'): void }>()
@@ -107,9 +121,26 @@ const loading = ref(false)
 const data = ref<RowEvidence | null>(null)
 const errorMsg = ref('')
 
-function ruleStatusLabel(s?: string | null): string {
+function domainZh(v?: string | null): string {
+  return mapZh(DOMAIN_ZH, v) || '—'
+}
+
+function actorZh(v?: unknown): string {
+  const s = String(v ?? '')
+  if (!s) return '—'
+  return mapZh(ACTOR_ZH, s)
+}
+
+function shortRelease(id?: string | null): string {
+  const s = String(id || '')
+  if (!s) return '—'
+  return s.length > 8 ? `版本 …${s.slice(-8)}` : `版本 ${s}`
+}
+
+function ruleStatusLabel(s?: unknown): string {
   const map: Record<string, string> = { active: '启用', disabled: '停用', proposed: '待确认' }
-  return map[String(s || '')] || s || '—'
+  const key = String(s || '')
+  return map[key] || (key ? key : '—')
 }
 
 onMounted(async () => {

@@ -26,13 +26,14 @@
             </div>
             <div class="rc-meta">确认人 {{ actorZhLabel(r.released_by) }} · {{ r.released_at || '—' }}</div>
             <div v-if="r.supersedes || r.superseded_by" class="rc-meta">
-              取代 {{ r.supersedes || '—' }} / 被取代 {{ r.superseded_by || '—' }}
+              取代 {{ r.supersedes ? `版本 ${shortReleaseId(r.supersedes)}` : '—' }}
+              / 被取代 {{ r.superseded_by ? `版本 ${shortReleaseId(r.superseded_by)}` : '—' }}
             </div>
           </div>
         </div>
         <el-descriptions v-if="business.file" :column="2" border size="small" style="margin-top: 10px">
           <el-descriptions-item label="来源文件">{{ business.file.filename }}</el-descriptions-item>
-          <el-descriptions-item label="格式">{{ business.file.format || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="格式">{{ fileFormatZh(business.file.format) }}</el-descriptions-item>
           <el-descriptions-item label="工作表数">{{ business.file.sheets ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="行数">{{ business.file.rows ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="接入时间">{{ business.file.created_at || '—' }}</el-descriptions-item>
@@ -81,6 +82,7 @@ import {
   DOMAIN_ZH,
   ROLE_ZH,
   STRUCTURE_ZH,
+  fileFormatZh,
   mapZh,
 } from '@/utils/auditLabels'
 
@@ -113,10 +115,10 @@ function shortReleaseId(id: unknown): string {
 }
 
 function releaseStatusLabel(s?: unknown): string {
-  const v = String(s || '')
+  const v = String(s || '').toLowerCase()
   if (!v || v === 'released') return '已发布'
   if (v === 'revoked') return '已吊销'
-  return v
+  return '已发布'
 }
 
 function domainZh(v: unknown): string {
