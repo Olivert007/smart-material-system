@@ -226,7 +226,7 @@ async function doRun(id: string, params?: Record<string, unknown>) {
       metric_versions: out.metric_versions,
       note:
         out.note ||
-        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载 CSV/Parquet 产物`,
+        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载 Parquet 产物`,
     }
     ElMessage.success(`完成 ${out.row_count} 行`)
     loadPreview(out.run_id)

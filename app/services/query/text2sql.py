@@ -234,6 +234,9 @@ def _ask(question: str) -> dict:
             sql = best.get("definition_sql") or ""
             val = ev.get("value")
             unit = ev.get("unit") or ""
+            # 空表聚合（SUM/COUNT 等）会返回 NULL，向用户展示时归一为 0
+            if val is None:
+                val = 0
             answer = f"{best.get('metric_name')} = {val}{(' ' + unit) if unit else ''}"
             return {
                 "question": q,
