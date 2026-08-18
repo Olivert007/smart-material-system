@@ -311,8 +311,11 @@ export async function createStaging(fileId: string, body?: { config_version?: st
   })
 }
 
-export async function getStaging(fileId: string) {
-  return apiJson<StagingInfo>(`/intake/stage/${fileId}`)
+export async function getStaging(fileId: string, targetDomain?: string) {
+  const q = new URLSearchParams()
+  if (targetDomain) q.set('target_domain', targetDomain)
+  const qs = q.toString()
+  return apiJson<StagingInfo>(`/intake/stage/${fileId}${qs ? `?${qs}` : ''}`)
 }
 
 export type SheetProfile = {
