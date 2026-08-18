@@ -98,6 +98,12 @@ export const FIELD_ZH: Record<string, string> = {
   qty_in: '入库数量',
   flow_out_text: '出库记录',
   qty_out: '出库数量',
+  // 报表 SQL 别名（ReportsCatalog 预览列头）
+  month: '月份',
+  qty: '数量',
+  n: '条数',
+  materials: '物资数',
+  flow_times: '流水次数',
   // embed_recall.STD_FIELDS 别名键（与库表字段名并存，下拉展示用）
   item_name: '物资名称',
   specification: '规格型号',
