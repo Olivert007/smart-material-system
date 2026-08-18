@@ -206,7 +206,7 @@ const conclusionTitle = computed(() => {
 })
 
 const conclusionDesc = computed(() => {
-  if (isReleased.value) return '已写入，可查看数据成果。'
+  if (isReleased.value) return ''
   const clean = staging.value?.clean_rows ?? 0
   const blocked = staging.value?.blocked_rows ?? 0
   return `预计可用 ${clean} 行（写入约 ${willInsert.value}），阻塞 ${blocked} 行。`

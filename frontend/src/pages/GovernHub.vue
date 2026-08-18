@@ -1,7 +1,6 @@
 <template>
   <div class="govern-hub">
     <div class="page-head">
-      <p class="desc">处理新数据里还没确认的问题。</p>
       <div class="head-actions">
         <el-button text type="primary" @click="$router.push('/data?tab=materials')">查看物资台账</el-button>
         <el-button :loading="summaryLoading" @click="loadAll">刷新</el-button>
@@ -38,11 +37,10 @@
           >
             <div class="work-name">{{ item.label }}</div>
             <div class="work-count">{{ item.count }}</div>
-            <p class="work-hint">{{ item.hint }}</p>
             <span v-if="item.primary" class="work-cta">去处理</span>
           </button>
         </div>
-        <div v-if="idleItems.length" class="idle-row">
+        <div v-if="idleItems.length && !activeItems.length" class="idle-row">
           <span class="idle-label">其余队列</span>
           <button
             v-for="item in idleItems"
@@ -90,7 +88,6 @@
           @queue-changed="onQueueChanged"
         />
         <template v-else-if="detailType === 'release_blocker'">
-          <p class="hint">指标口径尚未就绪时，先完成相关规整，再启用指标口径。</p>
           <MetricsView :editable="metricsEditable" />
         </template>
         <AssetsView v-else-if="detailType === 'assets'" />

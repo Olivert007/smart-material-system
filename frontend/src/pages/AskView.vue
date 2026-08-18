@@ -5,12 +5,11 @@
       type="warning"
       :closable="false"
       show-icon
-      title="本地模型不可用（复杂问数暂不可用）"
-      description="指标模板类问题（库存总量是多少、库存表有多少行、资产台数有多少等）仍可回答；数据成果浏览、导出与数据规整不受影响。"
+      title="复杂问数需本地模型"
+      description="示例问题中的指标类问题仍可直接使用。"
     />
     <div v-if="modelDown" class="ask-degraded-actions">
-      <el-button size="small" @click="$router.push('/system?tab=models')">查看本地模型状态</el-button>
-      <el-button size="small" @click="$router.push('/data')">去数据成果</el-button>
+      <el-button size="small" @click="$router.push('/system?tab=models')">查看模型状态</el-button>
     </div>
 
     <div class="composer">
@@ -42,16 +41,11 @@
         <div class="result-head">
           <span>结果</span>
           <div class="tags">
-            <el-tag size="small" type="warning">{{ scopeChip }}</el-tag>
-            <el-tag v-if="result.metric_id" size="small" type="success">
-              指标口径 {{ result.metric_name || result.metric_id
-              }}{{ result.metric_version != null ? ` v${result.metric_version}` : '' }}
-            </el-tag>
-            <el-tag v-if="result.source" size="small" type="info">来源 {{ sourceZh }}</el-tag>
-            <el-tag v-if="result.model_invoked === false" size="small">未调用模型（指标口径）</el-tag>
-            <el-tag v-else-if="result.model_invoked === true" size="small" type="warning">已调用本地模型</el-tag>
             <el-tag size="small" :type="result.ok ? 'success' : 'danger'">
               {{ result.ok ? '成功' : '失败' }}
+            </el-tag>
+            <el-tag v-if="result.metric_id" size="small" type="success">
+              指标：{{ result.metric_name || result.metric_id }}
             </el-tag>
             <el-button
               v-if="result.data?.length"
@@ -67,33 +61,17 @@
       </template>
 
       <el-alert
-        v-if="isModelDegraded(result)"
+        v-if="isModelDegraded(result) && !modelDown"
         type="warning"
         :closable="false"
         show-icon
-        title="本地模型不可用，复杂问数暂不可用"
+        title="复杂问数需本地模型"
         :description="result.hint || result.error || '模型离线，未能生成查询'"
         class="answer"
       />
-      <div v-if="isModelDegraded(result)" class="ask-degraded-actions">
-        <el-button size="small" @click="$router.push('/system?tab=models')">查看本地模型状态</el-button>
-        <el-button size="small" @click="$router.push('/data')">去数据成果</el-button>
-        <el-button
-          v-for="ex in (result.suggested_examples || []).slice(0, 3)"
-          :key="ex"
-          size="small"
-          @click="question = ex"
-        >
-          试问：{{ ex }}
-        </el-button>
+      <div v-if="isModelDegraded(result) && !modelDown" class="ask-degraded-actions">
+        <el-button size="small" @click="$router.push('/system?tab=models')">查看模型状态</el-button>
       </div>
-      <el-alert
-        v-if="result.hint && !isModelDegraded(result)"
-        :title="result.hint"
-        type="info"
-        :closable="false"
-        class="answer"
-      />
       <el-alert
         v-if="result.answer"
         :title="result.answer"
@@ -184,7 +162,7 @@ import * as echarts from 'echarts/core'
 import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { askQuestion, downloadCsv, flowGate, formatApiError, modelsStatus, type AskResult } from '@/api/client'
+import { askQuestion, downloadCsv, formatApiError, modelsStatus, type AskResult } from '@/api/client'
 import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
 import { ASK_RESULT_SCOPE } from '@/utils/copywriting'
 
@@ -217,26 +195,7 @@ const busy = ref(false)
 const result = ref<AskResult | null>(null)
 const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
-const gateReady = ref<boolean | null>(null)
 const modelDown = ref(false)
-
-const scopeChip = computed(() => {
-  if (gateReady.value === false) return '数据范围：门禁未就绪，结果仅供参考'
-  const scope = '可用'
-  if (result.value?.source === 'metric_template') {
-    const ver = result.value.metric_version != null ? ` · 口径 v${result.value.metric_version}` : ''
-    return `状态：${scope} · 指标口径${ver}`
-  }
-  return `状态：${scope}`
-})
-
-/** 结果来源业务文案。 */
-const sourceZh = computed(() => {
-  const s = result.value?.source
-  if (s === 'metric_template') return '指标口径模板'
-  if (s === 'llm_text2sql') return '模型生成查询语句'
-  return s || '-'
-})
 
 /** 单值指标命中：指标模板 + 单行单列结果，以业务结果表呈现而非 v 列表格。 */
 const singleMetric = computed(() => {
@@ -386,12 +345,6 @@ function isModelDegraded(res: AskResult | null) {
 }
 
 onMounted(async () => {
-  try {
-    const g = await flowGate()
-    gateReady.value = !!g.ready
-  } catch {
-    gateReady.value = null
-  }
   try {
     const ms = await modelsStatus()
     modelDown.value = !ms.big?.ok
