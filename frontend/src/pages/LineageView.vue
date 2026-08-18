@@ -1,7 +1,5 @@
 <template>
   <div class="lineage">
-    <h2 class="page-title">数据来源</h2>
-
     <RowEvidence
       v-if="route.query.release_id && route.query.row_key"
       :release-id="String(route.query.release_id)"
@@ -15,14 +13,16 @@
         <div v-if="business.releases.length" class="release-cards">
           <div v-for="r in business.releases" :key="String(r.release_id)" class="release-card">
             <div class="rc-top">
-              <span class="rc-id">{{ r.release_id }}</span>
+              <div>
+                <div class="rc-id">{{ releaseCardTitle(r) }}</div>
+                <div class="rc-sub">版本 {{ shortReleaseId(r.release_id) }}</div>
+              </div>
               <el-tag size="small" :type="String(r.status) === 'revoked' ? 'danger' : 'success'">
                 {{ releaseStatusLabel(r.status) }}
               </el-tag>
             </div>
             <div class="rc-meta">
-              来源文件 {{ releaseFileLabel(r) }} · 域 {{ domainZh(r.target_domain) }} · 已入库
-              {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? 0 }}
+              已入库 {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? 0 }}
             </div>
             <div class="rc-meta">确认人 {{ actorZhLabel(r.released_by) }} · {{ r.released_at || '—' }}</div>
             <div v-if="r.supersedes || r.superseded_by" class="rc-meta">
@@ -36,7 +36,6 @@
           <el-descriptions-item label="工作表数">{{ business.file.sheets ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="行数">{{ business.file.rows ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="接入时间">{{ business.file.created_at || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="文件编号">{{ business.file.file_id }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="business.sheets.length" class="sub">工作表清单</div>
         <el-table
@@ -52,22 +51,9 @@
           <el-table-column prop="rows" label="行" width="70" />
           <el-table-column prop="cols" label="列" width="70" />
         </el-table>
-        <div v-if="business.confirms.length" class="sub">谁确认了什么（审计记录）</div>
-        <el-table
-          v-if="business.confirms.length"
-          :data="business.confirms"
-          border
-          size="small"
-          max-height="240"
-          style="margin-top: 6px"
-        >
-          <el-table-column prop="ts" label="时间" width="160" />
-          <el-table-column label="确认人" width="120" :formatter="(r: Record<string, unknown>) => actorZhLabel(r.actor)" />
-          <el-table-column label="操作内容" width="110" :formatter="(r: Record<string, unknown>) => actionZh(r.action)" />
-          <el-table-column label="记录来源" width="120" :formatter="(r: Record<string, unknown>) => sourceZh(r.source)" show-overflow-tooltip />
-          <el-table-column label="详情" min-width="200" :formatter="(r: Record<string, unknown>) => renderAuditDetail(String(r.detail ?? ''))" show-overflow-tooltip />
-        </el-table>
-        <p v-else class="hint">暂无与当前上下文匹配的确认记录；可到「操作记录」查看全部。</p>
+        <div class="audit-link">
+          <el-button link type="primary" @click="goAuditTab">查看操作记录 →</el-button>
+        </div>
       </template>
       <el-empty
         v-else
@@ -84,7 +70,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import RowEvidence from '@/components/RowEvidence.vue'
 import {
-  auditTimeline,
   formatApiError,
   getIntakeProfile,
   listFiles,
@@ -95,11 +80,8 @@ import {
   ACTOR_ZH,
   DOMAIN_ZH,
   ROLE_ZH,
-  SOURCE_ZH,
   STRUCTURE_ZH,
-  actionZh,
   mapZh,
-  renderAuditDetail,
 } from '@/utils/auditLabels'
 
 const route = useRoute()
@@ -108,14 +90,26 @@ const business = ref<{
   releases: Array<Record<string, unknown>>
   file: FileItem | null
   sheets: Array<Record<string, unknown>>
-  confirms: Array<Record<string, unknown>>
-}>({ releases: [], file: null, sheets: [], confirms: [] })
+}>({ releases: [], file: null, sheets: [] })
 const businessLoading = ref(false)
 const fileNameById = ref<Record<string, string>>({})
 
 function releaseFileLabel(r: Record<string, unknown>) {
   const fid = String(r.file_id || '')
   return fileNameById.value[fid] || business.value.file?.filename || fid
+}
+
+function releaseCardTitle(r: Record<string, unknown>) {
+  const domain = domainZh(r.target_domain)
+  const file = releaseFileLabel(r)
+  if (domain && domain !== '—' && file) return `${domain} · ${file}`
+  return file || domain || String(r.release_id || '—')
+}
+
+function shortReleaseId(id: unknown): string {
+  const s = String(id || '')
+  if (!s) return '—'
+  return s.length > 8 ? s.slice(-8) : s
 }
 
 function releaseStatusLabel(s?: unknown): string {
@@ -141,14 +135,17 @@ function structureZh(v: unknown): string {
   return mapZh(STRUCTURE_ZH, v)
 }
 
-function sourceZh(v: unknown): string {
-  return mapZh(SOURCE_ZH, v)
-}
-
 function clearRowEvidence() {
   const q = { ...route.query }
   delete q.row_key
   router.replace({ path: '/trace', query: q })
+}
+
+function goAuditTab() {
+  router.replace({
+    path: '/trace',
+    query: { ...route.query, tab: 'audit', scope: 'govern' },
+  })
 }
 
 const fileFilter = computed(() => {
@@ -190,11 +187,6 @@ async function loadBusiness() {
     const rels = relId
       ? allRels.filter((r) => String(r.release_id) === relId)
       : allRels.filter((r) => !fid || String(r.file_id || '').includes(fid))
-    const confirms = await auditTimeline({
-      limit: 50,
-      release_id: relId || undefined,
-      file_id: fid || undefined,
-    })
     const fileRow = fid ? fileItems.find((f) => f.file_id === fid) || null : null
     let sheets: Array<Record<string, unknown>> = []
     if (fid) {
@@ -209,7 +201,6 @@ async function loadBusiness() {
       releases: rels,
       file: fileRow,
       sheets,
-      confirms: (confirms.items || []) as Array<Record<string, unknown>>,
     }
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -232,8 +223,6 @@ watch(
 
 <style scoped>
 .lineage { display: flex; flex-direction: column; gap: 16px; width: 100%; }
-.page-title { font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); margin: 0; }
-.hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .release-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -245,8 +234,10 @@ watch(
   padding: 12px 14px;
   background: var(--el-fill-color-blank);
 }
-.rc-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .rc-id { font-weight: 600; font-size: 14px; word-break: break-all; }
+.rc-sub { color: #909399; font-size: 12px; margin-top: 4px; }
 .rc-meta { color: #606266; font-size: 12px; margin-top: 6px; line-height: 1.5; }
 .sub { color: #606266; font-size: 13px; margin: 12px 0 6px; font-weight: 600; }
+.audit-link { margin-top: 10px; }
 </style>
