@@ -242,7 +242,7 @@ const scopeChip = computed(() => {
 const sourceZh = computed(() => {
   const s = result.value?.source
   if (s === 'metric_template') return '指标口径模板'
-  if (s === 'llm_text2sql') return '模型生成 SQL'
+  if (s === 'llm_text2sql') return '模型生成查询语句'
   return s || '-'
 })
 

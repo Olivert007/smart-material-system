@@ -38,7 +38,7 @@
           <el-descriptions-item label="接入时间">{{ business.file.created_at || '—' }}</el-descriptions-item>
           <el-descriptions-item label="文件编号">{{ business.file.file_id }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="business.sheets.length" class="sub">Sheet 清单</div>
+        <div v-if="business.sheets.length" class="sub">工作表清单</div>
         <el-table
           v-if="business.sheets.length"
           :data="business.sheets"

@@ -24,7 +24,7 @@
         <el-descriptions-item label="版本">{{ ready.version || '—' }}</el-descriptions-item>
         <el-descriptions-item label="元数据库">{{ yn(ready.meta_db) }}</el-descriptions-item>
         <el-descriptions-item label="业务数据库">{{ yn(ready.biz_db) }}</el-descriptions-item>
-        <el-descriptions-item label="后台 Worker">{{ yn(ready.worker) }}</el-descriptions-item>
+        <el-descriptions-item label="后台任务">{{ yn(ready.worker) }}</el-descriptions-item>
         <el-descriptions-item label="前端产物">{{ yn(ready.frontend_dist) }}</el-descriptions-item>
         <el-descriptions-item label="主模型">{{ modelOk('big') }}</el-descriptions-item>
         <el-descriptions-item label="向量模型">{{ modelOk('embed') }}</el-descriptions-item>
@@ -119,7 +119,7 @@
     </el-card>
 
     <el-collapse>
-      <el-collapse-item title="高级：模型探测明细 / LLM 调用统计" name="adv">
+      <el-collapse-item title="高级：模型探测明细 / 大模型调用统计" name="adv">
         <el-table :data="modelRows" border size="small" v-loading="modelsLoading">
           <el-table-column prop="role" label="角色" width="90" />
           <el-table-column prop="model" label="配置模型" min-width="160" />

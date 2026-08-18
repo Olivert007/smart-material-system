@@ -109,7 +109,7 @@
         :closable="false"
         show-icon
         title="参数说明"
-        description="参数将代入报表 SQL 的 ${参数名} 占位符；必填参数（数字）不可留空，文本参数可留空则按全部匹配。"
+        description="参数将代入报表查询语句的 ${参数名} 占位符；必填参数（数字）不可留空，文本参数可留空则按全部匹配。"
         style="margin-bottom: 12px"
       />
       <el-form label-width="110px">
@@ -226,7 +226,7 @@ async function doRun(id: string, params?: Record<string, unknown>) {
       metric_versions: out.metric_versions,
       note:
         out.note ||
-        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载 Parquet 产物`,
+        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载明细文件（Parquet 格式）`,
     }
     ElMessage.success(`完成 ${out.row_count} 行`)
     loadPreview(out.run_id)
