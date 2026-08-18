@@ -1,138 +1,93 @@
 <template>
   <div class="ops">
-    <el-alert
-      :type="overallReady ? 'success' : 'warning'"
-      :closable="false"
-      show-icon
-      :title="overallReady ? '环境自检：系统就绪' : '环境自检：尚未全部就绪'"
-      :description="selfCheckDesc"
-    />
-
-    <el-card shadow="never">
-      <template #header>
-        <div class="head">
-          <span>分项检查</span>
-          <el-button :loading="readyLoading" @click="refreshAll">刷新自检</el-button>
-        </div>
-      </template>
-      <el-descriptions v-if="ready" :column="2" border size="small">
-        <el-descriptions-item label="API 接口">
-          <el-tag :type="ready.status === 'ready' ? 'success' : 'danger'" size="small">
-            {{ ready.status === 'ready' ? '就绪' : '异常' }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="版本">{{ ready.version || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="元数据库">{{ yn(ready.meta_db) }}</el-descriptions-item>
-        <el-descriptions-item label="业务数据库">{{ yn(ready.biz_db) }}</el-descriptions-item>
-        <el-descriptions-item label="后台任务">{{ yn(ready.worker) }}</el-descriptions-item>
-        <el-descriptions-item label="前端产物">{{ yn(ready.frontend_dist) }}</el-descriptions-item>
-        <el-descriptions-item label="主模型">{{ modelOk('big') }}</el-descriptions-item>
-        <el-descriptions-item label="向量模型">{{ modelOk('embed') }}</el-descriptions-item>
-        <el-descriptions-item label="最近备份" :span="2">
-          {{ latestBackupText }}
-        </el-descriptions-item>
-        <el-descriptions-item label="恢复演练" :span="2">
-          {{ drillText }}
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-card>
-
-    <el-card shadow="never" v-if="modelImpact.length">
-      <template #header>模型不可用影响</template>
+    <div class="hero">
       <el-alert
-        v-for="m in modelImpact"
-        :key="m.role"
-        type="warning"
+        :type="headline.type"
         :closable="false"
         show-icon
-        :title="m.title"
-        :description="m.desc"
-        style="margin-bottom: 8px"
+        :title="headline.title"
+        :description="headline.description"
       />
-    </el-card>
+      <div class="quick-actions">
+        <el-button @click="$router.push('/system?tab=settings')">填写操作令牌</el-button>
+        <el-button @click="$router.push('/system?tab=models')">本地模型</el-button>
+        <el-button @click="$router.push('/trace')">追溯审计</el-button>
+        <el-button :loading="refreshing" @click="refreshAll">刷新</el-button>
+      </div>
+    </div>
 
-    <el-card shadow="never">
-      <template #header>
-        <div class="head">
-          <span>任务队列</span>
-          <el-button :loading="tasksLoading" @click="loadTasks">刷新</el-button>
-        </div>
-      </template>
-      <el-space wrap>
-        <el-tag type="warning">待处理 {{ tasks?.pending ?? '—' }}</el-tag>
-        <el-tag type="primary">处理中 {{ tasks?.processing ?? '—' }}</el-tag>
-        <el-tag type="success">已完成 {{ tasks?.done ?? '—' }}</el-tag>
-        <el-tag type="danger">失败 {{ tasks?.failed ?? '—' }}</el-tag>
-      </el-space>
-      <p class="hint">
-        <el-button link type="primary" @click="$router.push('/intake')">打开数据接入</el-button>
-      </p>
-    </el-card>
+    <div class="biz-cards" v-loading="overviewLoading">
+      <div class="biz-card clickable" @click="$router.push('/govern')">
+        <div class="card-label">待办合计</div>
+        <div class="card-value">{{ fmt(overview?.todos?.total) }}</div>
+      </div>
+      <div class="biz-card">
+        <div class="card-label">可用行</div>
+        <div class="card-value">{{ fmt(overview?.quality?.clean_rows) }}</div>
+      </div>
+      <div class="biz-card">
+        <div class="card-label">阻塞行</div>
+        <div class="card-value">{{ fmt(overview?.quality?.blocked_rows) }}</div>
+      </div>
+      <div class="biz-card clickable" @click="$router.push('/intake')">
+        <div class="card-label">最近文件</div>
+        <div class="card-value file">{{ recentFilenameShort }}</div>
+      </div>
+    </div>
 
-    <el-card shadow="never">
-      <template #header>
-        <div class="head">
-          <span>告警</span>
-          <el-button :loading="alertsLoading" @click="loadAlerts">刷新</el-button>
-        </div>
-      </template>
-      <el-empty v-if="!alerts?.active?.length" description="当前无活跃告警" />
-      <el-alert
-        v-for="(a, i) in alerts?.active || []"
-        :key="i"
-        :type="a.level === 'danger' ? 'error' : 'warning'"
-        :title="a.message"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 8px"
-      />
-    </el-card>
+    <p class="metric-row" :class="{ muted: metricRowEmpty }">{{ metricRowText }}</p>
 
-    <el-card shadow="never">
-      <template #header>
+    <el-collapse v-model="expandedPanels">
+      <el-collapse-item title="服务检查" name="svc">
+        <el-descriptions v-if="ready" :column="2" border size="small">
+          <el-descriptions-item label="API 接口">
+            <el-tag :type="ready.status === 'ready' ? 'success' : 'danger'" size="small">
+              {{ ready.status === 'ready' ? '就绪' : '异常' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="版本">{{ ready.version || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="元数据库">{{ yn(ready.meta_db) }}</el-descriptions-item>
+          <el-descriptions-item label="业务数据库">{{ yn(ready.biz_db) }}</el-descriptions-item>
+          <el-descriptions-item label="后台任务">{{ yn(ready.worker) }}</el-descriptions-item>
+          <el-descriptions-item label="前端产物">{{ yn(ready.frontend_dist) }}</el-descriptions-item>
+        </el-descriptions>
+      </el-collapse-item>
+
+      <el-collapse-item title="备份与恢复演练" name="backup">
         <div class="head">
-          <span>备份与恢复演练</span>
           <el-button type="warning" :loading="backupBusy" @click="doBackup">立即备份</el-button>
         </div>
-      </template>
-      <el-table :data="backups" v-loading="backupsLoading" border size="small" empty-text="暂无备份">
-        <el-table-column prop="backup_id" label="备份编号" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="时间" width="160" />
-        <el-table-column prop="files" label="条目数" width="90" />
-      </el-table>
-      <div class="drill-box">
-        <el-alert
-          :type="drill?.recorded ? 'success' : 'warning'"
-          :closable="false"
-          show-icon
-          :title="drill?.message || '加载演练状态…'"
-          :description="drill?.record ? `最近演练：${drill.record.recorded_at} · ${drill.record.actor} · ${drill.record.note}` : '未演练前不承诺生产级备份恢复。'"
-        />
-        <div class="actions">
-          <el-input v-model="drillNote" placeholder="演练备注（可选）" style="max-width: 360px" />
-          <el-button type="primary" plain :loading="drillBusy" @click="doDrill">登记已完成恢复演练</el-button>
-        </div>
-      </div>
-      <el-button link type="primary" @click="$router.push('/trace?tab=lineage')">打开追溯审计 / 数据来源</el-button>
-    </el-card>
-
-    <el-collapse>
-      <el-collapse-item title="高级：模型探测明细 / 大模型调用统计" name="adv">
-        <el-table :data="modelRows" border size="small" v-loading="modelsLoading">
-          <el-table-column prop="role" label="角色" width="90" />
-          <el-table-column prop="model" label="配置模型" min-width="160" />
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag :type="row.ok ? 'success' : 'danger'" size="small">{{ row.ok ? '在线' : '离线' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="note" label="备注" min-width="180" />
+        <p v-if="!backups.length" class="empty-backup">尚未创建备份</p>
+        <el-table v-else :data="backups" v-loading="backupsLoading" border size="small">
+          <el-table-column prop="backup_id" label="备份编号" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="created_at" label="时间" width="160" />
+          <el-table-column prop="files" label="条目数" width="90" />
         </el-table>
-        <p v-if="cost" class="hint" style="margin-top: 12px">
-          近 7 日本地模型调用：总 {{ cost.total_calls }} · 成功 {{ cost.ok_calls }} · 失败 {{ cost.failed_calls }}
-        </p>
+        <div class="drill-box">
+          <el-alert
+            :type="drill?.recorded ? 'success' : 'warning'"
+            :closable="false"
+            show-icon
+            :title="drill?.message || '加载演练状态…'"
+            :description="drill?.record ? `最近演练：${drill.record.recorded_at} · ${drill.record.actor} · ${drill.record.note}` : ''"
+          />
+          <div class="actions">
+            <el-input v-model="drillNote" placeholder="演练备注（可选）" style="max-width: 360px" />
+            <el-button type="primary" plain :loading="drillBusy" @click="doDrill">登记演练</el-button>
+          </div>
+        </div>
       </el-collapse-item>
     </el-collapse>
+
+    <el-alert
+      v-for="(a, i) in alerts?.active || []"
+      :key="i"
+      :type="a.level === 'danger' ? 'error' : 'warning'"
+      :title="a.message"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 8px"
+    />
   </div>
 </template>
 
@@ -147,122 +102,149 @@ import {
   listBackups,
   modelsStatus,
   opsAlerts,
-  opsLlmCost,
   opsTasksSummary,
   recordRestoreDrill,
+  statsOverview,
+  type StatsOverview,
 } from '@/api/client'
 
 const ready = ref<Record<string, unknown> | null>(null)
-const readyLoading = ref(false)
 const models = ref<Awaited<ReturnType<typeof modelsStatus>> | null>(null)
-const modelsLoading = ref(false)
 const tasks = ref<Awaited<ReturnType<typeof opsTasksSummary>> | null>(null)
-const tasksLoading = ref(false)
 const alerts = ref<Awaited<ReturnType<typeof opsAlerts>> | null>(null)
-const alertsLoading = ref(false)
-const cost = ref<Awaited<ReturnType<typeof opsLlmCost>> | null>(null)
+const overview = ref<StatsOverview | null>(null)
+const overviewLoading = ref(false)
+const refreshing = ref(false)
 const backupBusy = ref(false)
 const backups = ref<Array<{ backup_id: string; path: string; created_at?: string; files?: number | null }>>([])
 const backupsLoading = ref(false)
 const drill = ref<Awaited<ReturnType<typeof getRestoreDrill>> | null>(null)
 const drillNote = ref('')
 const drillBusy = ref(false)
+const expandedPanels = ref<string[]>([])
 
-const overallReady = computed(() => ready.value?.status === 'ready')
-const latestBackupText = computed(() => {
-  const b = backups.value[0]
-  return b ? `${b.backup_id}（${b.created_at || '-'}）` : '无备份记录'
-})
-const drillText = computed(() =>
-  drill.value?.recorded
-    ? `已登记 · ${drill.value.record?.recorded_at || ''}`
-    : '未登记（不承诺生产级恢复）',
-)
-
-const selfCheckDesc = computed(() => {
-  if (overallReady.value) {
-    return `API/数据库/Worker/前端产物正常。最近备份：${latestBackupText.value}；恢复演练：${drillText.value}`
-  }
-  return '请检查下方分项；模型离线不影响规则路径，但会影响建议与部分问数能力。'
-})
-
-const modelImpact = computed(() => {
+const capabilitySummary = computed(() => {
   const m = models.value
-  if (!m) return [] as Array<{ role: string; title: string; desc: string }>
-  const out: Array<{ role: string; title: string; desc: string }> = []
-  if (!m.big?.ok) {
-    out.push({
-      role: 'big',
-      title: '主模型不可用',
-      desc: '影响：复杂问数生成、低置信解释、接入辅助建议。已保留规则路径与指标模板问数。',
-    })
-  }
-  if (!m.embed?.ok) {
-    out.push({
-      role: 'embed',
-      title: '向量模型不可用或已降级',
-      desc: '影响：字段/主数据召回可能改为词法兜底；匹配建议置信度下降，须人工确认。',
-    })
-  }
-  if (m.fast && !m.fast.ok) {
-    out.push({
-      role: 'fast',
-      title: '快速模型不可用',
-      desc: '影响：轻量建议变慢或不可用；不阻断规则确认与发布写入。',
-    })
-  }
-  return out
+  if (!m) return '模型状态加载中'
+  const parts: string[] = []
+  parts.push(m.big?.ok ? '主模型可用' : '主模型离线')
+  if (m.embed?.ok) parts.push('向量模型可用')
+  else if (m.embed?.lexical_fallback) parts.push('向量词法兜底')
+  else parts.push('向量模型离线')
+  parts.push(m.fast?.ok ? '快速模型可用' : '快速模型离线')
+  return parts.join('；')
 })
 
-const modelRows = computed(() => {
+const offlineModelNames = computed(() => {
   const m = models.value
-  if (!m) return []
-  return [
-    { role: '主模型', model: m.big?.configured_model || '—', ok: !!m.big?.ok, note: m.big?.ok ? '在线' : '离线' },
-    { role: '向量模型', model: m.embed?.configured_model || '—', ok: !!m.embed?.ok, note: m.embed?.lexical_fallback ? '词法兜底' : '向量检索' },
-    { role: '快速模型', model: m.fast?.configured_model || '(未配置)', ok: !!m.fast?.ok, note: m.fast?.note || '阶段 2+' },
-  ]
+  if (!m) return [] as string[]
+  const names: string[] = []
+  if (!m.big?.ok) names.push('主模型')
+  if (!m.fast?.ok) names.push('快速模型')
+  if (!m.embed?.ok) names.push('向量模型')
+  return names
 })
+
+const firstFailure = computed(() => {
+  const r = ready.value
+  if (!r) return '就绪状态尚未拉取'
+  if (!r.biz_db) return '业务数据库异常'
+  if (!r.worker) return '后台任务未运行'
+  if (!r.meta_db) return '元数据库缺失'
+  if (!r.frontend_dist) return '前端产物缺失'
+  return '服务未全部就绪'
+})
+
+const headline = computed(() => {
+  if (!ready.value) {
+    return { type: 'info' as const, title: '业务服务检查中', description: '正在拉取就绪状态' }
+  }
+  if (ready.value.status !== 'ready') {
+    return {
+      type: 'error' as const,
+      title: '业务服务异常',
+      description: `请展开「服务检查」；${firstFailure.value}`,
+    }
+  }
+  const m = models.value
+  const llmOk = !!m?.big?.ok || !!m?.fast?.ok
+  if (m && !llmOk) {
+    const offline = offlineModelNames.value.join('、') || '主模型与快速模型'
+    return {
+      type: 'warning' as const,
+      title: '业务服务就绪',
+      description: `智能能力：已降级（${offline}）；规则路径与指标问数仍可用`,
+    }
+  }
+  return {
+    type: 'success' as const,
+    title: '业务服务就绪',
+    description: `智能能力：${capabilitySummary.value}`,
+  }
+})
+
+const recentFilename = computed(() => overview.value?.recent_files?.[0]?.filename || '')
+const recentFilenameShort = computed(() => {
+  const name = recentFilename.value
+  if (!name) return '暂无'
+  return name.length > 18 ? `${name.slice(0, 16)}…` : name
+})
+
+const latestBackupId = computed(() => backups.value[0]?.backup_id || '')
+
+const metricRowText = computed(() => {
+  const pending = tasks.value?.pending ?? '—'
+  const processing = tasks.value?.processing ?? '—'
+  const done = tasks.value?.done ?? '—'
+  const failed = tasks.value?.failed ?? '—'
+  const alertCount = alerts.value?.count ?? alerts.value?.active?.length ?? '—'
+  const backup = latestBackupId.value || '无'
+  return `接入任务 待处理 ${pending} · 处理中 ${processing} · 已完成 ${done} · 失败 ${failed} · 活跃告警 ${alertCount} · 最近备份 ${backup}`
+})
+
+const metricRowEmpty = computed(() => {
+  const t = tasks.value
+  const alertCount = alerts.value?.count ?? alerts.value?.active?.length ?? 0
+  const allZero = !t || ((t.pending || 0) + (t.processing || 0) + (t.done || 0) + (t.failed || 0) === 0)
+  return allZero && !alertCount && !latestBackupId.value
+})
+
+function fmt(v: unknown) {
+  if (v == null || v === '') return '—'
+  const n = Number(v)
+  if (Number.isFinite(n)) return n.toLocaleString('zh-CN')
+  return String(v)
+}
 
 function yn(v: unknown) {
   return v ? '正常' : '异常'
 }
 
-function modelOk(role: 'big' | 'embed') {
-  const m = models.value?.[role]
-  return m?.ok ? '可用' : '不可用 / 降级'
-}
-
 async function loadReady() {
-  readyLoading.value = true
   try { ready.value = (await healthReady()) as Record<string, unknown> }
   catch (e: unknown) { ElMessage.error(formatApiError(e)) }
-  finally { readyLoading.value = false }
 }
 
 async function loadModels() {
-  modelsLoading.value = true
   try { models.value = await modelsStatus() }
   catch (e: unknown) { ElMessage.error(formatApiError(e)) }
-  finally { modelsLoading.value = false }
 }
 
 async function loadTasks() {
-  tasksLoading.value = true
   try { tasks.value = await opsTasksSummary() }
   catch (e: unknown) { ElMessage.error(formatApiError(e)) }
-  finally { tasksLoading.value = false }
 }
 
 async function loadAlerts() {
-  alertsLoading.value = true
   try { alerts.value = await opsAlerts() }
   catch (e: unknown) { ElMessage.error(formatApiError(e)) }
-  finally { alertsLoading.value = false }
 }
 
-async function loadCost() {
-  try { cost.value = await opsLlmCost(7) } catch { /* optional */ }
+async function loadOverview() {
+  overviewLoading.value = true
+  try { overview.value = await statsOverview(5) }
+  catch (e: unknown) { ElMessage.error(formatApiError(e)) }
+  finally { overviewLoading.value = false }
 }
 
 async function loadBackups() {
@@ -285,7 +267,20 @@ async function loadDrill() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadReady(), loadModels(), loadTasks(), loadAlerts(), loadCost(), loadBackups(), loadDrill()])
+  refreshing.value = true
+  try {
+    await Promise.all([
+      loadReady(),
+      loadModels(),
+      loadTasks(),
+      loadAlerts(),
+      loadOverview(),
+      loadBackups(),
+      loadDrill(),
+    ])
+  } finally {
+    refreshing.value = false
+  }
 }
 
 async function doBackup() {
@@ -332,8 +327,31 @@ onMounted(refreshAll)
 
 <style scoped>
 .ops { display: flex; flex-direction: column; gap: 16px; width: 100%; }
-.head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
+.hero { display: flex; flex-direction: column; gap: 12px; }
+.quick-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.biz-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.biz-card {
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: var(--el-bg-color);
+}
+.biz-card.clickable { cursor: pointer; }
+.biz-card.clickable:hover { border-color: var(--el-color-primary); }
+.card-label { color: #909399; font-size: 12px; margin-bottom: 6px; }
+.card-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.card-value.file { font-size: 15px; line-height: 1.35; word-break: break-all; }
+.metric-row { color: #303133; font-size: 13px; margin: 0; line-height: 1.6; }
+.metric-row.muted { color: #909399; }
+.head { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.empty-backup { color: #909399; font-size: 13px; margin: 0 0 10px; }
 .drill-box { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 720px) {
+  .biz-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 </style>
