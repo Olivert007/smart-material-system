@@ -124,7 +124,7 @@ function mapItems(items: Array<Record<string, string>>) {
     source_zh: mapZh(SOURCE_ZH, it.source),
     action_zh: actionZh(it.action),
     actor_zh: mapZh(ACTOR_ZH, it.actor),
-    detail_zh: renderAuditDetail(it.detail || ''),
+      detail_zh: renderAuditDetail(it.detail || '', fileNameById.value),
   }))
 }
 
@@ -248,9 +248,9 @@ watch(
   },
 )
 
-onMounted(() => {
+onMounted(async () => {
   seedFromRoute()
-  void loadCaches()
+  await loadCaches()
   load()
 })
 </script>
