@@ -1,14 +1,5 @@
 <template>
   <div class="data-hub">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="数据成果"
-      description="查看规整后的物资台账、明细、报表和趋势。处理待确认问题请到「数据规整」。"
-    >
-      <el-button type="primary" link @click="$router.push('/govern')">去数据规整</el-button>
-    </el-alert>
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="物资台账" name="materials" />
       <el-tab-pane label="规整明细" name="detail" />

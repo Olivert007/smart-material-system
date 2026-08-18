@@ -1,13 +1,5 @@
 <template>
   <div class="intake">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="数据接入"
-      description="四步完成接入：选择文件 → 查看识别结论 → 处理必要问题 → 确认进入规整。上传成功不等于解析完成，解析完成不等于数据可用，确认导入不等于正式发布。"
-    />
-
     <el-steps :active="wizardStep" finish-status="success" align-center>
       <el-step title="选择文件" />
       <el-step title="识别结论" />
@@ -93,16 +85,6 @@
           </el-button>
           <el-button v-else disabled>解析完成后可进入规整</el-button>
         </div>
-        <el-collapse class="adv">
-          <el-collapse-item title="高级详情（任务与通道）" name="adv">
-            <div class="mono">
-              任务编号：{{ job.task_id }} · 文件编号：{{ job.file_id }} · 通道：{{
-                job.channel === 'poll' ? '轮询' : job.channel === 'sse' ? '实时' : job.channel || '-'
-              }}
-              · 原始状态：{{ fileStatusLabel(job.status) }} · 进度：{{ job.progress }}
-            </div>
-          </el-collapse-item>
-        </el-collapse>
       </div>
     </el-card>
 
@@ -136,21 +118,6 @@
           </el-table-column>
         </el-table>
       </div>
-      <el-collapse class="adv">
-        <el-collapse-item title="高级详情（格式与证据行）" name="files-adv">
-          <div class="table-wrap">
-            <el-table :data="fileItems" border size="small">
-              <el-table-column prop="filename" label="文件" min-width="160" />
-              <el-table-column prop="format" label="格式" width="80" />
-              <el-table-column prop="rows" label="证据行" width="90" />
-              <el-table-column label="原始状态" width="120">
-                <template #default="{ row }">{{ fileStatusLabel(row.status) }}</template>
-              </el-table-column>
-              <el-table-column prop="file_id" label="文件编号" min-width="160" show-overflow-tooltip />
-            </el-table>
-          </div>
-        </el-collapse-item>
-      </el-collapse>
     </el-card>
   </div>
 </template>
@@ -288,7 +255,7 @@ function businessConclusion(job: Job) {
       return c.hint
     }
     if (c.conclusion === 'published') {
-      return '状态：已发布。已写入业务库（可用候选）；不等于正式发布报表。'
+      return '状态：已发布。已写入业务库。'
     }
     if (c.conclusion === 'standardized') return '状态：规整。可继续确认或查看质量结果。'
     return '状态：原始。系统正在识别文件结构，完成后给出是否可进入规整的结论。'
@@ -301,7 +268,7 @@ function businessConclusion(job: Job) {
   if (label === dataStateLabel('staging')) return '状态：暂存。结构已识别，可进入规整确认。'
   if (label === dataStateLabel('standardized')) return '状态：规整。可继续确认或查看质量结果。'
   if (label === dataStateLabel('published')) {
-    return '状态：已发布。已写入业务库（可用候选）；不等于正式发布报表。'
+    return '状态：已发布。已写入业务库。'
   }
   return '请根据状态继续处理。'
 }

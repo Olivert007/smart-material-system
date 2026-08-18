@@ -1,13 +1,6 @@
 <template>
   <div class="trace-hub">
     <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="追溯审计"
-      description="回看数据结果的来源（源文件、工作表、发布版本）与确认记录（谁在何时确认了什么）；可用结果不等于正式发布报表。"
-    />
-    <el-alert
       v-if="contextLine"
       type="warning"
       :closable="false"
