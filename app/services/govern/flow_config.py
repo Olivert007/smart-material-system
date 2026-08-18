@@ -185,8 +185,12 @@ _ledger_route_cache: dict | None = None
 
 def _ledger_route_path() -> Path:
     """T3.1: ledger_route.json 静态资产与 flow_config 同源（env FLOW_CONFIG_DIR 优先，
-    否则仓库 data/flow_config）。不依赖运行时 config.DATA（可能指向独立数据卷）。"""
-    return _config_dir() / "ledger_route.json"
+    否则仓库 data/flow_config）。不依赖运行时 config.DATA（可能指向独立数据卷）。
+    FLOW_CONFIG_DIR 若未放路由表，回退仓库默认文件，避免测试改 env 后整表丢失。"""
+    cand = _config_dir() / "ledger_route.json"
+    if cand.exists():
+        return cand
+    return DEFAULT_DIR / "ledger_route.json"
 
 
 def _load_ledger_route() -> dict:
