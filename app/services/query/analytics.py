@@ -68,9 +68,14 @@ def flow_filters() -> dict[str, Any]:
     return {"categories": list(STANDARD_CATEGORIES), "years": years}
 
 
+def _standard_cats(raw: str | None) -> list[str]:
+    """只保留标准物资种类，未知分类忽略（与 /materials/standardized 一致）。"""
+    return [c for c in parse_categories(raw) if c in STANDARD_CATEGORIES]
+
+
 def flow_monthly(categories: str | None = None, year: str | None = None) -> dict[str, Any]:
     """出入库按月 IN/OUT 趋势（与 ReportsView rpt_flow_monthly 同口径，可筛选）。"""
-    cats = parse_categories(categories)
+    cats = _standard_cats(categories)
     yr = parse_year(year)
     where_sql, params = _flow_where(cats, yr)
     rows = _fetch_records(
@@ -115,7 +120,7 @@ def flow_top(
     display_name 供前端中文展示。可按物资种类、年份筛选。
     """
     limit = max(1, min(int(limit), 50))
-    cats = parse_categories(categories)
+    cats = _standard_cats(categories)
     yr = parse_year(year)
     where_sql, params = _flow_where(cats, yr)
     sql = (

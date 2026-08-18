@@ -139,7 +139,7 @@ const QUEUE_META: Array<Omit<QueueItem, 'count' | 'primary'>> = [
 const route = useRoute()
 const router = useRouter()
 
-const GOVERN_TABS = ['map', 'rulelearn', 'master', 'flow', 'reconcile'] as const
+const GOVERN_TABS = ['map', 'rulelearn', 'master', 'flow', 'reconcile', 'release_blocker'] as const
 const LEDGER_TABS = new Set(['material', 'materials', 'ledger'])
 
 const DETAIL_TAB_MAP: Record<string, string> = {
@@ -150,6 +150,7 @@ const DETAIL_TAB_MAP: Record<string, string> = {
   flow: 'flow',
   reconcile: 'reconcile',
   rulelearn: 'rulelearn',
+  release_blocker: 'release_blocker',
 }
 
 const summary = ref<StatsOverview | null>(null)
