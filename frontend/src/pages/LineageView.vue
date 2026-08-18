@@ -21,7 +21,7 @@
               </el-tag>
             </div>
             <div class="rc-meta">
-              来源文件 {{ r.file_id }} · 域 {{ domainZh(r.target_domain) }} · 已入库
+              来源文件 {{ releaseFileLabel(r) }} · 域 {{ domainZh(r.target_domain) }} · 已入库
               {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? 0 }}
             </div>
             <div class="rc-meta">确认人 {{ actorZhLabel(r.released_by) }} · {{ r.released_at || '—' }}</div>
@@ -111,6 +111,12 @@ const business = ref<{
   confirms: Array<Record<string, unknown>>
 }>({ releases: [], file: null, sheets: [], confirms: [] })
 const businessLoading = ref(false)
+const fileNameById = ref<Record<string, string>>({})
+
+function releaseFileLabel(r: Record<string, unknown>) {
+  const fid = String(r.file_id || '')
+  return fileNameById.value[fid] || business.value.file?.filename || fid
+}
 
 function releaseStatusLabel(s?: unknown): string {
   const v = String(s || '')
@@ -164,6 +170,9 @@ async function loadBusiness() {
       listFiles(50, 0),
     ])
     const fileItems = files.items || []
+    fileNameById.value = Object.fromEntries(
+      fileItems.map((f) => [f.file_id, f.filename || f.file_id]),
+    )
     const allRels = releases.items || []
     // 先按 release_id 定位发布版本，再解析源文件哈希：优先取该发布版本绑定的文件；
     // 其次把文件名解析为哈希；兜底按原值（哈希，来自阻塞数据等入口）使用。

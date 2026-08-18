@@ -120,7 +120,6 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="hint">共 {{ filtered.length }} / {{ items.length }} 条</div>
     </el-card>
 
     <el-dialog v-model="editVisible" :title="editForm.metric_id ? '编辑指标' : '新建指标'" width="640px" destroy-on-close>

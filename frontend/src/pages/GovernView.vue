@@ -154,7 +154,6 @@
             {{ suggestMeta.latency }} ms
           </el-tag>
         </div>
-        <p v-if="hint" class="hint">{{ hint }}</p>
       </el-card>
 
       <el-card v-if="rows.length" shadow="never" header="2. 人工核对 / 修改">
@@ -691,7 +690,6 @@ const tabHint = computed(() => {
 const headersText = ref('')
 const rows = ref<Row[]>([])
 const stdFields = ref<string[]>(['ignore'])
-const hint = ref('')
 const note = ref('')
 const suggestBusy = ref(false)
 const enqueueBusy = ref(false)
@@ -1233,7 +1231,6 @@ async function runEnqueue() {
   try {
     const res = await enqueueMapHeaders({ headers, business_domain: 'default' })
     ElMessage.success(`已入队 ${res.enqueued} 条低置信/冲突项`)
-    hint.value = res.hint || hint.value
     await loadMapPending()
     notifyQueueChanged()
   } catch (e: unknown) {
@@ -1417,7 +1414,6 @@ async function runSuggest() {
         score: Number(c.score) || 0,
       })),
     }))
-    hint.value = res.hint || ''
     suggestMeta.value = {
       state: res.model_state,
       invoked: res.model_invoked,
