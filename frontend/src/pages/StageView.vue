@@ -290,6 +290,8 @@ async function runConfirm() {
       expected_status: 'STAGED',
       idempotencyKey: idemKey(),
       force: false,
+      target_domain: targetDomain.value,
+      staging_id: staging.value.staging_id,
     })
     ElMessage.success('已写入')
     await refresh()
@@ -307,6 +309,8 @@ async function runConfirm() {
           expected_status: 'STAGED',
           idempotencyKey: idemKey(),
           force: true,
+          target_domain: targetDomain.value,
+          staging_id: staging.value?.staging_id,
         })
         ElMessage.warning('已强制写入')
         await refresh()

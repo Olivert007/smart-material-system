@@ -83,7 +83,7 @@ def confirm_release(
                 """
                 SELECT * FROM staging_record
                 WHERE file_id=? AND target_domain=?
-                ORDER BY updated_at DESC
+                ORDER BY updated_at DESC, rowid DESC
                 LIMIT 1
                 """,
                 [file_id, target_domain],
@@ -93,7 +93,7 @@ def confirm_release(
                 """
                 SELECT * FROM staging_record
                 WHERE file_id=?
-                ORDER BY updated_at DESC
+                ORDER BY updated_at DESC, rowid DESC
                 LIMIT 1
                 """,
                 [file_id],

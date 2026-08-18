@@ -435,7 +435,7 @@ def get_staging(file_id: str, target_domain: str | None = None) -> dict | None:
                 """
                 SELECT * FROM staging_record
                 WHERE file_id=? AND target_domain=?
-                ORDER BY updated_at DESC
+                ORDER BY updated_at DESC, rowid DESC
                 LIMIT 1
                 """,
                 [file_id, target_domain],
@@ -445,7 +445,7 @@ def get_staging(file_id: str, target_domain: str | None = None) -> dict | None:
                 """
                 SELECT * FROM staging_record
                 WHERE file_id=?
-                ORDER BY updated_at DESC
+                ORDER BY updated_at DESC, rowid DESC
                 LIMIT 1
                 """,
                 [file_id],
@@ -462,7 +462,7 @@ def get_staging(file_id: str, target_domain: str | None = None) -> dict | None:
 def discard_staging(file_id: str) -> bool:
     with meta_tx() as con:
         row = con.execute(
-            "SELECT staging_id, status FROM staging_record WHERE file_id=? ORDER BY updated_at DESC LIMIT 1",
+            "SELECT staging_id, status FROM staging_record WHERE file_id=? ORDER BY updated_at DESC, rowid DESC LIMIT 1",
             [file_id],
         ).fetchone()
         if not row:
