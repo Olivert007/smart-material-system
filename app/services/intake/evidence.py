@@ -142,11 +142,94 @@ def _load_calamine(path: Path, file_id: str, max_evidence: int) -> tuple[pd.Data
     return pd.DataFrame(rows), len(book)
 
 
+def _expand_xlsx_merged_cells(path: Path) -> dict[str, pd.DataFrame]:
+    """Read xlsx and copy merged-cell parent values into empty children.
+
+    pandas/openpyxl leave child cells as NA, so 305 维护材料「南孚电池」等
+    合并名称会被当成空 material_name 拦截（HI-R16）。
+    """
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
+    out: dict[str, pd.DataFrame] = {}
+    try:
+        for ws in wb.worksheets:
+            ranges = list(ws.merged_cells.ranges)
+            fills: list[tuple[int, int, int, int, object]] = []
+            for rng in ranges:
+                val = ws.cell(rng.min_row, rng.min_col).value
+                fills.append((rng.min_row, rng.max_row, rng.min_col, rng.max_col, val))
+            for rng in ranges:
+                try:
+                    ws.unmerge_cells(str(rng))
+                except Exception:
+                    continue
+            for min_r, max_r, min_c, max_c, val in fills:
+                if val is None or str(val).strip() == "":
+                    continue
+                # 只展开纵向合并（名称列 B125:B128）；横向标题 A1:N1 填满会污染表头探测。
+                if max_r <= min_r:
+                    continue
+                for r in range(min_r, max_r + 1):
+                    for c in range(min_c, max_c + 1):
+                        cell = ws.cell(r, c)
+                        if cell.value is None or str(cell.value).strip() == "":
+                            cell.value = val
+            rows = [list(row) for row in ws.iter_rows(values_only=True)]
+            out[ws.title] = pd.DataFrame(rows)
+    finally:
+        wb.close()
+    return out
+
+
+def _apply_excel_read_kwargs(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    header = kwargs.get("header", 0)
+    if df is None or df.empty:
+        out = df.copy() if df is not None else pd.DataFrame()
+    elif header is None:
+        out = df.copy()
+        out.columns = list(range(len(out.columns)))
+    else:
+        hdr = int(header)
+        if hdr >= len(df):
+            out = df.copy()
+        else:
+            cols = [
+                str(x).strip() if x is not None else f"Unnamed: {i}"
+                for i, x in enumerate(df.iloc[hdr].tolist())
+            ]
+            out = df.iloc[hdr + 1 :].copy()
+            out.columns = cols
+            out.reset_index(drop=True, inplace=True)
+    dtype = kwargs.get("dtype")
+    if dtype is str and not out.empty:
+        def _to_str(v):
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                return None
+            return str(v)
+
+        out = out.apply(lambda col: col.map(_to_str))
+    return out
+
+
 def _read_excel_best(path: Path, **kwargs):
-    """Prefer calamine for non-xlsx; openpyxl/default otherwise."""
+    """Prefer calamine for non-xlsx; xlsx expands merged cells then returns frames."""
     ext = path.suffix.lstrip(".").lower()
     if ext in _CALAMINE_EXTS:
         kwargs.setdefault("engine", "calamine")
+        return pd.read_excel(path, **kwargs)
+    if ext in _OPENPYXL_EXTS:
+        book = _expand_xlsx_merged_cells(path)
+        sheet_name = kwargs.get("sheet_name", 0)
+        if sheet_name is None:
+            return {name: _apply_excel_read_kwargs(frame, **kwargs) for name, frame in book.items()}
+        if isinstance(sheet_name, int):
+            names = list(book.keys())
+            if not names:
+                return pd.DataFrame()
+            name = names[sheet_name]
+            return _apply_excel_read_kwargs(book[name], **kwargs)
+        if sheet_name in book:
+            return _apply_excel_read_kwargs(book[sheet_name], **kwargs)
+        return pd.DataFrame()
     return pd.read_excel(path, **kwargs)
 
 
@@ -260,6 +343,89 @@ def normalize_tabular_best(df: pd.DataFrame) -> tuple[pd.DataFrame, str, int]:
     return best_df, best_domain, best_score
 
 
+def _cell_blank(v: object) -> bool:
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return True
+    s = str(v).strip()
+    return s == "" or s.lower() in {"nan", "none", "null", "-"}
+
+
+def _adapt_personal_tools_sheet(raw: pd.DataFrame) -> pd.DataFrame:
+    """个人工器具领用记录 → 类别+型号一行，数量=领用合计。"""
+    header_idx = None
+    cat_col = spec_col = qty_col = None
+    user_col = giver_col = date_col = seq_col = None
+    for i in range(min(12, len(raw))):
+        vals = ["" if _cell_blank(x) else str(x).strip() for x in raw.iloc[i].tolist()]
+        if "类别" in vals and any("领用数量" in v for v in vals):
+            header_idx = i
+            for j, v in enumerate(vals):
+                if v == "序号":
+                    seq_col = j
+                elif v == "类别":
+                    cat_col = j
+                elif v in {"型号规格", "规格型号"}:
+                    spec_col = j
+                elif "领用数量" in v:
+                    qty_col = j
+                elif v == "领用人":
+                    user_col = j
+                elif v == "发放人":
+                    giver_col = j
+                elif v in {"发放日期", "领用日期"}:
+                    date_col = j
+            break
+    if header_idx is None or cat_col is None or qty_col is None:
+        return pd.DataFrame()
+    body = raw.iloc[header_idx + 1 :].copy()
+    if seq_col is not None:
+        seq = body.iloc[:, seq_col].map(lambda v: "" if _cell_blank(v) else str(v).strip())
+        body = body.loc[~seq.isin({"例", "示例", "example"})]
+    if body.empty:
+        return pd.DataFrame()
+
+    def series(idx: int | None) -> pd.Series:
+        if idx is None:
+            return pd.Series([None] * len(body), index=body.index)
+        return body.iloc[:, idx]
+
+    cat = series(cat_col).map(lambda v: None if _cell_blank(v) else str(v).strip())
+    spec = series(spec_col).map(lambda v: None if _cell_blank(v) else str(v).strip())
+    cat = cat.ffill()
+    spec = spec.ffill()
+    qty = pd.to_numeric(series(qty_col), errors="coerce")
+    work = pd.DataFrame(
+        {
+            "类别": cat,
+            "型号规格": spec,
+            "数量": qty,
+            "使用人": series(user_col).map(lambda v: None if _cell_blank(v) else str(v).strip()),
+            "发放人": series(giver_col).map(lambda v: None if _cell_blank(v) else str(v).strip()),
+            "购买日期": series(date_col).map(lambda v: None if _cell_blank(v) else str(v).strip()),
+        },
+        index=body.index,
+    )
+    work = work[work["数量"].notna() & work["类别"].notna()]
+    if work.empty:
+        return pd.DataFrame()
+    grouped = work.groupby(["类别", "型号规格"], dropna=False, as_index=False).agg(
+        数量=("数量", "sum"),
+        使用人=("使用人", "first"),
+        发放人=("发放人", "first"),
+        购买日期=("购买日期", "first"),
+    )
+    return pd.DataFrame(
+        {
+            "资产名称": grouped["类别"],
+            "型号规格": grouped["型号规格"],
+            "数量": grouped["数量"],
+            "使用人": grouped["使用人"],
+            "管理者": grouped["发放人"],
+            "购买日期": grouped["购买日期"],
+        }
+    )
+
+
 def _ledger_keep_fields() -> tuple[str, ...]:
     """T3.2: 标准字段并集（inventory/asset/stock_flow）+ sheet 标记。"""
     from app.services.mapping import ALIASES
@@ -274,8 +440,9 @@ def _ledger_keep_fields() -> tuple[str, ...]:
 def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
     """Load sheets: 305B/ZW flow ledgers AND ledger-route sheets (T3.1); tag `sheet` column.
 
-    - flow=true 路由 sheet（维护材料/备品备件）→ 走 stock_flow 提取（与旧逻辑一致）
-    - flow=false 路由 sheet（公用工器具→asset、应急备汛→inventory）→ 域投影提取（不再丢弃）
+    - flow=true 路由 sheet（维护材料/备品备件/低值易耗）→ stock_flow 提取并合并库存列
+    - flow=false 路由 sheet（公用工器具/个人工器具→asset、应急备汛→inventory）→ 域投影
+    - 个人工器具：领用记录 adapter，按类别+型号合计领用数量
     - 未命中路由 → 旧 flow 判定（无流水列则跳过，保持既有文件行为不变）
     """
     from app.services.govern.flow_config import get_ledger_route
@@ -296,7 +463,13 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
             domain = "stock_flow" if route.get("flow") else str(route.get("domain") or "stock_flow")
         else:
             domain = "stock_flow"
-        df = normalize_tabular(raw, domain=domain, max_probe=12)
+        if route is not None and str(route.get("sheet") or "") == "个人工器具":
+            df = _adapt_personal_tools_sheet(raw)
+            domain = "asset"
+            if df is None or df.empty:
+                continue
+        else:
+            df = normalize_tabular(raw, domain=domain, max_probe=12)
         mapping = resolve_columns(df, domain, source_sheet=str(name))
         if route is not None and domain == "stock_flow":
             # T10.2 修复：flow sheet 仅投影流水列 → 库存快照列（stock_qty/opening_qty/
@@ -311,12 +484,16 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
         drop_mask = None
         for c in df.columns:
             if str(c).strip() in {"序号", "seq", "No", "no"}:
-                ser = df[c].astype(str).str.strip()
+                col = df[c]
+                if isinstance(col, pd.DataFrame):
+                    col = col.iloc[:, 0]
+                ser = col.astype(str).str.strip()
                 drop_mask = ser.isin({"例", "示例", "example"})
                 break
         if drop_mask is None:
             c0 = df.columns[0]
-            ser = df[c0].astype(str).str.strip()
+            ser = df.iloc[:, 0] if isinstance(df[c0], pd.DataFrame) else df[c0]
+            ser = ser.astype(str).str.strip()
             drop_mask = ser.isin({"例", "示例", "example"})
         df = df.loc[~drop_mask].reset_index(drop=True)
         if len(df) == 0:
@@ -324,8 +501,17 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
         std = pd.DataFrame()
         for field, col in mapping.items():
             if field in keep_fields and col in df.columns:
-                std[field] = df[col]
+                val = df[col]
+                if isinstance(val, pd.DataFrame):
+                    val = val.iloc[:, 0]
+                std[field] = val
         std["sheet"] = str(name)
+        id_cols = [c for c in ("material_name", "material_code", "asset_name", "asset_code") if c in std.columns]
+        if id_cols:
+            keep_id = ~std[id_cols].apply(lambda r: all(_cell_blank(x) for x in r), axis=1)
+            std = std.loc[keep_id].reset_index(drop=True)
+        if len(std) == 0:
+            continue
         frames.append(std)
 
     if not frames:
