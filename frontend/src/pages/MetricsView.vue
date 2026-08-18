@@ -305,7 +305,7 @@ async function openTrend(metricId: string) {
     trendChart = null
     const items = (snaps.items || []).slice().reverse() // 接口按时间倒序，转正序
     if (!items.length) {
-      trendNote.value = '暂无快照：worker 每 30 分钟自动记录 business 指标；可先「试跑」写入一条。'
+      trendNote.value = '暂无快照：后台任务每 30 分钟自动记录业务指标；可先「试跑」写入一条。'
       return
     }
     if (!trendEl.value) return

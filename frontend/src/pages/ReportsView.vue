@@ -5,7 +5,7 @@
       :closable="false"
       show-icon
       title="报表与分析"
-      description="种子报表快照（参数化 SQL）+ 流水实时分析（只读，与种子报表互验）。"
+      description="种子报表快照（参数化查询语句）+ 流水实时分析（只读，与种子报表互验）。"
     />
 
     <FlowAnalytics />

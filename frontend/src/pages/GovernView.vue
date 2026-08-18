@@ -1776,7 +1776,7 @@ async function seedOpening() {
   }
   try {
     await ElMessageBox.confirm(
-      '对「仅有库存、无流水」的物资写入 opening_qty=stock_qty（经 writer）。不处理已有流水的物资。确认？',
+      '对「仅有库存、无流水」的物资写入期初数量=库存数量（经写入器）。不处理已有流水的物资。确认？',
       '期初种子',
       { type: 'warning' },
     )
@@ -1788,7 +1788,7 @@ async function seedOpening() {
     const dry = await flowOpeningSeed(true)
     const n = dry.would_update ?? 0
     if (!n) {
-      ElMessage.info('无需更新（已无 inv_only 候选）')
+      ElMessage.info('无需更新（已无「仅有库存、无流水」的候选）')
       await loadReconcile()
       return
     }
@@ -1810,7 +1810,7 @@ async function persistReconcile() {
   }
   try {
     await ElMessageBox.confirm(
-      '将删除并重建 meta.flow_reconcile_gap，供 FLOW_RECONCILE_GAP_CNT 读取。确认？',
+      '将删除并重建对账差异表，供「对账差异数」指标读取。确认？',
       '重算并落库',
       { type: 'warning' },
     )

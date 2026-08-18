@@ -48,7 +48,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="head">
-          <span>Top 物资流水（IN/OUT）</span>
+          <span>Top 物资流水（入库/出库）</span>
           <el-input-number v-model="topN" :min="5" :max="50" size="small" @change="load" />
         </div>
       </template>
