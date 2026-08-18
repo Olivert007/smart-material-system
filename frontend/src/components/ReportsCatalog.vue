@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="head">
-          <span>汇总报表（候选快照）</span>
+          <span>汇总报表</span>
           <el-button link type="primary" :loading="loading" @click="load">刷新</el-button>
         </div>
       </template>
@@ -25,7 +25,7 @@
         <el-table-column label="参数" min-width="120">
           <template #default="{ row }">
             <span v-if="paramDecls(row).length">
-              {{ paramDecls(row).map((p) => p.label || p.name).join('、') }}
+              {{ paramDecls(row).map((p) => p.label || paramLabelZh(p.name)).join('、') }}
             </span>
             <span v-else class="muted">无</span>
           </template>
@@ -33,7 +33,7 @@
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <el-button link type="primary" @click="run(row)">运行并预览</el-button>
-            <el-button v-if="lastRun?.report_id === row.report_id" link @click="downloadLast">
+            <el-button v-if="lastDownload?.report_id === row.report_id" link @click="downloadLast">
               下载完整报表
             </el-button>
           </template>
@@ -41,40 +41,11 @@
       </el-table>
     </el-card>
 
-    <el-card v-if="lastRun" shadow="never">
-      <template #header>最近运行结果</template>
-      <el-descriptions :column="1" border size="small" style="margin-top: 10px">
-        <el-descriptions-item label="运行编号">{{ lastRun.run_id }}</el-descriptions-item>
-        <el-descriptions-item label="来源版本">
-          {{
-            lastRun.source_release_ids?.length
-              ? lastRun.source_release_ids.join('、')
-              : '无发布清单'
-          }}
-        </el-descriptions-item>
-        <el-descriptions-item label="指标口径版本">
-          <template v-if="lastRun.metric_versions?.length">
-            {{
-              lastRun.metric_versions
-                .slice(0, 8)
-                .map((m) => `${m.metric_id}@v${m.version ?? '?'}`)
-                .join('；')
-            }}
-            <span v-if="lastRun.metric_versions.length > 8">
-              …共 {{ lastRun.metric_versions.length }} 项
-            </span>
-          </template>
-          <template v-else>无启用口径</template>
-        </el-descriptions-item>
-        <el-descriptions-item label="数据范围">可用候选（非正式发布）</el-descriptions-item>
-      </el-descriptions>
-    </el-card>
-
     <el-card v-if="preview" shadow="never">
       <template #header>
-        <div class="head">
-          <span>数据预览（前20行）</span>
-          <span class="muted">共 {{ preview.row_count }} 行 · 展示前 {{ preview.preview_count }} 行</span>
+        <div class="head-between">
+          <span>{{ previewTitle }}</span>
+          <el-button type="primary" plain @click="downloadLast">下载完整报表</el-button>
         </div>
       </template>
       <el-table
@@ -86,27 +57,21 @@
         empty-text="当前报表无数据，请调整参数后重新运行"
       >
         <el-table-column
-          v-for="col in preview.columns"
+          v-for="col in displayColumns"
           :key="col"
           :prop="col"
-          :label="col"
+          :label="fieldZh(col)"
           min-width="120"
           show-overflow-tooltip
-        />
+        >
+          <template #default="{ row }">{{ formatCell(col, row[col]) }}</template>
+        </el-table-column>
       </el-table>
     </el-card>
 
     <el-dialog v-model="paramVisible" :title="`运行：${paramReport?.name ?? ''}`" width="480px" destroy-on-close>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="参数说明"
-        description="参数将代入报表查询语句的 ${参数名} 占位符；必填参数（数字）不可留空，文本参数可留空则按全部匹配。"
-        style="margin-bottom: 12px"
-      />
       <el-form label-width="110px">
-        <el-form-item v-for="p in paramDecls(paramReport)" :key="p.name" :label="p.label || p.name">
+        <el-form-item v-for="p in paramDecls(paramReport)" :key="p.name" :label="p.label || paramLabelZh(p.name)">
           <el-input
             v-if="p.type === 'number'"
             v-model.number="paramValues[p.name]"
@@ -116,14 +81,7 @@
           <el-input v-else v-model="paramValues[p.name]" placeholder="可选，请输入文本" />
         </el-form-item>
       </el-form>
-      <el-alert
-        v-if="paramPreview"
-        type="info"
-        :closable="false"
-        show-icon
-        :title="`将使用参数：${paramPreview}`"
-        style="margin-top: 8px"
-      />
+      <p v-if="paramPreview" class="muted" style="margin-top: 8px">将使用参数：{{ paramPreview }}</p>
       <template #footer>
         <el-button @click="paramVisible = false">取消</el-button>
         <el-button type="primary" :loading="running" @click="runWithParams">运行并预览</el-button>
@@ -136,20 +94,25 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatApiError, listReports, reportPreview, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
+import { fieldZh, valueZh, visibleFields } from '@/utils/fields'
 
 type ParamDecl = { name: string; label?: string; type?: 'text' | 'number' }
+
+const PARAM_LABEL_ZH: Record<string, string> = {
+  category: '物资种类',
+  year: '年份',
+  limit: '条数上限',
+  min_qty: '最小数量',
+}
+
+function paramLabelZh(name: string) {
+  return PARAM_LABEL_ZH[name] || fieldZh(name)
+}
 
 const items = ref<ReportItem[]>([])
 const loading = ref(false)
 const running = ref(false)
-const lastRun = ref<{
-  report_id: string
-  run_id: string
-  row_count: number
-  note: string
-  source_release_ids?: string[]
-  metric_versions?: Array<{ metric_id: string; version?: number | string }>
-} | null>(null)
+const lastDownload = ref<{ run_id: string; report_id: string; name: string } | null>(null)
 
 const preview = ref<{
   run_id: string
@@ -164,14 +127,22 @@ const paramVisible = ref(false)
 const paramReport = ref<ReportItem | null>(null)
 const paramValues = reactive<Record<string, string | number>>({})
 
-/** 运行前展示实际参数（评审 §2.5.3）：只列出已填写的参数。 */
+const displayColumns = computed(() => visibleFields(preview.value?.columns || []))
+
+const previewTitle = computed(() => {
+  const name = lastDownload.value?.name || '报表'
+  const total = preview.value?.row_count ?? 0
+  const shown = preview.value?.preview_count ?? preview.value?.rows?.length ?? 0
+  return `${name}·共${total}行（展示前${shown}行）`
+})
+
 const paramPreview = computed(() => {
   const decls = paramDecls(paramReport.value)
   const parts: string[] = []
   for (const p of decls) {
     const v = paramValues[p.name]
     if (v === '' || v == null) continue
-    parts.push(`${p.label || p.name}=${v}`)
+    parts.push(`${p.label || paramLabelZh(p.name)}=${v}`)
   }
   return parts.join('，')
 })
@@ -196,6 +167,16 @@ function groupLabel(row: ReportItem): string {
   return row.report_id.startsWith('rpt_ledger_') ? '台账汇总' : '通用'
 }
 
+function reportName(id: string) {
+  return items.value.find((r) => r.report_id === id)?.name || id
+}
+
+function formatCell(col: string, val: unknown) {
+  const v = valueZh(col, val)
+  if (v == null || v === '') return '-'
+  return v
+}
+
 async function load() {
   loading.value = true
   try {
@@ -210,17 +191,8 @@ async function load() {
 async function doRun(id: string, params?: Record<string, unknown>) {
   try {
     const out = await runReport(id, params)
-    lastRun.value = {
-      report_id: id,
-      run_id: out.run_id,
-      row_count: out.row_count,
-      source_release_ids: out.source_release_ids,
-      metric_versions: out.metric_versions,
-      note:
-        out.note ||
-        `运行编号 ${out.run_id}；数据范围：可用候选（非正式发布），可下载明细文件（Parquet 格式）`,
-    }
-    ElMessage.success(`完成 ${out.row_count} 行`)
+    lastDownload.value = { run_id: out.run_id, report_id: id, name: reportName(id) }
+    ElMessage.success(`已生成${out.row_count}行`)
     loadPreview(out.run_id)
     return true
   } catch (e: unknown) {
@@ -242,15 +214,14 @@ async function loadPreview(runId: string) {
 }
 
 function downloadLast() {
-  if (!lastRun.value) return
-  window.open(reportRunFileUrl(lastRun.value.run_id), '_blank')
+  if (!lastDownload.value) return
+  window.open(reportRunFileUrl(lastDownload.value.run_id), '_blank')
 }
 
 async function run(row: ReportItem) {
   const decls = paramDecls(row)
   if (decls.length) {
     paramReport.value = row
-    // 评审 §2.5.2：必填参数不默认填 0/空串，避免直接运行得到误导性结果
     for (const p of decls) {
       paramValues[p.name] = ''
     }
@@ -267,7 +238,7 @@ async function runWithParams() {
     const v = paramValues[p.name]
     if (p.type === 'number') {
       if (v === '' || v == null) {
-        ElMessage.warning(`请填写 ${p.label || p.name}`)
+        ElMessage.warning(`请填写 ${p.label || paramLabelZh(p.name)}`)
         return
       }
       params[p.name] = Number(v)
@@ -287,5 +258,6 @@ onMounted(load)
 <style scoped>
 .catalog { display: flex; flex-direction: column; gap: 16px; }
 .head { display: flex; gap: 10px; align-items: center; }
+.head-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .muted { color: #909399; font-size: 12px; }
 </style>
