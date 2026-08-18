@@ -102,7 +102,7 @@ def create_staging(
         from app.services.evidence import normalize_tabular
         from app.services.govern.flow_config import get_ledger_route, ledger_sheet_names
 
-        # T3.2: 4-sheet 台账按域路由过滤（仅当文件内实际存在路由 sheet；否则保持旧行为）
+        # T3.2: 台账按域路由过滤（仅当文件内实际存在路由 sheet；否则保持旧行为）
         if "sheet" in df.columns and target_domain in ("inventory", "asset"):
             keep = [s for s in ledger_sheet_names(target_domain) if s]
             if keep:

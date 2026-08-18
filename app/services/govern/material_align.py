@@ -154,14 +154,16 @@ def resolve_material_id(
     spec: str | None,
     file_id: str,
     row_index: int,
+    sheet: str | None = None,
     universe: list[dict[str, str]] | None = None,
     maps: dict[str, str] | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Intake-time resolve: accepted map / unique L1–L2 / else synthetic M-{file}-{row}."""
+    """Intake-time resolve: accepted map / unique L1–L2 / else synthetic M-{file}-{sheet}-{row}."""
     code = (code or "").strip()
     name = name or ""
     spec = spec or ""
-    synthetic = code or f"M-{file_id}-{row_index}"
+    token = re.sub(r"\s+", "", str(sheet or "").strip())[:24] or "row"
+    synthetic = code or f"M-{file_id}-{token}-{row_index}"
     maps = maps if maps is not None else accepted_maps()
     if synthetic in maps:
         return maps[synthetic], {"match_kind": "accepted_map", "score": 1.0}
