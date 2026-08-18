@@ -73,10 +73,17 @@ def stats_quality(file_id: str):
 
 
 @router.get("/stats/quality/{file_id}/blocked")
-def stats_quality_blocked(file_id: str, limit: int = 50, offset: int = 0):
+def stats_quality_blocked(
+    file_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    target_domain: str | None = None,
+):
     from app.services import quality as quality_svc
 
     try:
-        return quality_svc.list_blocked(file_id, limit=limit, offset=offset)
+        return quality_svc.list_blocked(
+            file_id, limit=limit, offset=offset, target_domain=target_domain
+        )
     except KeyError:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "staging not found"})

@@ -428,17 +428,28 @@ def _backfill_legacy_dry_run(d: dict) -> None:
             dry["quality"] = None
 
 
-def get_staging(file_id: str) -> dict | None:
+def get_staging(file_id: str, target_domain: str | None = None) -> dict | None:
     with meta_tx() as con:
-        row = con.execute(
-            """
-            SELECT * FROM staging_record
-            WHERE file_id=?
-            ORDER BY updated_at DESC
-            LIMIT 1
-            """,
-            [file_id],
-        ).fetchone()
+        if target_domain:
+            row = con.execute(
+                """
+                SELECT * FROM staging_record
+                WHERE file_id=? AND target_domain=?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                [file_id, target_domain],
+            ).fetchone()
+        else:
+            row = con.execute(
+                """
+                SELECT * FROM staging_record
+                WHERE file_id=?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                [file_id],
+            ).fetchone()
         if not row:
             return None
         d = dict(row)

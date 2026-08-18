@@ -117,18 +117,29 @@ def list_blocked(
     limit: int = 50,
     offset: int = 0,
     staging_id: str | None = None,
+    target_domain: str | None = None,
 ) -> dict[str, Any]:
     limit = max(1, min(int(limit), 500))
     offset = max(0, int(offset))
     with meta_tx() as con:
         if not staging_id:
-            st = con.execute(
-                """
-                SELECT staging_id FROM staging_record
-                WHERE file_id=? ORDER BY updated_at DESC LIMIT 1
-                """,
-                [file_id],
-            ).fetchone()
+            if target_domain:
+                st = con.execute(
+                    """
+                    SELECT staging_id FROM staging_record
+                    WHERE file_id=? AND target_domain=?
+                    ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    [file_id, target_domain],
+                ).fetchone()
+            else:
+                st = con.execute(
+                    """
+                    SELECT staging_id FROM staging_record
+                    WHERE file_id=? ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    [file_id],
+                ).fetchone()
             if not st:
                 raise KeyError("staging not found")
             staging_id = st["staging_id"]

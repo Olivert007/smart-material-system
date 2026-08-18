@@ -224,8 +224,8 @@ def stage_file(file_id: str, body: StageBody | None = None):
 
 
 @router.get("/intake/stage/{file_id}")
-def get_stage(file_id: str):
-    row = staging_svc.get_staging(file_id)
+def get_stage(file_id: str, target_domain: str | None = None):
+    row = staging_svc.get_staging(file_id, target_domain=target_domain)
     if not row:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "staging not found"})
     return row
