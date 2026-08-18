@@ -1,17 +1,5 @@
 <template>
   <div class="browse">
-    <el-alert
-      :type="mode === 'staged' ? 'info' : 'success'"
-      :closable="false"
-      show-icon
-      :title="mode === 'staged' ? '规整后明细（业务库视图）' : '可用数据（候选）'"
-      :description="
-        mode === 'staged'
-          ? '状态：规整。展示已写入或可浏览的规整结构数据；仍可能含需继续治理的项。非正式发布。'
-          : '状态：可用。通过当前门禁、可浏览/导出/问数的可用候选。不等于正式发布，也不等于库存事实。'
-      "
-      style="margin-bottom: 12px"
-    />
     <el-card shadow="never">
       <template #header>
         <div class="head">
@@ -27,7 +15,6 @@
             <el-tag size="small" :type="dataStateTagType(modeState)">
               {{ dataStateLabel(modeState) }}
             </el-tag>
-            <el-tag size="small" type="warning">非正式发布</el-tag>
             <el-button :loading="loading" @click="load">刷新</el-button>
             <el-button type="primary" plain @click="exportCsv">导出 {{ exportLabel }}</el-button>
           </el-space>
@@ -70,6 +57,7 @@ import { ElMessage } from 'element-plus'
 import PagedTable from '@/components/PagedTable.vue'
 import { browseTable, formatApiError, tableExportUrl, type BrowseResult } from '@/api/client'
 import { dataStateLabel, dataStateTagType } from '@/utils/dataStates'
+import { DATA_SCOPE_DISCLAIMER_SHORT } from '@/utils/copywriting'
 
 const props = withDefaults(defineProps<{ mode?: 'available' | 'staged' }>(), { mode: 'available' })
 
@@ -123,7 +111,7 @@ function onTableChange() {
 }
 
 function exportCsv() {
-  ElMessage.info(`即将导出：${exportLabel.value}（非正式发布）`)
+  ElMessage.info(`即将导出：${exportLabel.value}（${DATA_SCOPE_DISCLAIMER_SHORT}）`)
   window.open(tableExportUrl(table.value, 100000, 'business'), '_blank')
 }
 

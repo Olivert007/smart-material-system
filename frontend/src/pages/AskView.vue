@@ -1,14 +1,6 @@
 <template>
   <div class="ask">
     <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="问数助手"
-      description="基于当前可用数据辅助查询：优先命中指标字典口径；未命中时生成并校验查询。结果默认不是正式发布报表；数据未规整完成时仅供参考。"
-    />
-
-    <el-alert
       v-if="modelDown"
       type="warning"
       :closable="false"
@@ -139,7 +131,6 @@
         <el-descriptions-item label="指标">{{ result.metric_name || result.metric_id }}</el-descriptions-item>
         <el-descriptions-item label="数值">{{ singleMetricValue }}</el-descriptions-item>
         <el-descriptions-item label="单位">{{ result.unit || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="数据范围">当前可用候选（非正式发布）</el-descriptions-item>
         <el-descriptions-item label="来源">指标口径模板命中</el-descriptions-item>
       </el-descriptions>
 
@@ -195,6 +186,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import { askQuestion, downloadCsv, flowGate, formatApiError, modelsStatus, type AskResult } from '@/api/client'
 import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
+import { ASK_RESULT_SCOPE } from '@/utils/copywriting'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -233,9 +225,9 @@ const scopeChip = computed(() => {
   const scope = '可用'
   if (result.value?.source === 'metric_template') {
     const ver = result.value.metric_version != null ? ` · 口径 v${result.value.metric_version}` : ''
-    return `状态：${scope} · 指标口径${ver}（非正式发布）`
+    return `状态：${scope} · 指标口径${ver}`
   }
-  return `状态：${scope}（非正式发布）`
+  return `状态：${scope}`
 })
 
 /** 结果来源业务文案。 */
@@ -343,7 +335,7 @@ function exportResult() {
         指标: res.metric_name || res.metric_id || '-',
         数值: valKey != null ? row[valKey] : '',
         单位: res.unit || '-',
-        数据范围: '当前可用候选（非正式发布）',
+        数据范围: ASK_RESULT_SCOPE,
       },
     ]
     downloadCsv(rows, headers, `ask_result_${Date.now()}.csv`, '已导出 1 行')

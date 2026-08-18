@@ -5,7 +5,7 @@
       :type="statusType"
       :closable="false"
       show-icon
-      :description="statusDesc"
+      :description="alertDesc"
     />
 
     <el-card shadow="never" v-loading="loading">
@@ -19,7 +19,6 @@
         <div class="card">
           <div class="card-label">可用记录（候选）</div>
           <div class="card-value">{{ fmt(quality.clean_rows) }}</div>
-          <div class="card-hint">通过门禁的规整结果，不等于正式发布</div>
         </div>
         <div class="card warn">
           <div class="card-label">阻塞记录</div>
@@ -29,7 +28,6 @@
         <div class="card">
           <div class="card-label">可用率</div>
           <div class="card-value">{{ availabilityRate }}</div>
-          <div class="card-hint">可用候选 ÷（可用 + 阻塞）；候选 ≠ 正式发布</div>
         </div>
         <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
           <div class="card-label">待确认字段</div>
@@ -42,7 +40,6 @@
         <div class="card clickable warn" @click="$router.push({ path: '/govern', query: { tab: 'map' } })">
           <div class="card-label">待审核 AI 建议</div>
           <div class="card-value">{{ fmt(aiSuggestionPending) }}</div>
-          <div class="card-hint">模型/候选建议，须人工确认</div>
         </div>
         <div class="card clickable" @click="$router.push({ path: '/govern', query: { tab: 'flow' } })">
           <div class="card-label">流水待确认</div>
@@ -125,7 +122,6 @@
         </div>
       </template>
       <template v-if="shouldShowBusinessSnapshot">
-        <p class="hint">基于已入库可用候选数据；不等于正式发布报表。</p>
         <div class="cards compact" v-loading="loading">
           <el-tooltip v-for="c in bizCards" :key="c.key" :content="c.hint" placement="top">
             <div class="card biz-card" @click="goMetric(c.metric_id)">
@@ -180,6 +176,7 @@ import {
   dataStateTagType,
   mapIntakeStatusToDataState,
 } from '@/utils/dataStates'
+import { DATA_SCOPE_DISCLAIMER } from '@/utils/copywriting'
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -304,9 +301,9 @@ const businessSnapshotDescription = computed(() => {
     return '完成数据规整并形成可用数据后，这里会展示库存、需求、资产和流水概览。'
   }
   if (!hasRecentFiles.value) {
-    return '请先完成数据接入，形成可用候选数据后，这里会展示库存、需求、资产和流水概览。'
+    return '请先完成数据接入，形成可用数据后，这里会展示库存、需求、资产和流水概览。'
   }
-  return '请先完成字段/单位/物资/流水治理，形成可用候选数据后，这里会展示库存、需求、资产和流水概览。'
+  return '请先完成字段/单位/物资/流水治理，形成可用数据后，这里会展示库存、需求、资产和流水概览。'
 })
 
 const businessSnapshotTitle = computed(() =>
@@ -340,15 +337,14 @@ const statusType = computed(() => {
 const statusTitle = computed(() => {
   if ((todos.value.total || 0) > 0) return '数据尚未全部可用：仍有待办需处理'
   if ((quality.value.blocked_rows || 0) > 0) return '部分数据被阻塞，暂不能全部进入可用结果'
-  if ((quality.value.clean_rows || 0) > 0) return '当前有可用候选数据（不等于正式发布）'
+  if ((quality.value.clean_rows || 0) > 0) return '当前有可用数据'
   if (hasRecentFiles.value) return '数据正在接入或规整中，业务指标暂不可用'
   return '当前还没有可用业务数据'
 })
 
 const statusDesc = computed(() => {
-  const gate = overview.value?.gate
   const parts = [
-    `可用候选 ${fmt(quality.value.clean_rows)} 条`,
+    `可用 ${fmt(quality.value.clean_rows)} 条`,
     `阻塞 ${fmt(quality.value.blocked_rows)} 条`,
     `可用率 ${availabilityRate.value}`,
     `待办 ${fmt(todos.value.total)} 项`,
@@ -356,10 +352,14 @@ const statusDesc = computed(() => {
   if ((releasableRows.value || 0) > 0) {
     parts.push(`处理后预计释放 ${fmt(releasableRows.value)} 条`)
   }
-  if (gate && gate.ready === false && gate.missing?.length) {
-    parts.push('门禁未就绪，需先完成数据接入与发布')
-  }
   return parts.join(' · ')
+})
+
+const alertDesc = computed(() => {
+  if ((quality.value.clean_rows || 0) > 0 && (todos.value.total || 0) === 0) {
+    return DATA_SCOPE_DISCLAIMER
+  }
+  return statusDesc.value
 })
 
 const bizCards = computed(() => {

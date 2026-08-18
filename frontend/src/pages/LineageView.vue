@@ -21,7 +21,7 @@
               </el-tag>
             </div>
             <div class="rc-meta">
-              来源文件 {{ r.file_id }} · 域 {{ domainZh(r.target_domain) }} · 可用候选
+              来源文件 {{ r.file_id }} · 域 {{ domainZh(r.target_domain) }} · 已入库
               {{ r.clean_rows ?? '—' }} 行 / 阻塞 {{ r.blocked_rows ?? 0 }}
             </div>
             <div class="rc-meta">确认人 {{ actorZhLabel(r.released_by) }} · {{ r.released_at || '—' }}</div>
