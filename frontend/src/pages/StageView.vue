@@ -102,7 +102,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <p class="hint">共 {{ staging?.clean_rows ?? '-' }} 行可用，仅预览前 20 行。</p>
+        <p class="hint">共 {{ previewRows.length }} 行样例</p>
       </template>
       <el-empty v-else description="分析完成后可见预览" :image-size="64" />
     </el-card>

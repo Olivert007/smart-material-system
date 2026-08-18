@@ -43,13 +43,6 @@
 
     <el-card v-if="lastRun" shadow="never">
       <template #header>最近运行结果</template>
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        :title="`共 ${lastRun.row_count} 行 · 状态：${dataStateLabel('available')} · 非正式发布`"
-        :description="lastRun.note"
-      />
       <el-descriptions :column="1" border size="small" style="margin-top: 10px">
         <el-descriptions-item label="运行编号">{{ lastRun.run_id }}</el-descriptions-item>
         <el-descriptions-item label="来源版本">
@@ -143,7 +136,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatApiError, listReports, reportPreview, reportRunFileUrl, runReport, type ReportItem } from '@/api/client'
-import { dataStateLabel } from '@/utils/dataStates'
 
 type ParamDecl = { name: string; label?: string; type?: 'text' | 'number' }
 

@@ -1,20 +1,5 @@
 <template>
   <div class="flow-analytics">
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="流水分析（只读）"
-      description="出入库按月趋势与 Top 物资可按物资种类、年份筛选；可信级别占比为全量解析口径，不受筛选影响。基于可用候选数据，非正式发布报表。"
-    />
-    <el-alert
-      type="warning"
-      :closable="false"
-      show-icon
-      title="数据范围：可用 · 非正式发布"
-      description="状态：可用。下载或截图不等于正式发布；请核对口径与来源版本。"
-      style="margin-bottom: 8px"
-    />
     <el-card shadow="never" class="filter-card">
       <div class="filter-bar">
         <el-select
@@ -54,7 +39,6 @@
       </template>
       <div v-loading="loading" class="an-chart" ref="topEl" />
       <p v-if="!loading && topEmpty" class="hint">当前筛选下暂无流水</p>
-      <p v-else class="hint">横轴为物资中文名称；口径：先按物资总出入库量选 TopN，再展示其入库/出库对比。</p>
     </el-card>
     <el-card shadow="never">
       <template #header>
