@@ -11,6 +11,10 @@ data/*.sqlite.*
 data/*.duckdb
 data/*.duckdb.*
 
+# Demo runtime (rebuild via scripts/build_demo_env.py)
+demo_data/runtime/
+demo_data/demo_stats.json
+
 # Test sandboxes (scripts recreate under tests/sandboxes/)
 tests/sandboxes/**
 !tests/sandboxes/.gitkeep

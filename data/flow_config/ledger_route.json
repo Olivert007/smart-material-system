@@ -7,6 +7,7 @@
     {"sheet": "低值易耗", "aliases": ["台账305B_低值易耗", "305B_低值易耗", "低值易耗品", "低值易耗品台账", "低值易耗品物资汇总表"], "domain": "inventory", "flow": true},
     {"sheet": "公用工器具", "aliases": ["台账305B_公用工器具", "305B_公用工器具", "公用工器具台账"], "domain": "asset", "flow": false},
     {"sheet": "个人工器具", "aliases": ["台账305B_个人工器具", "305B_个人工器具", "个人工器具台账", "个人工器具领用记录表"], "domain": "asset", "flow": false},
-    {"sheet": "应急备汛物资", "aliases": ["台账305B_应急备汛物资", "305B_应急备汛物资", "应急备汛物资台账"], "domain": "inventory", "flow": false}
+    {"sheet": "应急备汛物资", "aliases": ["台账305B_应急备汛物资", "305B_应急备汛物资", "应急备汛物资台账"], "domain": "inventory", "flow": false},
+    {"sheet": "区域ZW物资台账（新模板）", "aliases": ["成都区域ZW物资台账（新模板）", "演示区域ZW物资台账（新模板）", "成都区域ZW物资台账", "区域ZW物资汇总表（新模板）"], "domain": "inventory", "flow": true}
   ]
 }
