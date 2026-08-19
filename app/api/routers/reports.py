@@ -232,9 +232,10 @@ def export_table(table: str, limit: int = 50000, zh: int = 1, mode: str = "busin
         keep = fd.visible_fields(list(df.columns))
         if keep:
             df = df[keep]
-        # 值域汉化须在列改名之前（否则 "flow_type" 已不存在，映射永不生效）
-        if "flow_type" in df.columns:
-            df["flow_type"] = df["flow_type"].map(lambda v: fd.value_zh("flow_type", v))
+        # 值域汉化须在列改名之前（否则字段名已不存在，映射永不生效）
+        for f in list(df.columns):
+            if f in fd.VALUE_ZH:
+                df[f] = df[f].map(lambda v, field=f: fd.value_zh(field, v))
         df.columns = fd.zh_columns_for_table(table, list(df.columns))
     # csv-export-harden T2.2: 公式注入防护（仅命中危险前缀的单元格加 `'`）
     df = csv_safe.sanitize_df(df)
@@ -342,9 +343,10 @@ def browse_table(table: str, limit: int = 100, offset: int = 0, zh: int = 1, mod
         keep = fd.visible_fields(list(df.columns))
         if keep:
             df = df[keep]
-        # 值域汉化须在列改名之前（否则 "flow_type" 已不存在，映射永不生效）
-        if "flow_type" in df.columns:
-            df["flow_type"] = df["flow_type"].map(lambda v: fd.value_zh("flow_type", v))
+        # 值域汉化须在列改名之前（否则字段名已不存在，映射永不生效）
+        for f in list(df.columns):
+            if f in fd.VALUE_ZH:
+                df[f] = df[f].map(lambda v, field=f: fd.value_zh(field, v))
         df.columns = fd.zh_columns_for_table(table, list(df.columns))
     # NaN → null、时间 → ISO 字符串，直接可 JSON 序列化
     rows = json.loads(df.to_json(orient="records"))

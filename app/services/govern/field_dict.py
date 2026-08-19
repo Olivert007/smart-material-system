@@ -133,6 +133,8 @@ TECHNICAL_FIELDS = {
 # 枚举值汉化（U-6）：仅影响展示层，库值保持 IN/OUT 等原始编码
 VALUE_ZH = {
     "flow_type": {"IN": "入库", "OUT": "出库"},
+    # fact_demand：源表缺「需求期间」列时 mapping 兜底为 unknown，展示层汉化
+    "demand_period": {"unknown": "未填写"},
 }
 
 # 按表覆盖的字段中文名（优先级高于 FIELD_ZH，用于同名不同域时区分）
