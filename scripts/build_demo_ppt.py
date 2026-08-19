@@ -125,7 +125,7 @@ def main() -> int:
     s = prs.slides.add_slide(blank)
     _bg(s)
     _title(s, "总体方案：上传—治理—发布—问答 全链路", "系统架构与数据流转")
-    steps = ["① 数据接入\n多Sheet解析\n证据留存", "② AI 治理\n画像/质量/映射\n流水拆解·勾稽", "③ 可信发布\n防重写入\n来源可溯·审计·备份", "④ 智能问答\nText2SQL\n指标模板·图表"]
+    steps = ["① 数据接入\n多 Sheet 解析\n证据留存", "② AI 治理\n画像/质量/映射\n流水拆解·勾稽", "③ 可信发布\n防重写入\n来源可溯·审计·备份", "④ 智能问答\nText2SQL\n指标模板·图表"]
     xs = [0.8, 4.05, 7.3, 10.55]
     for i, st in enumerate(steps):
         _box(s, Inches(xs[i]), Inches(2.0), Inches(2.7), Inches(1.7), fill=BLUE if i != 1 else ACCENT)
