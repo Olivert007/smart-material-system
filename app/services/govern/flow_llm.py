@@ -181,7 +181,7 @@ def suggest_one(pending_id: str, *, force_role: str | None = None) -> dict[str, 
             rule_suggested = {}
 
         user = (
-            f"flow_type提示: {row.get('flow_type') or ''}\n"
+            f"flow_type 提示: {row.get('flow_type') or ''}\n"
             f"source_sheet: {row.get('source_sheet') or ''}\n"
             f"单列数量(无文本数量时可借用，禁止把年份当数量): {rule_suggested.get('quantity')}\n"
             f"单列单位: {rule_suggested.get('unit')}\n"

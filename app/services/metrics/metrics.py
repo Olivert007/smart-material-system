@@ -50,7 +50,7 @@ FLOW_DRAFT_METRICS: list[dict[str, Any]] = [
     {
         "metric_id": "FLOW_RECONCILE_GAP_CNT",
         "metric_name": "勾稽差异行数",
-        "aliases": json.dumps(["勾稽差异数", "流水勾稽gap"], ensure_ascii=False),
+        "aliases": json.dumps(["勾稽差异数", "流水勾稽差异"], ensure_ascii=False),
         "unit": "行",
         "definition": "flow_reconcile_gap 行数；口径 ΣIN−ΣOUT ≟ stock−COALESCE(opening,0)（FL6 允许非零）",
         "definition_sql": "SELECT COUNT(*) AS v FROM flow_reconcile_gap",
@@ -281,7 +281,7 @@ BUSINESS_METRICS: list[dict[str, Any]] = [
     {
         "metric_id": "INTAKE_BLOCK_RATE",
         "metric_name": "接入阻断率",
-        "aliases": json.dumps(["阻断率", "blocked率", "清洗阻断比例"], ensure_ascii=False),
+        "aliases": json.dumps(["阻断率", "清洗阻断比例"], ensure_ascii=False),
         "unit": "ratio",
         "definition": "最新 staging blocked/(clean+blocked)；无 staging 时为 0",
         "definition_sql": (
@@ -298,7 +298,7 @@ BUSINESS_METRICS: list[dict[str, Any]] = [
     {
         "metric_id": "INTAKE_CLEAN_RATE",
         "metric_name": "接入清洁率",
-        "aliases": json.dumps(["清洁率", "clean率"], ensure_ascii=False),
+        "aliases": json.dumps(["清洁率"], ensure_ascii=False),
         "unit": "ratio",
         "definition": "最新 staging clean/(clean+blocked)",
         "definition_sql": (

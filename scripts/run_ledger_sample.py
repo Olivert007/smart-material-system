@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Wave 3: 一键样例接入（上传→等待→staging 提示）。
 
-用法: python3 scripts/run_ledger_sample.py [xlsx路径]
+用法: python3 scripts/run_ledger_sample.py [xlsx 路径]
 默认查找 data/samples/ 下第一个 xlsx；若无则自 fixture 生成。
 """
 from __future__ import annotations
