@@ -139,6 +139,7 @@ export function fieldZh(field: string): string {
 /** 枚举值汉化（U-6）：flow_type IN→入库、OUT→出库；无映射时原样返回。 */
 export const VALUE_ZH: Record<string, Record<string, string>> = {
   flow_type: { IN: '入库', OUT: '出库' },
+  demand_period: { unknown: '未填写' },
 }
 
 export function valueZh(field: string, value: unknown): unknown {
