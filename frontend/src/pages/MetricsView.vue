@@ -6,8 +6,6 @@
           <span>流水指标激活门禁</span>
           <el-space>
             <el-button :loading="gateLoading" @click="loadGate">刷新门禁</el-button>
-            <el-button :loading="fxLoading" @click="runFixtures">跑固定夹具</el-button>
-            <el-button :loading="conflictLoading" @click="runConflictCheck">别名冲突检查</el-button>
             <el-button
               type="success"
               :disabled="!gate?.ready"
@@ -43,21 +41,6 @@
           </el-tag>
         </el-tooltip>
       </el-space>
-      <p v-if="fxSummary" class="hint">夹具：{{ fxSummary }}</p>
-      <p v-if="conflictHint" class="hint">{{ conflictHint }}</p>
-      <el-table
-        v-if="conflicts.length"
-        :data="conflicts"
-        border
-        size="small"
-        max-height="180"
-        style="margin-top: 8px"
-      >
-        <el-table-column prop="alias" label="别名" min-width="160" />
-        <el-table-column label="关联指标" min-width="220">
-          <template #default="{ row }">{{ (row.metric_ids || []).join(', ') }}</template>
-        </el-table-column>
-      </el-table>
     </el-card>
 
     <el-card shadow="never">
@@ -193,13 +176,11 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import {
   activateFlowMetrics,
-  checkMetricConflicts,
   evaluateMetric,
   flowGate,
   formatApiError,
   listMetrics,
   listMetricSnapshots,
-  metricsFixtures,
   upsertMetric,
   type MetricItem,
 } from '@/api/client'
@@ -224,12 +205,7 @@ const gate = ref<{
   missing: string[]
 } | null>(null)
 const gateLoading = ref(false)
-const fxLoading = ref(false)
-const fxSummary = ref('')
 const activateBusy = ref(false)
-const conflictLoading = ref(false)
-const conflictHint = ref('')
-const conflicts = ref<Array<{ alias: string; metric_ids: string[] }>>([])
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -371,36 +347,6 @@ async function loadGate() {
     ElMessage.error(formatApiError(e))
   } finally {
     gateLoading.value = false
-  }
-}
-
-async function runFixtures() {
-  fxLoading.value = true
-  try {
-    const res = await metricsFixtures()
-    fxSummary.value = `${res.passed}/${res.total} ${res.ok ? 'OK' : 'FAIL'}`
-    ElMessage[res.ok ? 'success' : 'error'](fxSummary.value)
-    await loadGate()
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    fxLoading.value = false
-  }
-}
-
-async function runConflictCheck() {
-  conflictLoading.value = true
-  try {
-    const res = await checkMetricConflicts()
-    conflicts.value = res.conflicts || []
-    conflictHint.value = res.ok
-      ? '无别名冲突'
-      : `发现 ${res.conflict_count} 组冲突（须人工改别名）`
-    ElMessage[res.ok ? 'success' : 'warning'](conflictHint.value)
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    conflictLoading.value = false
   }
 }
 

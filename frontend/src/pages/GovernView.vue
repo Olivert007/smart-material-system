@@ -135,82 +135,6 @@
         </PagedTable>
       </el-card>
 
-      <el-card shadow="never" header="1. 输入表头 → 建议并入队">
-        <el-input
-          v-model="headersText"
-          type="textarea"
-          :rows="4"
-          placeholder="每行一个表头，或用逗号分隔。例如：&#10;物资编码&#10;物资名称&#10;现有数量&#10;库位号"
-        />
-        <div class="row-actions">
-          <el-button type="primary" :loading="suggestBusy" :disabled="!opsTokenReady" @click="runSuggest">生成建议</el-button>
-          <el-button type="warning" :loading="enqueueBusy" :disabled="!opsTokenReady" @click="runEnqueue">入队低置信项</el-button>
-          <el-button @click="headersText = '物资编码\n物资名称\n现有数量\n库位号\n型号规格'">填入库存示例</el-button>
-          <el-tag v-if="suggestMeta.state" size="small" type="info">{{ modelStateLabel(suggestMeta.state) }}</el-tag>
-          <el-tag v-if="suggestMeta.invoked != null" size="small">
-            智能建议 {{ suggestMeta.invoked ? '已调用' : '跳过' }}
-          </el-tag>
-          <el-tag v-if="suggestMeta.latency != null" size="small" type="warning">
-            {{ suggestMeta.latency }} ms
-          </el-tag>
-        </div>
-      </el-card>
-
-      <el-card v-if="rows.length" shadow="never" header="2. 人工核对 / 修改">
-        <el-table :data="rows" border size="small" style="width: 100%">
-          <el-table-column prop="header" label="表头" min-width="160" />
-          <el-table-column label="建议字段" width="200">
-            <template #default="{ row }">
-              <el-select v-model="row.std_field" filterable allow-create style="width: 100%">
-                <el-option v-for="f in stdFields" :key="f" :label="stdFieldLabel(f)" :value="f" />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="候选（向量匹配）" min-width="260">
-            <template #default="{ row }">
-              <el-space wrap>
-                <el-tag
-                  v-for="c in row.candidates.slice(0, 4)"
-                  :key="c.std_field + c.score"
-                  size="small"
-                  class="cand"
-                  @click="row.std_field = c.std_field"
-                >
-                  {{ stdFieldLabel(c.std_field) }} {{ c.score.toFixed(2) }}
-                </el-tag>
-              </el-space>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="row-actions">
-          <el-input v-model="note" placeholder="确认备注（可选）" style="max-width: 360px" />
-          <el-button type="success" :loading="confirmBusy" :disabled="!opsTokenReady" @click="runConfirm">
-            确认回写规则字典
-          </el-button>
-        </div>
-      </el-card>
-
-      <el-card shadow="never">
-        <template #header>
-          <div class="result-head">
-            <span>已确认规则字典</span>
-            <el-button link type="primary" @click="loadRules">刷新</el-button>
-          </div>
-        </template>
-        <el-table :data="rules" v-loading="rulesLoading" size="small" border style="width: 100%">
-          <el-table-column prop="header" label="表头" min-width="140" />
-          <el-table-column label="标准字段" width="140">
-            <template #default="{ row }">{{ stdFieldLabel(String(row.std_field)) }}</template>
-          </el-table-column>
-          <el-table-column prop="hits" label="命中" width="70" />
-          <el-table-column label="来源" width="120">
-            <template #default="{ row }">{{ ruleSourceLabel(String(row.source)) }}</template>
-          </el-table-column>
-          <el-table-column prop="confirmed_by" label="确认人" width="120" />
-          <el-table-column prop="created_at" label="时间" width="170" />
-        </el-table>
-      </el-card>
     </template>
 
     <!-- —— 主数据待审 —— -->
@@ -461,24 +385,6 @@
         </PagedTable>
       </el-card>
 
-      <el-card shadow="never">
-        <template #header>
-          <div class="result-head">
-            <span>自学习示例池（流水拆解示例）</span>
-            <el-button link type="primary" @click="loadFlowExamples">刷新</el-button>
-          </div>
-        </template>
-        <el-table :data="flowExamples" v-loading="examplesLoading" size="small" border>
-          <el-table-column label="识别方式" width="140">
-            <template #default="{ row }">{{ parseLevelLabel(String(row.level)) }}</template>
-          </el-table-column>
-          <el-table-column prop="text_norm" label="原文归一" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="hits" label="命中" width="70" />
-          <el-table-column prop="confirmed_by" label="确认人" width="120" />
-          <el-table-column prop="updated_at" label="更新" width="170" />
-        </el-table>
-      </el-card>
-
       <el-dialog v-model="amendVisible" title="修正流水建议" width="560px" destroy-on-close>
         <el-form label-width="88px">
           <el-form-item label="原文">
@@ -593,15 +499,10 @@ import {
   flowReconcilePersist,
   flowStats as fetchFlowStats,
   formatApiError,
-  listFlowExamples,
   listFlowPending,
-  listRuleDict,
   listStdFields,
   listMapPending,
-  enqueueMapHeaders,
   confirmMapPending,
-  mapConfirm,
-  mapSuggest,
   suggestFlowPending,
   proposeMasterPending,
   listMasterPending,
@@ -631,12 +532,6 @@ function notifyBrowse(title: string, _table?: string) {
     type: 'success',
     duration: 4500,
   })
-}
-
-type Row = {
-  header: string
-  std_field: string
-  candidates: Array<{ std_field: string; score: number }>
 }
 
 const props = withDefaults(
@@ -687,16 +582,7 @@ const tabHint = computed(() => {
   return map[tab.value] || ''
 })
 
-const headersText = ref('')
-const rows = ref<Row[]>([])
 const stdFields = ref<string[]>(['ignore'])
-const note = ref('')
-const suggestBusy = ref(false)
-const enqueueBusy = ref(false)
-const confirmBusy = ref(false)
-const suggestMeta = ref<{ state?: string; invoked?: boolean; latency?: number }>({})
-const rules = ref<Array<Record<string, unknown>>>([])
-const rulesLoading = ref(false)
 const rlItems = ref<
   Array<{ id: number; decision: string; proposal?: Record<string, unknown> }>
 >([])
@@ -757,9 +643,6 @@ const flowStats = reactive<{
   l1_ratio?: number | null
   pending?: number
 }>({})
-const flowExamples = ref<Array<Record<string, unknown>>>([])
-const examplesLoading = ref(false)
-
 const amendVisible = ref(false)
 const amendRow = ref<FlowPendingItem | null>(null)
 const amendNote = ref('')
@@ -824,13 +707,6 @@ function applyReconcilePayload(res: {
   reconcileTotal.value = res.total
   const bc = res.by_class || {}
   reconcileByClass.value = { ...bc, opening_populated_rows: res.opening_populated_rows ?? 0 }
-}
-
-function parseHeaders(text: string): string[] {
-  return text
-    .split(/[\n,，;；\t]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
 }
 
 function flowTypeLabel(v?: string | null): string {
@@ -927,16 +803,6 @@ function reasonLabel(r?: string | null) {
     low_confidence: '匹配置信度低',
   }
   return map[String(r ?? '')] || String(r ?? '—')
-}
-
-/** 规则字典来源显示名。 */
-function ruleSourceLabel(s?: string | null) {
-  const map: Record<string, string> = {
-    seed: '种子规则',
-    map_pending_confirm: '映射确认',
-    rule_learn: '规则学习',
-  }
-  return map[String(s ?? '')] || String(s ?? '—')
 }
 
 /** 业务域中文名。 */
@@ -1067,13 +933,13 @@ async function onTab(name: string | number) {
   const n = String(name)
   emit('tab-change', n)
   if (n === 'map') {
-    await Promise.all([loadMapPending(), loadRules()])
+    await loadMapPending()
   } else if (n === 'rulelearn') {
     await loadRuleLearn()
   } else if (n === 'master') {
     await loadMasterPending()
   } else if (n === 'flow') {
-    await Promise.all([loadFlowPending(), loadFlowStats(), loadFlowExamples()])
+    await Promise.all([loadFlowPending(), loadFlowStats()])
   } else if (n === 'reconcile') {
     await loadReconcile()
   }
@@ -1221,25 +1087,6 @@ async function loadMapPending() {
   }
 }
 
-async function runEnqueue() {
-  const headers = parseHeaders(headersText.value)
-  if (!headers.length) {
-    ElMessage.warning('请先输入表头')
-    return
-  }
-  enqueueBusy.value = true
-  try {
-    const res = await enqueueMapHeaders({ headers, business_domain: 'default' })
-    ElMessage.success(`已入队 ${res.enqueued} 条低置信/冲突项`)
-    await loadMapPending()
-    notifyQueueChanged()
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    enqueueBusy.value = false
-  }
-}
-
 async function confirmMapRow(row: MapPendingItem) {
   if (!requireOpsToken()) return
   const ignore = !row.suggested_field || row.suggested_field === 'ignore'
@@ -1258,7 +1105,7 @@ async function confirmMapRow(row: MapPendingItem) {
       std_field: ignore ? 'ignore' : row.suggested_field || undefined,
     })
     ElMessage.success('已确认处理')
-    await Promise.all([loadMapPending(), loadRules()])
+    await loadMapPending()
     notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1395,86 +1242,6 @@ async function submitAmendMaster() {
   }
 }
 
-async function runSuggest() {
-  const headers = parseHeaders(headersText.value)
-  if (!headers.length) {
-    ElMessage.warning('请先输入表头')
-    return
-  }
-  suggestBusy.value = true
-  try {
-    const res = await mapSuggest(headers)
-    const mapping = res.mapping || {}
-    const cands = res.candidates || {}
-    rows.value = headers.map((h) => ({
-      header: h,
-      std_field: mapping[h] || 'ignore',
-      candidates: (cands[h] || []).map((c) => ({
-        std_field: c.std_field,
-        score: Number(c.score) || 0,
-      })),
-    }))
-    suggestMeta.value = {
-      state: res.model_state,
-      invoked: res.model_invoked,
-      latency: res.latency_ms,
-    }
-    if (!res.ok) ElMessage.error(res.error || '建议失败')
-    else ElMessage.success('已生成建议，请人工核对后确认')
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    suggestBusy.value = false
-  }
-}
-
-async function runConfirm() {
-  if (!localStorage.getItem('ops_token')) {
-    ElMessage.warning(TOKEN_HINT)
-    return
-  }
-  if (!rows.value.length) return
-  const mapping: Record<string, string> = {}
-  for (const r of rows.value) {
-    if (r.std_field && r.std_field !== 'ignore') mapping[r.header] = r.std_field
-  }
-  if (!Object.keys(mapping).length) {
-    ElMessage.warning('没有可确认的映射（全部为忽略）')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `确认将 ${Object.keys(mapping).length} 条映射写入规则字典？不会自动发布业务库。`,
-      '映射确认',
-      { type: 'warning' },
-    )
-  } catch {
-    return
-  }
-  confirmBusy.value = true
-  try {
-    const res = await mapConfirm(mapping, note.value)
-    ElMessage.success(`已写入规则字典 ${res.saved} 条`)
-    await loadRules()
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    confirmBusy.value = false
-  }
-}
-
-async function loadRules() {
-  rulesLoading.value = true
-  try {
-    const res = await listRuleDict(50, 0)
-    rules.value = res.items
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    rulesLoading.value = false
-  }
-}
-
 async function onFlowFilter() {
   flowPage.value = 1
   await loadFlowPending()
@@ -1508,18 +1275,6 @@ async function loadFlowStats() {
   }
 }
 
-async function loadFlowExamples() {
-  examplesLoading.value = true
-  try {
-    const res = await listFlowExamples(50, 0)
-    flowExamples.value = res.items
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    examplesLoading.value = false
-  }
-}
-
 async function decideOne(
   row: FlowPendingItem,
   decision: 'accept' | 'ignore',
@@ -1546,7 +1301,7 @@ async function decideOne(
         decision === 'accept' ? (overwrite ? '已覆盖接受' : '已接受') : '已忽略',
       )
     }
-    await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    await Promise.all([loadFlowPending(), loadFlowStats()])
     notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1590,7 +1345,7 @@ async function batchAccept() {
     }
     ElMessage.success(`完成：接受 ${ok}/${ids.length}` + (conflict ? `，冲突 ${conflict}` : ''))
     notifyBrowse('已回写，可到台账验证', 'fact_stock_flow')
-    await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    await Promise.all([loadFlowPending(), loadFlowStats()])
     notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1625,7 +1380,7 @@ async function batchIgnore() {
       if (res.ok) ok += 1
     }
     ElMessage.success(`已忽略 ${ok}/${ids.length}`)
-    await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    await Promise.all([loadFlowPending(), loadFlowStats()])
     notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1738,7 +1493,7 @@ async function submitAmend() {
     })
     ElMessage.success('已修正并回写示例')
     amendVisible.value = false
-    await Promise.all([loadFlowPending(), loadFlowExamples(), loadFlowStats()])
+    await Promise.all([loadFlowPending(), loadFlowStats()])
     notifyQueueChanged()
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
@@ -1881,7 +1636,6 @@ onUnmounted(() => {
 
 <style scoped>
 .govern { display: flex; flex-direction: column; gap: 16px; width: 100%; }
-.row-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .outer-hint { color: #606266; font-size: 13px; line-height: 1.6; margin: 0; }
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

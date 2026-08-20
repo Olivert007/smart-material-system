@@ -123,18 +123,6 @@ const drillNote = ref('')
 const drillBusy = ref(false)
 const expandedPanels = ref<string[]>([])
 
-const capabilitySummary = computed(() => {
-  const m = models.value
-  if (!m) return '模型状态加载中'
-  const parts: string[] = []
-  parts.push(m.big?.ok ? '主模型可用' : '主模型离线')
-  if (m.embed?.ok) parts.push('向量模型可用')
-  else if (m.embed?.lexical_fallback) parts.push('向量词法兜底')
-  else parts.push('向量模型离线')
-  parts.push(m.fast?.ok ? '快速模型可用' : '快速模型离线')
-  return parts.join('；')
-})
-
 const offlineModelNames = computed(() => {
   const m = models.value
   if (!m) return [] as string[]
@@ -173,13 +161,13 @@ const headline = computed(() => {
     return {
       type: 'warning' as const,
       title: '业务服务就绪',
-      description: `智能能力：已降级（${offline}）；规则路径与指标问数仍可用`,
+      description: `智能能力已降级（${offline}），详情见「本地模型」；规则路径与指标问数仍可用`,
     }
   }
   return {
     type: 'success' as const,
     title: '业务服务就绪',
-    description: `智能能力：${capabilitySummary.value}`,
+    description: '服务与智能能力正常',
   }
 })
 

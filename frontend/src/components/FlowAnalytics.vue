@@ -34,51 +34,33 @@
       <template #header>
         <div class="head">
           <span>Top 物资流水（入库/出库）</span>
-          <el-input-number v-model="topN" :min="5" :max="50" size="small" @change="load" />
         </div>
       </template>
       <div v-loading="loading" class="an-chart" ref="topEl" />
       <p v-if="!loading && topEmpty" class="hint">当前筛选下暂无流水</p>
     </el-card>
-    <el-card shadow="never">
-      <template #header>
-        <div class="head">
-          <span>流水解析可信级别占比<template v-if="level">（共 {{ level.total ?? 0 }} 条）</template></span>
-        </div>
-      </template>
-      <div v-loading="loading" class="an-chart an-chart-sm" ref="levelEl" />
-      <p v-if="levelNote" class="level-note">{{ levelNote }}</p>
-    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts/core'
-import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LegacyGridContainLabel } from 'echarts/features'
-import { flowFilters, flowLevel, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
+import { flowFilters, flowMonthly, flowTop, formatApiError, type FlowMonthly } from '@/api/client'
 
 echarts.use([
   BarChart,
   LineChart,
-  PieChart,
   GridComponent,
   TooltipComponent,
   LegendComponent,
   CanvasRenderer,
   LegacyGridContainLabel,
 ])
-
-/** 发布级别业务含义（评审 §9）：可见内容只展示业务语义，不裸展示 L1/L2/L3。 */
-const LEVEL_LABEL: Record<string, string> = {
-  L1: '规则直接识别',
-  L2: '规则校验后识别',
-  L3: '需要人工确认',
-}
 
 const loading = ref(true)
 const topN = ref(10)
@@ -88,21 +70,9 @@ const categoryOptions = ref<string[]>([])
 const yearOptions = ref<string[]>([])
 const topEmpty = ref(false)
 const monthly = ref<FlowMonthly | null>(null)
-const level = ref<{ total?: number; items?: Array<{ name: string; value: number }> } | null>(null)
 const monthlyEl = ref<HTMLDivElement | null>(null)
 const topEl = ref<HTMLDivElement | null>(null)
-const levelEl = ref<HTMLDivElement | null>(null)
 const charts: echarts.ECharts[] = []
-
-const levelNote = computed(() => {
-  const lv = level.value
-  if (!lv?.items?.length) return ''
-  const base = '识别方式：规则直接识别、规则校验后识别、需要人工确认。'
-  if (lv.items.length === 1 && lv.total) {
-    return `${base} 当前全部为 ${lv.items[0].name}，因此占比图只有一个扇区。`
-  }
-  return base
-})
 
 function disposeCharts() {
   for (const c of charts) c.dispose()
@@ -157,24 +127,6 @@ function renderCharts(topItems: Array<{ key: string; displayName: string; inQty:
       ],
     })
   }
-  const lv = level.value
-  if (lv?.items?.length && levelEl.value) {
-    const chart = echarts.init(levelEl.value)
-    charts.push(chart)
-    const data = lv.items.map((i) => ({ name: LEVEL_LABEL[i.name] || i.name, value: i.value }))
-    chart.setOption({
-      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { bottom: 0 },
-      series: [{
-        type: 'pie',
-        radius: ['38%', '62%'],
-        center: ['50%', '44%'],
-        data,
-        label: { show: true, position: 'inside', fontSize: 10, color: '#fff', formatter: (p: any) => p.name },
-        labelLine: { show: false },
-      }],
-    })
-  }
 }
 
 function query() {
@@ -204,9 +156,8 @@ async function load() {
   loading.value = true
   try {
     const q = query()
-    const [m, top, lv] = await Promise.all([flowMonthly(q), flowTop(topN.value, q), flowLevel()])
+    const [m, top] = await Promise.all([flowMonthly(q), flowTop(topN.value, q)])
     monthly.value = m
-    level.value = lv
     // 聚合 key 用 asset_code||material_id，内部按编码对齐，不以中文名合并
     const byKey = new Map<string, { key: string; displayName: string; inQty: number; outQty: number }>()
     for (const it of top.items || []) {
@@ -267,7 +218,5 @@ defineExpose({ load })
 .filter-year { width: 160px; max-width: 100%; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .an-chart { width: 100%; height: 320px; }
-.an-chart-sm { height: 240px; }
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
-.level-note { color: #606266; font-size: 13px; margin: 10px 0 0; line-height: 1.6; }
 </style>

@@ -3,7 +3,6 @@
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="规则字典" name="rules" />
       <el-tab-pane label="流水示例" name="flow" />
-      <el-tab-pane label="确认历史" name="history" />
       <el-tab-pane label="问答 SQL 示例" name="fewshot" />
     </el-tabs>
 
@@ -95,38 +94,6 @@
             <el-table-column prop="hits" label="命中" width="70" />
             <el-table-column prop="confirmed_by" label="确认人" width="120" />
             <el-table-column prop="updated_at" label="更新" width="170" />
-          </el-table>
-        </PagedTable>
-      </el-card>
-    </template>
-
-    <template v-else-if="tab === 'history'">
-      <el-card shadow="never">
-        <template #header>
-          <div class="head">
-            <span>确认历史</span>
-            <el-space>
-              <el-select v-model="historySource" clearable placeholder="来源" style="width: 160px" @change="onHistoryFilter">
-                <el-option label="流水确认" value="flow_confirm" />
-                <el-option label="映射确认" value="map_confirm" />
-              </el-select>
-              <el-button :loading="loading" @click="loadHistory">刷新</el-button>
-            </el-space>
-          </div>
-        </template>
-        <PagedTable
-          v-model:page="historyPage"
-          v-model:page-size="historyPageSize"
-          :total="historyTotal"
-          @change="loadHistory"
-        >
-          <el-table :data="historyItems" v-loading="loading" border size="small">
-            <el-table-column prop="created_at" label="时间" width="170" />
-            <el-table-column prop="source" label="来源" width="120" />
-            <el-table-column prop="decision" label="决策" width="120" />
-            <el-table-column prop="detail" label="详情" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="note" label="备注" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="actor" label="操作者" width="120" />
           </el-table>
         </PagedTable>
       </el-card>
@@ -230,7 +197,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import PagedTable from '@/components/PagedTable.vue'
 import {
   formatApiError,
-  listAssetHistory,
   listAssetFewshot,
   listFlowExamples,
   listRuleDict,
@@ -262,12 +228,6 @@ const flowItems = ref<Array<Record<string, unknown>>>([])
 const flowTotal = ref(0)
 const flowPage = ref(1)
 const flowPageSize = ref(20)
-
-const historyItems = ref<Array<Record<string, unknown>>>([])
-const historyTotal = ref(0)
-const historyPage = ref(1)
-const historyPageSize = ref(20)
-const historySource = ref<string | undefined>()
 
 const fewshotItems = ref<Array<Record<string, unknown>>>([])
 const fewshotTotal = ref(0)
@@ -323,28 +283,6 @@ async function loadFlow() {
   }
 }
 
-async function loadHistory() {
-  loading.value = true
-  try {
-    const res = await listAssetHistory({
-      limit: historyPageSize.value,
-      offset: (historyPage.value - 1) * historyPageSize.value,
-      source: historySource.value,
-    })
-    historyItems.value = res.items
-    historyTotal.value = res.total
-  } catch (e: unknown) {
-    ElMessage.error(formatApiError(e))
-  } finally {
-    loading.value = false
-  }
-}
-
-async function onHistoryFilter() {
-  historyPage.value = 1
-  await loadHistory()
-}
-
 async function loadFewshot() {
   loading.value = true
   try {
@@ -366,7 +304,6 @@ async function onTab(name: string | number) {
   const n = String(name)
   if (n === 'rules') await loadRules()
   else if (n === 'flow') await loadFlow()
-  else if (n === 'history') await loadHistory()
   else await loadFewshot()
 }
 
