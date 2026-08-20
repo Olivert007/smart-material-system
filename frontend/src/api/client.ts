@@ -1614,6 +1614,82 @@ export async function flowLevel() {
   return apiJson<FlowLevel>('/analytics/flow-level')
 }
 
+/** 数据成果页·趋势分析：流水概览 KPI */
+export type FlowSummary = {
+  total: number
+  materials: number
+  min_date?: string | null
+  max_date?: string | null
+  in: { count: number; qty: number }
+  out: { count: number; qty: number }
+  net: number
+  filters: { categories: string[]; year: string | null }
+}
+
+export async function flowSummary(q?: FlowAnalyticsQuery) {
+  return apiJson<FlowSummary>(`/analytics/flow-summary${flowQueryString(q)}`)
+}
+
+/** 数据成果页·趋势分析：库存健康 */
+export type InventoryHealth = {
+  total: number
+  stock_qty_total: number
+  by_category: Array<{ name: string; count: number; stock_qty: number }>
+  by_region: Array<{ name: string; count: number }>
+  low_stock: {
+    count: number
+    items: Array<{ material_id: string; display_name: string; stock_qty: number; min_qty: number }>
+  }
+  over_quota: {
+    count: number
+    items: Array<{ material_id: string; display_name: string; stock_qty: number; quota_qty: number }>
+  }
+}
+
+export async function inventoryHealth(topN = 10) {
+  return apiJson<InventoryHealth>(`/analytics/inventory-health?top_n=${topN}`)
+}
+
+/** 数据成果页·趋势分析：资产清查 */
+export type AssetOverview = {
+  total: number
+  company_count: number
+  domain_count: number
+  by_status: Array<{ name: string; count: number }>
+  by_company: Array<{ name: string; count: number }>
+  by_domain: Array<{ name: string; count: number }>
+  by_year: Array<{ name: string; count: number }>
+  problem_top: Array<{ name: string; count: number }>
+}
+
+export async function assetOverview(limit = 12) {
+  return apiJson<AssetOverview>(`/analytics/asset-overview?limit=${limit}`)
+}
+
+/** 数据成果页·趋势分析：需求统计 */
+export type DemandOverview = {
+  total: number
+  quantity: number
+  materials: number
+  by_period: Array<{ name: string; count: number; qty: number }>
+  top: Array<{ material_id: string; display_name: string; count: number; qty: number }>
+}
+
+export async function demandOverview(topN = 10) {
+  return apiJson<DemandOverview>(`/analytics/demand-overview?top_n=${topN}`)
+}
+
+/** 数据成果页·趋势分析：定额调整概览 */
+export type QuotaOverview = {
+  total: number
+  by_type: Array<{ name: string; count: number }>
+  top: Array<{ material_id: string; display_name: string; count: number; verified_qty: number }>
+}
+
+export async function quotaOverview(topN = 10) {
+  return apiJson<QuotaOverview>(`/analytics/quota-overview?top_n=${topN}`)
+}
+
 export async function opsTasksSummary() {
   return apiJson<{
     pending: number
