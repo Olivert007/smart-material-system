@@ -2,12 +2,6 @@
   <div class="models">
     <div class="toolbar">
       <el-space wrap>
-        <el-tag type="success" size="large">阶段 {{ status?.stage ?? '—' }}</el-tag>
-        <el-tag :type="status?.big?.ok ? 'success' : 'danger'">主模型 {{ status?.big?.ok ? '可用' : '离线' }}</el-tag>
-        <el-tag :type="status?.fast?.ok ? 'success' : 'info'">快速模型 {{ status?.fast?.ok ? '可用' : '离线' }}</el-tag>
-        <el-tag :type="status?.embed?.ok ? 'success' : 'warning'">
-          向量模型 {{ status?.embed?.ok ? '可用' : '词法兜底' }}
-        </el-tag>
         <el-button type="primary" :loading="loading" @click="load">重扫</el-button>
       </el-space>
     </div>

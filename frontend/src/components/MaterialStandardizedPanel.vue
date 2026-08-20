@@ -84,9 +84,8 @@
               <template #default="{ row }">{{ row.stock_qty ?? '—' }}</template>
             </el-table-column>
             <el-table-column prop="status" label="状态" min-width="100" />
-            <el-table-column label="操作" min-width="170">
+            <el-table-column label="操作" min-width="100">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openDetail(row)">查看详情</el-button>
                 <el-button
                   link
                   type="primary"
@@ -101,26 +100,6 @@
         </div>
       </PagedTable>
     </el-card>
-
-    <el-dialog v-model="detailVisible" title="物资详情" width="560px" destroy-on-close>
-      <el-descriptions v-if="detailRow" :column="2" border size="small">
-        <el-descriptions-item label="物资编码">{{ displayCode(detailRow) }}</el-descriptions-item>
-        <el-descriptions-item label="物资名称">{{ detailRow.material_name || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="物资种类">{{ detailRow.category || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="存放区域">{{ detailRow.location || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="规格型号">{{ detailRow.spec || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="单位">{{ detailRow.unit || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="库存数量">{{ detailRow.stock_qty ?? '—' }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ detailRow.status || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="来源文件" :span="2">{{ detailRow.source_file || '—' }}</el-descriptions-item>
-      </el-descriptions>
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-        <el-button type="primary" :disabled="!detailRow || !canTrace(detailRow)" @click="detailRow && goTrace(detailRow)">
-          追溯
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -156,8 +135,6 @@ const pageSize = ref(20)
 const loading = ref(true)
 const exporting = ref(false)
 const result = ref<MaterialStandardizedResult | null>(null)
-const detailVisible = ref(false)
-const detailRow = ref<MaterialStandardizedItem | null>(null)
 
 const categorySummaryText = computed(() => {
   const rows = (result.value?.summary?.by_category || []).filter((r) => r.count > 0)
@@ -298,11 +275,6 @@ async function onExport() {
   } finally {
     exporting.value = false
   }
-}
-
-function openDetail(row: MaterialStandardizedItem) {
-  detailRow.value = row
-  detailVisible.value = true
 }
 
 function goTrace(row: MaterialStandardizedItem) {
