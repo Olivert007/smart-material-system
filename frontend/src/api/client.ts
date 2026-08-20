@@ -144,6 +144,17 @@ export async function listFiles(limit = 20, offset = 0) {
   }>(`/files?limit=${limit}&offset=${offset}`)
 }
 
+export async function deleteFile(fileId: string) {
+  return apiJson<{
+    ok: boolean
+    file_id: string
+    filename?: string
+    releases_removed: string[]
+    deleted_fact_rows: number
+    files_removed: string[]
+  }>(`/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+}
+
 export async function listTasks(limit = 50, offset = 0, status?: string) {
   const q = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (status) q.set('status', status)
