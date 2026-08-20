@@ -109,6 +109,21 @@ def schema_summary() -> str:
     return "\n".join(lines)
 
 
+_GUARD_ERROR_ZH = {
+    "SQL_EMPTY": "生成的查询为空，请换个问法",
+    "SQL_PARSE_ERROR": "查询语句无法解析，请换个问法",
+    "SQL_MULTI_STATEMENT": "查询包含多条语句，仅允许单条只读查询",
+    "SQL_FORBIDDEN": "查询包含受限操作，仅允许只读查询",
+    "SQL_NOT_SELECT": "查询不是只读查询，仅允许查询数据",
+    "SQL_FORBIDDEN_FN": "查询使用了受限函数，仅允许常规统计查询",
+}
+
+
+def _guard_error_zh(guard) -> str:
+    """SQL 守卫错误中文化：业务页不展示英文 guard.error，详情仍可入审计。"""
+    return _GUARD_ERROR_ZH.get(guard.code) or f"查询未通过安全校验（{guard.code}）"
+
+
 def _extract_sql(text: str) -> str:
     raw = text or ""
     if "</think>" in raw:
@@ -178,7 +193,7 @@ def _audit_ask(res: dict) -> None:
 def _ask(question: str) -> dict:
     q = (question or "").strip()
     if not q:
-        return {"ok": False, "error": "empty question", "model_state": "not_attempted"}
+        return {"ok": False, "error": "问题为空，请重新输入", "model_state": "not_attempted"}
 
     # ① Metric template first (docs/08 §5) — no LLM when unique active hit
     from app.services import metrics as metrics_svc
@@ -189,7 +204,7 @@ def _ask(question: str) -> dict:
         return {
             "question": q,
             "ok": False,
-            "error": "metric_alias_conflict",
+            "error": "指标口径冲突，请到指标字典确认后再问",
             "code": "METRIC_CONFLICT",
             "model_state": "metric_conflict",
             "model_request_attempted": False,
@@ -206,7 +221,7 @@ def _ask(question: str) -> dict:
             return {
                 "question": q,
                 "ok": False,
-                "error": "flow_metric_draft",
+                "error": "流水指标处于草稿状态，暂不按口径模板作答",
                 "code": "FLOW_QUALITY_GATE",
                 "model_state": "metric_draft_blocked",
                 "model_request_attempted": False,
@@ -215,7 +230,7 @@ def _ask(question: str) -> dict:
                 "metric_match": matched,
                 "metric_id": mid,
                 "sql": best.get("definition_sql"),
-                "answer": "流水质量未达标，FLOW_* 指标保持 draft，暂不按口径模板作答。",
+                "answer": "流水质量未达标，流水类指标保持草稿状态，暂不按口径模板作答。",
                 "hint": "见 12/08 门禁；可先问库存/需求/资产类指标",
             }
         if status == "active":
@@ -365,7 +380,7 @@ def _ask(question: str) -> dict:
                     **base,
                     "ok": False,
                     "sql": sql,
-                    "error": guard.error,
+                    "error": _guard_error_zh(guard),
                     "code": guard.code,
                     "answer": None,
                 }
@@ -374,7 +389,7 @@ def _ask(question: str) -> dict:
                 **base,
                 "ok": False,
                 "sql": sql,
-                "error": guard.error,
+                "error": _guard_error_zh(guard),
                 "code": guard.code,
                 "answer": None,
             }
@@ -383,7 +398,7 @@ def _ask(question: str) -> dict:
     try:
         df = con.execute(guard.sql).fetchdf()
     except Exception as e:
-        return {**base, "ok": False, "sql": guard.sql, "error": f"SQL exec: {e}", "answer": None}
+        return {**base, "ok": False, "sql": guard.sql, "error": "查询执行失败，请换个问法", "answer": None}
     finally:
         con.close()
 
