@@ -52,6 +52,46 @@ def analytics_flow_level():
     return flow_level_ratio()
 
 
+@router.get("/analytics/flow-summary")
+def analytics_flow_summary(categories: str | None = None, year: str | None = None):
+    """数据成果页·趋势分析：流水概览 KPI（总条数/入库/出库/净变化/涉及物资/日期范围）。"""
+    from app.services.analytics import flow_summary
+
+    return flow_summary(categories=categories, year=year)
+
+
+@router.get("/analytics/inventory-health")
+def analytics_inventory_health(top_n: int = 10):
+    """数据成果页·趋势分析：库存健康（类别/区域分布、低库存、超定额 TOP）。"""
+    from app.services.analytics import inventory_health
+
+    return inventory_health(top_n=top_n)
+
+
+@router.get("/analytics/asset-overview")
+def analytics_asset_overview(limit: int = 12):
+    """数据成果页·趋势分析：资产清查（状态/公司/区域/购买年份分布、盘点问题 TOP）。"""
+    from app.services.analytics import asset_overview
+
+    return asset_overview(limit=limit)
+
+
+@router.get("/analytics/demand-overview")
+def analytics_demand_overview():
+    """数据成果页·趋势分析：需求统计（按需求期间汇总）。"""
+    from app.services.analytics import demand_overview
+
+    return demand_overview()
+
+
+@router.get("/analytics/quota-overview")
+def analytics_quota_overview(limit: int = 10):
+    """数据成果页·趋势分析：定额调整概览（调整类型分布 + 调整项 TOP）。"""
+    from app.services.analytics import quota_overview
+
+    return quota_overview(limit=limit)
+
+
 @router.get("/stats/quality/release/{release_id}")
 def stats_quality_release(release_id: str):
     from app.services import quality as quality_svc
