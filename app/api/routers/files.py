@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app import config
+from app.api.auth import require_ops
 from app.repositories import meta_conn
 from app.services import intake as intake_svc
 
@@ -206,6 +207,20 @@ def list_files(limit: int = 20, offset: int = 0):
         "next_offset": offset + limit if offset + limit < total else None,
         "items": [dict(r) for r in rows],
     }
+
+
+@router.delete("/files/{file_id}")
+def delete_file(file_id: str, actor: str = Depends(require_ops)):
+    """级联删除单个文件及其全部衍生数据（发布事实、规整记录、物理文件）。"""
+    from app.services.intake.file_removal import delete_file as remove_file
+
+    try:
+        return remove_file(file_id, actor=actor)
+    except FileNotFoundError:
+        raise HTTPException(
+            404,
+            detail={"code": "NOT_FOUND", "message": f"file {file_id} not found"},
+        )
 
 
 @router.get("/tasks")

@@ -73,7 +73,7 @@
         </el-table-column>
         <el-table-column prop="rows" label="行数" width="90" />
         <el-table-column prop="created_at" label="接入时间" width="180" />
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button
               v-if="row.file_id"
@@ -82,6 +82,14 @@
               @click="$router.push(`/stage/${row.file_id}`)"
             >
               规整确认
+            </el-button>
+            <el-button
+              v-if="row.file_id"
+              link
+              type="danger"
+              @click="onDeleteFile(row)"
+            >
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -122,8 +130,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { formatApiError, statsOverview, type StatsOverview } from '@/api/client'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { deleteFile, formatApiError, statsOverview, type StatsOverview } from '@/api/client'
 import {
   dataStateLabel,
   dataStateTagType,
@@ -296,6 +304,33 @@ const bizCards = computed(() => {
 function goMetric(metricId?: string) {
   if (!metricId) return
   router.push({ path: '/govern', query: { tab: 'advanced', id: metricId } })
+}
+
+async function onDeleteFile(row: { file_id?: string; filename?: string }) {
+  if (!row.file_id) return
+  const name = row.filename || row.file_id
+  try {
+    await ElMessageBox.confirm(
+      `确定删除「${name}」吗？该文件及其规整记录、已发布业务数据将一并清除，且不可恢复。`,
+      '删除文件',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+  try {
+    const res = await deleteFile(row.file_id)
+    ElMessage.success(
+      `已删除「${res.filename || name}」${res.releases_removed.length ? `（含 ${res.releases_removed.length} 次发布数据）` : ''}`,
+    )
+    await load()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  }
 }
 
 async function load() {
