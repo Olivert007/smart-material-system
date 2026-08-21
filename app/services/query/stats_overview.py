@@ -84,7 +84,14 @@ def business_snapshot(*, top_n: int = 5) -> dict[str, Any]:
     n = max(1, min(int(top_n), 20))
     con = biz_conn()
     try:
-        stock_qty = _scalar(con, "SELECT SUM(stock_qty) FROM fact_inventory")
+        stock_qty = _scalar(
+            con,
+            """
+            SELECT CASE WHEN COUNT(DISTINCT COALESCE(NULLIF(TRIM(unit), ''), '<空>')) > 1
+            THEN NULL ELSE SUM(stock_qty) END
+            FROM fact_inventory
+            """,
+        )
         stock_value = _scalar(
             con, "SELECT SUM(stock_value) FROM fact_inventory WHERE stock_value IS NOT NULL"
         )
