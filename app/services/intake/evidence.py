@@ -476,6 +476,12 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
             # location/custodian/…）全空；合并 inventory 映射补回，stock_flow 映射优先。
             inv_map = resolve_columns(df, "inventory", source_sheet=str(name))
             mapping = {**inv_map, **mapping}
+        elif route is None:
+            # T11: 非台账路由文件（如维护材料采购订单）若只按 stock_flow 投影，
+            # 「数量/规格/位置/区域」等库存列会被丢弃 → 质量预检 REQUIRED_UNMAPPED
+            # 阻塞无法发布。合并 inventory 映射补回库存快照列，stock_flow 映射优先。
+            inv_map = resolve_columns(df, "inventory", source_sheet=str(name))
+            mapping = {**inv_map, **mapping}
         if route is None:
             if "flow_in_text" not in mapping and "flow_out_text" not in mapping:
                 continue
