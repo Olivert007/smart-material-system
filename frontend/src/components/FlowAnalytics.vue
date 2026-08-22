@@ -1,5 +1,5 @@
 <template>
-  <div class="flow-analytics">
+  <div class="flow-analytics" ref="rootEl">
     <el-card shadow="never" class="filter-card">
       <div class="filter-bar">
         <el-select
@@ -240,6 +240,8 @@ const quota = ref<QuotaOverview | null>(null)
 /** Top 物资聚合结果：由 load() 计算，供统一渲染（避免并发渲染互相清空）。 */
 const topItems = ref<Array<{ key: string; displayName: string; inQty: number; outQty: number }>>([])
 
+const rootEl = ref<HTMLDivElement | null>(null)
+
 const monthlyEl = ref<HTMLDivElement | null>(null)
 const topEl = ref<HTMLDivElement | null>(null)
 const levelEl = ref<HTMLDivElement | null>(null)
@@ -254,6 +256,7 @@ const demandTopEl = ref<HTMLDivElement | null>(null)
 const quotaTypeEl = ref<HTMLDivElement | null>(null)
 const quotaTopEl = ref<HTMLDivElement | null>(null)
 const charts: echarts.ECharts[] = []
+let chartObserver: ResizeObserver | null = null
 
 const summaryRange = computed(() => {
   const s = summary.value
@@ -308,7 +311,11 @@ function setBarh(
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 16, right: 60, top: 12, bottom: 8, containLabel: true },
     xAxis: { type: 'value' },
-    yAxis: { type: 'category', data: [...names].reverse() },
+    yAxis: {
+      type: 'category',
+      data: [...names].reverse(),
+      axisLabel: { fontSize: 11, width: 140, overflow: 'truncate', tooltip: { show: true } },
+    },
     series: [
       {
         type: 'bar',
@@ -571,10 +578,18 @@ onMounted(() => {
   void loadFilters()
   void load()
   window.addEventListener('resize', onResize)
+  // 布局随视口变化重排（如 grid 列数变化）时，同步缩放所有图表
+  if (rootEl.value && typeof ResizeObserver !== 'undefined') {
+    chartObserver = new ResizeObserver(() => {
+      for (const c of charts) c.resize()
+    })
+    chartObserver.observe(rootEl.value)
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
+  chartObserver?.disconnect()
   disposeCharts()
 })
 
@@ -593,13 +608,13 @@ defineExpose({ load })
 .hint { color: #909399; font-size: 13px; margin: 8px 0 0; }
 .level-note { color: #606266; font-size: 13px; margin: 10px 0 0; line-height: 1.6; }
 
-/* KPI 指标卡（参考报告 .kpis/.kpi 展示） */
-.kpis { display: flex; flex-wrap: wrap; gap: 14px; }
+/* KPI 指标卡（参考报告 .kpis/.kpi 展示）：自适应网格，自动均分行宽、按宽度换行 */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
 .kpi {
   background: #fff;
   border-radius: 10px;
   padding: 14px 20px;
-  min-width: 150px;
+  min-width: 0;
   border-left: 5px solid #2f6fb2;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
@@ -613,12 +628,8 @@ defineExpose({ load })
 .kpi-danger { border-left-color: #c0392b; }
 .kpi-danger .v { color: #c0392b; }
 
-/* 双列图表（参考报告 .grid2 布局） */
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+/* 图表网格（参考报告 .grid2 布局）：流体自适应列数，无需固定断点 */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; }
 .mini .chart-title { color: #555; font-size: 13px; margin: 2px 0 6px; }
 .mini.full { grid-column: 1 / -1; }
-
-@media (max-width: 900px) {
-  .grid2 { grid-template-columns: 1fr; }
-}
 </style>
