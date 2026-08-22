@@ -1,20 +1,28 @@
-# 演示数据与一键复现
+# 演示数据（本地）
 
-本目录用于**脱敏演示**：样例台账在 `samples/`，运行库在 `runtime/`（不纳入 git，每次可重建）。
+本目录用于本地演示环境。**样例台账不入 git**（涉密/内网原件请仅保存在本机 `samples/`）。
 
-## Pull 后复现步骤
+| 路径 | 说明 |
+|---|---|
+| `samples/` | 本地放置演示用 xlsx（已 `.gitignore`） |
+| `runtime/` | `build_demo_env.py` 生成的运行库（已 `.gitignore`） |
+
+## 复现步骤
 
 ```bash
-# 1. 依赖
+# 1. 将本地脱敏台账放入 samples/，或导出环境变量
+export DEMO_SAMPLE=/path/to/your-desensitized-ledger.xlsx
+
+# 2. 依赖与前端
 pip3 install -r requirements.txt
 cd frontend && npm install && npm run build && cd ..
 
-# 2. 重建演示库（约 1–3 分钟，纯规则路径，无需 vLLM）
+# 3. 重建演示库（纯规则路径，无需 vLLM）
 export PYTHONPATH=$(pwd)
 python3 scripts/build_demo_env.py
 # 成功末尾应打印 DEMO_ENV_OK
 
-# 3. 用演示库启动 API
+# 4. 启动 API
 export DATA_DIR=$(pwd)/demo_data/runtime
 export OPS_TOKEN=demo-ops
 export ALLOW_FREE_QUERY=1
@@ -23,21 +31,8 @@ uvicorn app.main:app --host 127.0.0.1 --port 8010
 
 浏览器打开 http://127.0.0.1:8010 ，设置页填写 Ops Token：`demo-ops`。
 
-## 样例文件
-
-| 文件 | 用途 |
-|---|---|
-| `通信部成都区域ZW物资汇总表（新模板单独）.xlsx` | `build_demo_env.py` 默认灌库输入 |
-| `演示用物资台账（脱敏样例）.xlsx` | 小体积合成样例 |
-| `演示用物资台账（脱敏样例·通信物资）.xlsx` | 由 `build_desensitized_sample.py` 生成的精简脱敏版 |
-
 ## 相关脚本
 
-- `scripts/build_demo_env.py` — 灌库 + 库存/流水双域发布 + 问数自检
-- `scripts/build_desensitized_sample.py` — 可选：从样例或 `RAW_SAMPLE` 重生成脱敏 xlsx
-- `scripts/build_demo_data.py` — 可选：合成小样例台账
-
-## 注意
-
-- `runtime/`、`demo_stats.json` 为本地生成物，已在 `.gitignore` 中忽略。
-- 演示走规则路径时脚本会设 `FLOW_LLM_ENABLED=0`；若需展示大模型建议，启动 vLLM 后去掉该限制即可。
+- `scripts/build_demo_env.py` — 灌库 + 双域发布 + 问数自检（读取 `DEMO_SAMPLE` 或 `samples/*.xlsx`）
+- `scripts/build_demo_data.py` — 可选：合成虚构小样例台账
+- `scripts/build_desensitized_sample.py` — 可选：从 `RAW_SAMPLE` 生成脱敏版（需本地原件）

@@ -23,7 +23,22 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 DEMO = ROOT / "demo_data"
 RUNTIME = DEMO / "runtime"
-SAMPLE = DEMO / "samples" / "通信部成都区域ZW物资汇总表（新模板单独）.xlsx"
+
+
+def resolve_demo_sample() -> Path:
+    """本地演示样例：DEMO_SAMPLE 或 demo_data/samples/ 下首个 xlsx。"""
+    override = os.environ.get("DEMO_SAMPLE", "").strip()
+    if override:
+        p = Path(override)
+        if not p.is_file():
+            raise SystemExit(f"DEMO_SAMPLE 不存在: {p}")
+        return p
+    samples = sorted(DEMO.joinpath("samples").glob("*.xlsx"))
+    if samples:
+        return samples[0]
+    raise SystemExit(
+        "缺失演示样例：将脱敏台账放入 demo_data/samples/，或设置 DEMO_SAMPLE=/path/to/file.xlsx"
+    )
 
 if RUNTIME.exists():
     shutil.rmtree(RUNTIME)
@@ -51,13 +66,14 @@ def wait_task(client: TestClient, task_id: str, timeout: float = 300) -> dict:
 
 
 def main() -> int:
-    assert SAMPLE.exists(), f"缺失脱敏样例: {SAMPLE}"
+    sample = resolve_demo_sample()
+    assert sample.exists(), f"缺失脱敏样例: {sample}"
     headers = {"X-Ops-Token": "demo-ops"}
     with TestClient(app) as client:
-        with SAMPLE.open("rb") as f:
+        with sample.open("rb") as f:
             r = client.post(
                 "/api/v1/files",
-                files={"file": (SAMPLE.name, f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                files={"file": (sample.name, f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
             )
         assert r.status_code == 202, r.text
         body = r.json()
