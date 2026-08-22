@@ -1,6 +1,6 @@
 # 模块 05 · 安全与 API 规范
 
-> 代码落点（实现阶段）：`app/routers.py`、`app/database.py`、`app/llm.py`。  
+> 代码落点：`app/api/routers/*`（分域子路由，聚合入口 `app/api/routes.py`）、`app/repositories/db.py`（meta/biz 连接）、`app/services/llm/*`（模型调用）、`app/main.py`。  
 > **本模块是接口与安全 SSOT**；与 [00-总览 §2](00-总览.md) 硬约束冲突时，改实现/他文对齐本文 + 总览。  
 > 版本：Phase 2.2（2026-08-08）— 对齐 [00 D1–D9](00-总览.md)；前后端契约见 [11](11-前后端分离与容器化.md)
 
@@ -98,11 +98,11 @@
 | 方法 | 路径 |
 |---|---|
 | POST | `/api/intake/stage/{file_id}/confirm` |
-| POST | `/api/master/confirm` |
+| POST | `/api/govern/master/pending/confirm`（原 `/api/master/confirm`） |
 | POST | `/api/govern/confirm`（字典/映射确认，meta 写） |
-| POST | `/api/metrics`（及一切指标字典写） |
-| POST | 规则回滚 / 规则变更生效类 |
-| POST | `/api/models/{id}/restart`、`set-active` |
+| POST | `/api/metrics`（及 `/api/metrics/flow/activate` 等一切指标字典写） |
+| POST | 规则回滚 / 规则变更生效类（`/assets/rule-dict/{id}/confirm`、`/govern/rule-learn/*`、`/govern/value-rules*`） |
+| POST | `/api/models/{role}/restart`、`/api/models/{role}/activate` |
 | POST | `/api/ingest`（legacy） |
 
 过程性 meta 写（单机可 `Auth=none`，**不在**上表）：如 `POST /api/files`、`/files/batch`、`/intake/analyze|profile|plan`、`/intake/stage/{id}`（评估）、`/intake/stage/{id}/discard`。
@@ -125,19 +125,23 @@
 - **写库**：`—` 不写；`meta` 元数据；`biz` 仅经 writer（00 §3.1）
 - **勿误读**：`Auth=none` 且写 meta ≠ 匿名可做确认/发布；确认类一律见 §1.5 清单
 
-### 2.1 已实现（含 Phase 2.1 行为变更）
+### 2.1 已实现（含 Phase 2.1 行为变更；路径均为 `/api/v1`，见 §0）
 
 | 方法 | 路径 | 功能 | LLM | Auth | 写库 | 入参 / 返回要点 |
 |---|---|---|---|---|---|---|
-| POST | `/api/files` | 上传 → 入队解析（**应变更为 202 + task_id**，03 §3.1） | 否 | none | meta | multipart `file` |
+| POST | `/api/files` | 上传 → 入队解析（**202 + task_id**，03 §3.1） | 否 | none | meta | multipart `file` |
 | GET | `/api/files` | 文件批次列表 | 否 | none | — | 分页 §3.4 |
+| DELETE | `/api/files/{file_id}` | 删除批次（含任务） | 否 | none | meta | |
 | POST | `/api/ingest` | **legacy** 历史 8 文件全量刷新 | 否 | ops | biz | 见下方闸门 |
 | GET | `/api/query/tables` | 业务库表清单 | 否 | none | — | |
-| POST | `/api/query` | 只读自由 SQL | 否 | **gated** | — | 见下方「query 收缩」；经 §1.1 |
+| POST | `/api/ask` | Text2SQL（指标模板优先） | 是 | none | — | LIMIT 见 02 |
 | GET | `/api/govern/pending` | 待确认清单 | 否 | none | — | 分页 |
 | POST | `/api/govern/confirm` | 映射/清洗决策回写字典 | 否 | **ops** | meta | 不直接写业务库 |
-| POST | `/api/govern/map-suggest` | 表头映射建议 | 是 | none | — | |
-| POST | `/api/ask` | Text2SQL | 是 | none | — | LIMIT 见 02 |
+| POST | `/api/govern/map-suggest` | 表头映射建议（字典→embed→LLM） | 是 | none | — | |
+| POST | `/api/govern/map-confirm` | 映射确认（含 queue 方式） | 否 | **ops** | meta | |
+| GET | `/api/tasks` / `/api/tasks/{task_id}` | 任务列表 / 状态 | 否 | none | — | |
+
+> 说明：自由 `POST /api/query`（legacy）在 `app/api/legacy.py` 挂载但默认闸门关闭；`ALLOW_LEGACY_INGEST` / `ALLOW_FREE_QUERY` 均默认 0（见下方收缩）。
 
 **`POST /api/query` 收缩（00 §3.3，Phase A 起）**：
 
@@ -158,53 +162,60 @@
 
 新文件接入**禁止**依赖此接口；文档与 UI 标注 Deprecated。
 
-### 2.2 规划中 — 接入与任务
+### 2.2 接入与任务（多数已实现，路径见 03 §5；未实现项标注"规划"）
+
+> 下表原为规划清单；截至 2026-08-17，`files/tasks/intake/analyze|profile|quality|plan|report|conclusion|stage` 均已落地（`app/api/routers/{files,intake}.py`，前缀 `/api/v1`）。
 
 | 方法 | 路径 | 功能 | LLM | Auth | 写库 |
 |---|---|---|---|---|---|
 | POST | `/api/files/batch` | 批量上传入队 | 否 | none | meta |
+| GET | `/api/tasks` | 任务列表（status 筛选） | 否 | none | — |
 | GET | `/api/tasks/{task_id}` | 任务进度 | 否 | none | — |
-| POST | `/api/intake/analyze` | 画像+映射+质量+建议 | 7B/27B | none | meta |
-| POST | `/api/intake/profile/{file_id}` | 文件画像 | 7B | none | meta |
-| POST | `/api/intake/plan/{file_id}` | 接入建议（含质量） | 27B/互验 | none | meta |
+| POST | `/api/intake/analyze/{file_id}` | 画像+映射+质量+建议 | fast/big | none | meta |
+| GET | `/api/intake/profile/{file_id}` | 文件画像结论（规则优先） | 否 | none | — |
+| GET | `/api/intake/quality/{file_id}` | 质量预检结论 | 否 | none | — |
+| POST | `/api/intake/plan/{file_id}` | 接入建议（含质量，走队列） | big | none | meta |
+| POST | `/api/intake/plan/{file_id}/confirm` | 计划确认（staging 前置） | 否 | **ops** | meta |
 | GET | `/api/intake/report/{file_id}` | 接入报告 | 否 | none | — |
+| GET | `/api/intake/conclusion/{file_id}` | 结论摘要 | 否 | none | — |
 | POST | `/api/intake/stage/{file_id}` | 暂存评估（dry-run，不写 biz） | 否 | none | meta |
 | GET | `/api/intake/stage/{file_id}` | 暂存报告 | 否 | none | — |
 | POST | `/api/intake/stage/{file_id}/confirm` | **确认门 → intake_release** | 否 | ops | **biz** |
 | POST | `/api/intake/stage/{file_id}/discard` | 丢弃暂存 | 否 | none | meta |
 
-### 2.3 规划中 — 治理 / 主数据 / 指标 / 资产
+### 2.3 治理 / 主数据 / 指标 / 资产（均已实现，路径见下与 04/07/08/12 §7.1）
+
+> 主数据路由实际落在 `/govern/master/*`；治理流水/对齐等见 [12 §7.1](12-出入库流水解析.md)。
 
 | 方法 | 路径 | 功能 | Auth | 写库 |
 |---|---|---|---|---|
 | GET | `/api/stats/overview` | 概览统计 | none | — |
-| GET | `/api/assets/rule-dict` | 规则字典 | none | — |
+| GET | `/api/assets/rule-dict` | 规则字典（含 conflicts/preview/confirm） | none | — |
 | GET | `/api/assets/fewshot` | few-shot 池 | none | — |
 | GET | `/api/assets/history` | 确认历史 | none | — |
-| GET | `/api/master/pending` | 主数据待审 | none | — |
-| POST | `/api/master/confirm` | 主数据审批生效 | ops | **biz**（approved/merged 时） |
-| GET | `/api/metrics` | 指标列表 | none | — |
+| GET | `/api/govern/master/pending` | 主数据待审 | none | — |
+| POST | `/api/govern/master/pending/confirm` | 主数据审批生效 | ops | **biz**（approved/merged 时） |
+| GET | `/api/metrics` | 指标列表（含 fixtures/snapshots/evaluate） | none | — |
 | POST | `/api/metrics` | 指标新增/修改 | **ops** | meta |
-| GET | `/api/metrics/{id}` | 指标详情 | none | — |
+| POST | `/api/metrics/flow/activate` | 流水指标激活（12 §8 门禁） | **ops** | meta |
 | POST | `/api/metrics/check` | 口径冲突检测 | none | — |
 | POST | `/api/metrics/match` | 问题 → 候选指标 | none | — |
 
 指标写仅人工 + ops（与 §1.5 一致）；**禁止** LLM/自动编排代写；UI 不暴露无鉴写入口。
 
-### 2.4 规划中 — 运维与模型
+### 2.4 运维与模型（已实现子集；模型导入仍为规划）
 
 | 方法 | 路径 | 功能 | Auth | 写库 |
 |---|---|---|---|---|
-| GET | `/api/ops/status` | 服务/队列/显存 | none | — |
+| GET | `/api/models/status` | 模型健康/存活 | none | — |
+| POST | `/api/models/{role}/activate` | 切换 fast/big | ops | meta（配置） |
+| POST | `/api/models/{role}/restart` | 重启容器内 vLLM | ops | — |
+| GET | `/api/ops/tasks` | 任务队列概览 | none | — |
 | GET | `/api/ops/alerts` | 告警列表 | none | — |
-| GET | `/api/ops/quota` | LLM 配额统计 | none | — |
-| GET | `/api/models` | 模型列表 | none | — |
-| GET | `/api/models/available` | 备选池 | none | — |
-| POST | `/api/models/scan` | 探测刷新 | none | — |
-| POST | `/api/models/import` | **离线包导入**（本地路径/已上传制品，非公网下载） | **ops** | meta |
-| GET | `/api/models/import/{job_id}` | 导入进度（卡片状态 `importing`） | none | — |
-| POST | `/api/models/{id}/set-active` | 切换 fast/big | ops | meta（配置） |
-| POST | `/api/models/{id}/restart` | 重启容器内 vLLM | ops | — |
+| GET | `/api/ops/llm-cost` | LLM 调用统计 | none | — |
+| POST | `/api/ops/backup` · GET | `/api/ops/backups` | 备份/列表 | ops / none | meta |
+| GET/POST | `/api/ops/restore-drill` | 恢复演练 | none/ops | meta |
+| ~~GET~~ | ~~`/api/models/import`~~ | **离线包导入（规划未落地）** | ops | meta |
 
 **模型导入约束（Phase A/B）**：
 
@@ -292,7 +303,8 @@
 
 - **禁止** API 与多 worker 进程并发写同一 DuckDB（含 meta 若误用 DuckDB）。  
 - 若 PoC 坚持 meta 暂用 DuckDB：API 必须单进程且 worker 同进程线程 + 单写队列——**不作为长期方案**（00 D1）。  
-- `init_meta()` 建 SQLite 表：`file_batch`、`intake_task`、`intake_report`、`release_manifest`、`write_audit`、`govern_confirm`、`rule_dict`、`prompt_template`、`llm_call`、`alert`、`metric_dict` 等。
+- `init_meta()` 建 SQLite 表（`app/repositories/db.py`）：`file_batch`、`intake_task`、`intake_report`、`staging_record`、`staging_blocked`、`release_manifest`、`write_audit`、`govern_confirm`、`rule_dict`、`map_pending`、`idempotency_record`、`llm_call`、`ask_log`、`flow_pending`、`flow_example`、`flow_config`、`flow_reconcile_gap`、`material_align`、`master_pending`、`metric_dict`、`metric_snapshot`、`sql_fewshot`、`value_rule`、`report_definition`、`report_run`、`correction_request` 等。  
+- 文档 §1/§5.6 提及的 `prompt_template`（提示词集中管理）与 `alert` 表**尚未落地**，属规划。
 
 ---
 
