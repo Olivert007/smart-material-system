@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "demo_data" / "runtime"
 DUCKDB = RUNTIME / "material.duckdb"
 META = RUNTIME / "meta.sqlite"
-SAMPLE_NAME = "演示用物资台账（脱敏样例·通信物资）.xlsx"
+SAMPLE_NAME = "desensitized-sample.xlsx"  # 本地 demo_data/samples/，不入库
 
 APP_SCENE = (
     "作品面向生产运营中的物资管理场景，解决备品备件、库存、需求、资产及出入库流水等台账"

@@ -32,7 +32,21 @@ os.environ["XDG_CACHE_HOME"] = "/workspace/2026-07/.pw-home/.cache"
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_URL = "http://127.0.0.1:8010"
-SAMPLE = ROOT / "demo_data" / "samples" / "演示用物资台账（脱敏样例）.xlsx"
+
+
+def resolve_demo_sample() -> Path:
+    override = os.environ.get("DEMO_SAMPLE", "").strip()
+    if override:
+        return Path(override)
+    samples = sorted((ROOT / "demo_data" / "samples").glob("*.xlsx"))
+    if samples:
+        return samples[0]
+    raise SystemExit(
+        "缺失演示样例：将脱敏台账放入 demo_data/samples/，或设置 DEMO_SAMPLE=/path/to/file.xlsx"
+    )
+
+
+SAMPLE = resolve_demo_sample()
 OUT_DIR = Path("/workspace/2026-07/demo_video")
 FRAMES = OUT_DIR / "frames"
 OUT_MP4 = Path("/workspace/2026-07/智能物资数据管理系统-实操演示视频.mp4")

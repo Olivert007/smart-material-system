@@ -10,7 +10,7 @@
   出库记录含时间/人员/用途的混合格式文本，用于展示勾稽差异与流水智能拆解能力。
 
 用法: python3 scripts/build_demo_data.py [输出 xlsx 路径]
-默认输出: demo_data/samples/演示用物资台账（脱敏样例）.xlsx
+默认输出: demo_data/samples/synthetic-sample.xlsx
 """
 from __future__ import annotations
 
@@ -233,7 +233,7 @@ def build_workbook() -> tuple:
 
 
 def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "demo_data" / "samples" / "演示用物资台账（脱敏样例）.xlsx"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "demo_data" / "samples" / "synthetic-sample.xlsx"
     wb, counts = build_workbook()
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)

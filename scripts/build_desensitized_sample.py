@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
-"""把《通信部成都区域ZW物资汇总表 (新模板单独）.xlsx》脱敏为演示样例。
+"""从本地原件生成脱敏演示样例（原件不入库）。
 
-背景：该文件为内部真实台账（908 行 / 19 有效列），含真实站点名
-（溪洛渡 / 向家坝 / 成都三峡大厦）与真实员工姓名，按比赛保密要求严禁
-直接用于演示。本脚本：
-  1) 站点名 → 虚构站点（云岭电站 / 锦澜电站 / 望湖大厦，与现有演示库风格一致）；
-  2) 真实人名 → 虚构人名池；
-  3) 清理格式垃圾（原文件 16381 列），仅保留 19 个有效列；
-  4) 输出到 demo_data/samples/演示用物资台账（脱敏样例·通信物资）.xlsx。
+用法:
+  export RAW_SAMPLE=/path/to/source-ledger.xlsx
+  python3 scripts/build_desensitized_sample.py
 
-用法: /usr/bin/python3 scripts/build_desensitized_sample.py
+输出: demo_data/samples/desensitized-sample.xlsx
 """
 from __future__ import annotations
 
@@ -20,10 +16,11 @@ from openpyxl import Workbook, load_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "demo_data" / "samples"
-OUT = OUT_DIR / "演示用物资台账（脱敏样例·通信物资）.xlsx"
-# 原始台账不在仓库内；默认读已入库样例，本地有原件可设 RAW_SAMPLE 重跑脱敏。
-_DEFAULT_SRC = OUT_DIR / "通信部成都区域ZW物资汇总表（新模板单独）.xlsx"
-SRC = Path(os.environ["RAW_SAMPLE"]) if os.environ.get("RAW_SAMPLE") else _DEFAULT_SRC
+OUT = OUT_DIR / "desensitized-sample.xlsx"
+_raw = os.environ.get("RAW_SAMPLE", "").strip()
+if not _raw:
+    raise SystemExit("请设置 RAW_SAMPLE=/path/to/source-ledger.xlsx（原件不入库）")
+SRC = Path(_raw)
 
 # ---------- 站点名脱敏映射（长串优先） ----------
 SITE_MAP = [
