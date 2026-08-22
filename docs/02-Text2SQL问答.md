@@ -2,7 +2,7 @@
 
 > 版本：Phase 2.2（2026-08-08）  
 > 接口：`POST /api/v1/ask`（依赖 LLM，未就绪时友好降级）。  
-> 代码：`app/llm.py`（`schema_summary` / `text2sql` / `ask_summary`）+ `app/routers.py`（`ask`）。  
+> 代码：`app/services/query/text2sql.py`（`SCHEMA_ZH` / `ask`，含模板优先）+ `app/api/routers/query.py`（`/api/v1/ask`）。  
 > 编排：指标模板优先 → PolicyRouter（[09](09-多模型编排策略.md)）→ embed 召回 → `sql_simple`/`sql_complex` → AST 校验；验收见 [10](10-模型评测与验收.md)。
 
 ---
@@ -30,22 +30,21 @@
    └─ 通过
   ▼
 ④ DuckDB 只读连接执行
-   - 强制 `LIMIT 1000`（未带 LIMIT 则追加；已带且 >1000 则截断并 warning）
-   - 响应 `data` 默认再截为前 50 行预览；完整行数见 `rows` / `truncated`
+   - 结果行数超过 `QUERY_ROW_LIMIT`（默认 200）时返回截断提示（`total_rows` / `truncated`）
   │
   ▼
-⑤ LLM 中文总结（问题 + SQL + 结果前几行 → 简洁中文回答；默认 fast）
+⑤ LLM 中文总结（问题 + SQL + 结果前几行 → 简洁中文回答；默认 big，见 §5）
   │
   ▼
-返回 {question, llm, ok, sql, rows, columns, data, answer, warnings?}
+返回 {question, llm, ok, sql, rows, columns, data, answer, truncated?, total_rows?}
 ```
 
-**LIMIT 约定（SSOT）**：执行上限 **1000** 行；UI/API 预览默认 **50** 行。`warnings` 在截断或结果校验触发时返回（见 §6.5）。
+**LIMIT 约定**：执行/返回上限默认 `QUERY_ROW_LIMIT`（**200 行**，`app/config.py` 环境变量可覆盖）；超限返回 `total_rows` / `truncated:true`，UI 提示截断（07 §3.2）。
 
 ## 2. Schema 注入（为什么这样做）
 
 DuckDB 的 `information_schema.columns` 只有英文列名（如 `stock_qty`），LLM 无法理解含义。
-`SCHEMA_ZH`（`app/llm.py`）手工维护 6 张表每列的中文注释，拼进 system prompt：
+`SCHEMA_ZH`（`app/services/query/text2sql.py`）手工维护 6 张表每列的中文注释，拼进 system prompt：
 
 ```
 表 fact_inventory:
@@ -199,7 +198,7 @@ DuckDB 的 `information_schema.columns` 只有英文列名（如 `stock_qty`）�
 
 | 校验 | 规则实现 | 触发提示 |
 |---|---|---|
-| 结果集上限 | 强制 `LIMIT 1000` | 超限截断 + "结果超 1000 行，已截断，可缩小条件" |
+| 结果集上限 | 超过 `QUERY_ROW_LIMIT`（默认 200）截断 | 超限截断 + "结果超 N 行，已截断，可缩小条件"（`total_rows`/`truncated`） |
 | 空结果复核 | 空结果时自动跑"去掉 WHERE 的版本"对比 | 全表有数据 → "过滤条件过严"；全表也空 → "确实无数据"（与 6.2 表画像衔接） |
 | 数值范围检查 | SUM/AVG 与表画像列 min/max/历史总量对比，偏差 >N 倍 | "疑似口径错误（如求和列选错）" |
 | 行数合理性 | 结果行数 vs 表画像行数 | 0 行 → 过严；≈全量行 → 提示"可能漏过滤" |

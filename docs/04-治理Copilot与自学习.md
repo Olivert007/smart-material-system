@@ -1,6 +1,6 @@
 # 模块 04 · 治理 Copilot 与自学习
 
-> 接口：`POST /api/govern/map-suggest`（依赖 LLM）、`POST /api/govern/confirm`（人工确认，只写 meta）。
+> 接口：`POST /api/v1/govern/map-suggest`（依赖 LLM）、`POST /api/v1/govern/confirm`（人工确认，只写 meta）；前缀统一 `/api/v1`。
 > 标准字段枚举以本节 §1 为 SSOT（含事实表域列）；实现阶段同步 `STD_FIELDS`。
 > 版本：Phase 2.2（2026-08-08）：冲突只进人工；业务库写入走 master_apply / rule_replay（00 §3.1）。
 > 编排细化：字典 → **embed 召回** → fast 建议 → 低置信 escalate big；多候选仅预填（[09](09-多模型编排策略.md)）。
@@ -100,7 +100,7 @@
 
 ## 5. 人工确认接口
 
-`POST /api/govern/confirm`
+`POST /api/v1/govern/confirm`
 
 ```json
 {"source": "file_xxx", "detail": "表头'数量'→quantity", "decision": "accepted", "note": ""}
@@ -243,7 +243,7 @@ rule_dict 增加版本字段：(header_norm, std_field, version, valid_from, val
 
 ## 7. 主数据治理闭环（新物料发现 / 冲突检测 / 审批 / 回写）
 
-**问题**：主数据字典（`dim_material`，见 `master_data.py`）不是静态的——新文件接入不断产生**新物资编码 / 名称 / 规格**（03 §1.1 主数据三层匹配后仍匹配不上 → L3 独立物料）。若无治理，主数据会累积出同码异物、一物多码、重复物料，且无来源审计。
+**问题**：主数据字典（`dim_material`，见 `app/services/master_gov.py`）不是静态的——新文件接入不断产生**新物资编码 / 名称 / 规格**（03 §1.1 主数据三层匹配后仍匹配不上 → L3 独立物料）。若无治理，主数据会累积出同码异物、一物多码、重复物料，且无来源审计。
 
 **核心原则**：与规则字典（§6）同一思路——**主数据也是"人工确认即资产"**，LLM/规则只负责候选与冲突发现，审批权在人工。
 
