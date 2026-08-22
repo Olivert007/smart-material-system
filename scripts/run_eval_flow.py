@@ -28,8 +28,8 @@ from app import config  # noqa: E402
 from app.repositories import init_meta, meta_tx  # noqa: E402
 from app.services.flow_eval import ensure_flow_eval  # noqa: E402
 from app.services.flow_llm import suggest_one  # noqa: E402
-from app.services.flow_parse import parse_flow_cell  # noqa: E402
-from app.services.model_client import probe_endpoint  # noqa: E402
+from app.services.govern.flow_parse import parse_flow_cell  # noqa: E402
+from app.services.llm.model_client import probe_endpoint  # noqa: E402
 
 MIN_ACC = float(os.environ.get("FLOW_EVAL_MIN_ACC", "0.75"))
 SKIP_LLM = os.environ.get("FLOW_EVAL_SKIP_LLM", "0") == "1"

@@ -15,7 +15,7 @@ def _load() -> dict:
 
 
 def test_build_domain_rows_inventory_t2_fields():
-    from app.services.mapping import build_domain_rows
+    from app.services.govern.mapping import build_domain_rows
 
     fx = _load()
     sheet = next(s for s in fx["sheets"] if s["sheet"] == "备品备件")
@@ -38,7 +38,7 @@ def test_build_domain_rows_inventory_t2_fields():
 
 
 def test_build_domain_rows_asset_t2_fields():
-    from app.services.mapping import build_domain_rows
+    from app.services.govern.mapping import build_domain_rows
 
     fx = _load()
     sheet = next(s for s in fx["sheets"] if s["sheet"] == "公用工器具")

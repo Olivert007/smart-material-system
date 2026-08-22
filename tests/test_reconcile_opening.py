@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.repositories.db import init_meta, writer_conn  # noqa: E402
 from app.repositories.schema import ensure_biz_schema  # noqa: E402
-from app.services.flow_gov import reconcile  # noqa: E402
+from app.services.govern.flow_gov import reconcile  # noqa: E402
 
 
 def _seed() -> None:

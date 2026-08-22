@@ -10,7 +10,7 @@ from openpyxl import Workbook
 
 from app.services.govern import flow_config as fc
 from app.services.intake.evidence import load_stock_flow_tabular
-from app.services.mapping import resolve_columns
+from app.services.govern.mapping import resolve_columns
 from app.services.value_validator import apply_checks
 
 

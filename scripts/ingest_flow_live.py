@@ -159,7 +159,7 @@ def main() -> None:
     # Preflight loader (local, does not write)
     sys.path.insert(0, str(ROOT))
     os.environ.setdefault("DATA_DIR", str(ROOT / "data"))
-    from app.services.evidence import load_stock_flow_tabular  # noqa: E402
+    from app.services.intake.evidence import load_stock_flow_tabular  # noqa: E402
 
     pre = {}
     for p in SAMPLES:

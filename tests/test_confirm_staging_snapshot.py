@@ -26,7 +26,7 @@ from app.services.flow_example_snapshot import (  # noqa: E402
     load_for_release,
     snapshot_path,
 )
-from app.services.mapping import build_stock_flow_bundle  # noqa: E402
+from app.services.govern.mapping import build_stock_flow_bundle  # noqa: E402
 from app.services.writer import confirm_release  # noqa: E402
 
 
@@ -167,7 +167,7 @@ def test_snapshot_rebuild_stable() -> None:
         }
     )
     # text must match text_norm — text_norm lowercases and strips spaces
-    from app.services.flow_parse import text_norm
+    from app.services.govern.flow_parse import text_norm
 
     raw = "2025年1月入库2个"
     # Use example keyed by text_norm(raw) instead

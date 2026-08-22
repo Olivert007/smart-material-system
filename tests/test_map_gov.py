@@ -21,9 +21,9 @@ os.environ["LLM_FAST_ENDPOINT"] = ""
 sys.path.insert(0, str(ROOT))
 
 from app.repositories.db import init_meta, meta_tx  # noqa: E402
-from app.services.map_gov import confirm_pending, enqueue_headers, list_pending  # noqa: E402
+from app.services.govern.map_gov import confirm_pending, enqueue_headers, list_pending  # noqa: E402
 from app.services.mapping_suggest import classify_queue_items, suggest_header_mapping  # noqa: E402
-from app.services.rule_dict import dict_prefill  # noqa: E402
+from app.services.govern.rule_dict import dict_prefill  # noqa: E402
 
 
 def _seed_conflict() -> None:

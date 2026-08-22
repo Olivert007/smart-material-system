@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.repositories import init_meta, meta_tx  # noqa: E402
-from app.services.profile import get_workbook_profile, profile_from_evidence, save_workbook_profile  # noqa: E402
+from app.services.intake.profile import get_workbook_profile, profile_from_evidence, save_workbook_profile  # noqa: E402
 
 
 def main() -> int:

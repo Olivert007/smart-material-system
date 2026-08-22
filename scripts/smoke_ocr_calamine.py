@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from app import config  # noqa: E402
 from app.repositories.db import init_meta  # noqa: E402
-from app.services.evidence import _SUPPORTED, load_to_evidence  # noqa: E402
+from app.services.intake.evidence import _SUPPORTED, load_to_evidence  # noqa: E402
 from app.services.ocr_evidence import boxes_to_cells, ocr_backend  # noqa: E402
 
 

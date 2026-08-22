@@ -52,13 +52,13 @@ os.environ["OPS_TOKEN"] = "test-ops"
 sys.path.insert(0, str(ROOT))
 
 from app.repositories.db import init_meta  # noqa: E402
-from app.services.flow_config import (  # noqa: E402
+from app.services.govern.flow_config import (  # noqa: E402
     ensure_flow_configs_seed,
     get_flow_config,
     flow_column_for,
 )
-from app.services.mapping import build_stock_flow_bundle, resolve_columns  # noqa: E402
-from app.services.flow_parse import parse_flow_cell  # noqa: E402
+from app.services.govern.mapping import build_stock_flow_bundle, resolve_columns  # noqa: E402
+from app.services.govern.flow_parse import parse_flow_cell  # noqa: E402
 
 
 def setup() -> None:

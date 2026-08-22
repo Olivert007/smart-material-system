@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.repositories.db import init_meta, writer_conn  # noqa: E402
 from app.repositories.schema import ensure_biz_schema  # noqa: E402
-from app.services.mapping import build_stock_flow_bundle, flow_lineage_row_key  # noqa: E402
+from app.services.govern.mapping import build_stock_flow_bundle, flow_lineage_row_key  # noqa: E402
 
 
 def main() -> None:

@@ -23,7 +23,7 @@ os.environ.setdefault("LLM_ENABLE_THINKING", "0")
 from app.repositories import init_meta  # noqa: E402
 from app.services.eval_skel import ensure_eval_skeleton  # noqa: E402
 from app.services.mapping_suggest import suggest_header_mapping  # noqa: E402
-from app.services.model_client import probe_endpoint  # noqa: E402
+from app.services.llm.model_client import probe_endpoint  # noqa: E402
 from app.services.text2sql import ask  # noqa: E402
 from app import config  # noqa: E402
 

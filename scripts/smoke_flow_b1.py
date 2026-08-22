@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.repositories import init_meta, meta_tx  # noqa: E402
 from app.services.flow_llm import process_pending_batch, suggest_one, validate_flow_suggestion  # noqa: E402
-from app.services.model_client import LlmResult  # noqa: E402
+from app.services.llm.model_client import LlmResult  # noqa: E402
 from app.services.policy_router import route_chat  # noqa: E402
 
 
@@ -133,7 +133,7 @@ def test_mock_router_writes_pending() -> None:
 
 def test_live_optional() -> None:
     """If big endpoint up, run one real suggest (force big)."""
-    from app.services.model_client import probe_endpoint
+    from app.services.llm.model_client import probe_endpoint
     from app import config
 
     probe = probe_endpoint(config.LLM_BIG_ENDPOINT, timeout=3)

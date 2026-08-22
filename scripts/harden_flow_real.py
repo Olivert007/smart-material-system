@@ -25,7 +25,7 @@ os.environ["ALLOW_FREE_QUERY"] = "1"
 os.environ["WORKER_POLL_SEC"] = "0.3"
 
 from app.main import app  # noqa: E402
-from app.services.evidence import load_stock_flow_tabular  # noqa: E402
+from app.services.intake.evidence import load_stock_flow_tabular  # noqa: E402
 
 
 def _wait_task(client: TestClient, task_id: str | None, timeout: float = 600) -> dict:

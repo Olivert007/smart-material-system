@@ -10,7 +10,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.profile import profile_from_evidence  # noqa: E402
+from app.services.intake.profile import profile_from_evidence  # noqa: E402
 
 
 def _cells(rows: list[tuple[str, int, str, str]]) -> pd.DataFrame:

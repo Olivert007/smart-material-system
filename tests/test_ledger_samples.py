@@ -20,7 +20,7 @@ def _load() -> dict:
 
 
 def test_ledger_samples_source_headers_resolve():
-    from app.services.mapping import resolve_columns
+    from app.services.govern.mapping import resolve_columns
 
     fx = _load()
     assert fx["source_file"].endswith(".xlsx")

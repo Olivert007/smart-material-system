@@ -22,9 +22,9 @@ os.environ["EMBED_FALLBACK_LEXICAL"] = "1"
 sys.path.insert(0, str(ROOT))
 
 from app.repositories.db import init_meta, meta_tx  # noqa: E402
-from app.services.mapping import resolve_columns  # noqa: E402
+from app.services.govern.mapping import resolve_columns  # noqa: E402
 from app.services.mapping_suggest import suggest_header_mapping  # noqa: E402
-from app.services.rule_dict import dict_prefill  # noqa: E402
+from app.services.govern.rule_dict import dict_prefill  # noqa: E402
 
 
 def _seed_rules() -> None:

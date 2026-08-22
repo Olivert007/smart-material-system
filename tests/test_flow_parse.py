@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.flow_parse import parse_flow_cell, split_flow_text  # noqa: E402
+from app.services.govern.flow_parse import parse_flow_cell, split_flow_text  # noqa: E402
 
 FIX = ROOT / "tests" / "fixtures" / "flow_texts.json"
 

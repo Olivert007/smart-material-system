@@ -11,7 +11,7 @@ from openpyxl import Workbook
 from app.repositories.db import init_meta
 from app.services.govern import flow_config as fc
 from app.services.intake.evidence import load_stock_flow_tabular
-from app.services.mapping import build_domain_rows, resolve_columns
+from app.services.govern.mapping import build_domain_rows, resolve_columns
 
 
 @pytest.fixture(autouse=True)

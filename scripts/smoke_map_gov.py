@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.repositories import init_meta, meta_tx  # noqa: E402
-from app.services.map_gov import confirm_pending, enqueue_headers, list_pending  # noqa: E402
+from app.services.govern.map_gov import confirm_pending, enqueue_headers, list_pending  # noqa: E402
 
 
 def main() -> int:

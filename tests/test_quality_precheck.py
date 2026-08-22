@@ -10,7 +10,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.quality_precheck import run_quality_precheck  # noqa: E402
+from app.services.intake.quality_precheck import run_quality_precheck  # noqa: E402
 
 
 def test_clean_inventory_ok():
