@@ -8,7 +8,12 @@ import pytest
 from openpyxl import Workbook
 
 from app.services.govern import flow_config as fc
-from app.services.intake.evidence import infer_sheet_region_from_title, load_stock_flow_tabular
+from app.services.intake.evidence import (
+    _collect_sheet_title_text,
+    _read_excel_best,
+    infer_sheet_region_from_title,
+    load_stock_flow_tabular,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -58,6 +63,28 @@ def test_region_column_not_overwritten(tmp_path: Path):
     df = load_stock_flow_tabular(xlsx)
     yj = df[df["sheet"].astype(str) == "应急备汛物资"]
     assert set(yj["region"].astype(str)) == {"TD", "TDCD"}
+
+
+def test_title_text_skips_column_index_row(tmp_path: Path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "低值易耗"
+    ws.append(["通信部成都区域低值易耗品物资汇总表"])
+    ws.append(["注意：表中含公式"])
+    ws.append(["序号", "物资名称", "现有库存", "单位"])
+    ws.append(["1", "标签机", "2", "台"])
+    xlsx = tmp_path / "chengdu.xlsx"
+    wb.save(xlsx)
+
+    raw = _read_excel_best(xlsx, sheet_name="低值易耗", dtype=str, header=None)
+    title = _collect_sheet_title_text(raw, domain="inventory", max_probe=12)
+    assert title.startswith("通信部成都区域")
+    assert not title.startswith("0 1 2")
+    assert "0 1 2 3" not in title
+
+    df = load_stock_flow_tabular(xlsx)
+    dz = df[df["sheet"].astype(str) == "低值易耗"]
+    assert set(dz["region"].dropna().astype(str)) == {"成都"}
 
 
 def test_location_text_not_used_as_region(tmp_path: Path):

@@ -447,7 +447,8 @@ def _collect_sheet_title_text(
         ignore_index=True,
     )
     parts: list[str] = []
-    for i in range(hdr_i):
+    # probe row 0 mirrors DataFrame column labels (0,1,2,…), not sheet content.
+    for i in range(1, hdr_i):
         for v in probe.iloc[i].tolist():
             if not _cell_blank(v):
                 parts.append(str(v).strip())
