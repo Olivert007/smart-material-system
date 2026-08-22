@@ -270,6 +270,8 @@ def list_tasks(
 
 @router.get("/tasks/{task_id}")
 def get_task(task_id: str):
+    from app.services.intake.error_info import decode_error_message
+
     con = meta_conn()
     try:
         row = con.execute("SELECT * FROM intake_task WHERE task_id=?", [task_id]).fetchone()
@@ -277,4 +279,28 @@ def get_task(task_id: str):
         con.close()
     if not row:
         raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "task not found"})
-    return dict(row)
+    body = dict(row)
+    if body.get("status") == "failed":
+        body.update(decode_error_message(body.get("message")))
+    return body
+
+
+@router.post("/tasks/{task_id}/retry", status_code=202)
+def retry_task(task_id: str, actor: str = Depends(require_ops)):
+    try:
+        result = intake_svc.retry_parse_evidence(task_id)
+    except FileNotFoundError:
+        raise HTTPException(404, detail={"code": "NOT_FOUND", "message": "task not found"})
+    except ValueError as e:
+        code = str(e)
+        if code == "TASK_NOT_FAILED":
+            raise HTTPException(409, detail={"code": "TASK_NOT_FAILED", "message": "task is not failed"})
+        if code == "TASK_RETRY_UNSUPPORTED":
+            raise HTTPException(
+                409,
+                detail={"code": "TASK_RETRY_UNSUPPORTED", "message": "only parse_evidence tasks can be retried"},
+            )
+        if code == "TASK_NOT_RETRYABLE":
+            raise HTTPException(409, detail={"code": "TASK_NOT_RETRYABLE", "message": "task is not retryable"})
+        raise HTTPException(400, detail={"code": "RETRY_FAILED", "message": code})
+    return result

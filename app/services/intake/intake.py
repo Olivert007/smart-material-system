@@ -9,6 +9,11 @@ from pathlib import Path
 from app import config
 from app.repositories import meta_tx
 from app.services.evidence import load_to_evidence, save_evidence, sha256_file
+from app.services.intake.error_info import (
+    cleanup_evidence_files,
+    encode_error_message,
+    map_exception_to_error,
+)
 
 
 def _now() -> str:
@@ -185,19 +190,21 @@ def process_parse_evidence(task_id: str) -> None:
         )
         path = Path(fb["stored_path"])
 
+    phase = "load_evidence"
     try:
         touch_heartbeat(task_id, message="loading evidence")
         df, fmt, n_sheets, tabular = load_to_evidence(path, file_id)
+        phase = "write_evidence"
         touch_heartbeat(task_id, message="writing evidence")
         save_evidence(df, file_id, tabular=tabular)
-        # Step1 rule workbook profile (docs/03 §1.2) — no LLM
+        phase = "profile_workbook"
         touch_heartbeat(task_id, message="profiling workbook")
         from app.services.profile import profile_from_evidence, save_workbook_profile
 
         profile_payload = profile_from_evidence(df)
         report_id = save_workbook_profile(file_id, profile_payload)
         n_need = len(profile_payload.get("workbook", {}).get("needs_llm_sheets") or [])
-        # Step2: enqueue uncertain headers (meta only; never writes DuckDB)
+        phase = "enqueue_mapping"
         map_enqueued = 0
         try:
             touch_heartbeat(task_id, message="enqueue map pending")
@@ -236,6 +243,8 @@ def process_parse_evidence(task_id: str) -> None:
                 ],
             )
     except Exception as e:
+        cleanup_evidence_files(file_id)
+        err = map_exception_to_error(e, phase=phase)
         with meta_tx() as con:
             con.execute(
                 """
@@ -243,12 +252,45 @@ def process_parse_evidence(task_id: str) -> None:
                 SET status='failed', message=?, finished_at=?, heartbeat_at=?
                 WHERE task_id=?
                 """,
-                [str(e)[:500], _now(), _now(), task_id],
+                [encode_error_message(err)[:2000], _now(), _now(), task_id],
             )
             con.execute(
                 "UPDATE file_batch SET status='failed' WHERE file_id=?",
                 [file_id],
             )
+
+
+def retry_parse_evidence(task_id: str) -> dict:
+    """Requeue a failed parse_evidence task (doc 16 E3)."""
+    with meta_tx() as con:
+        task = con.execute("SELECT * FROM intake_task WHERE task_id=?", [task_id]).fetchone()
+        if not task:
+            raise FileNotFoundError(task_id)
+        if task["status"] != "failed":
+            raise ValueError("TASK_NOT_FAILED")
+        if task["task_type"] != "parse_evidence":
+            raise ValueError("TASK_RETRY_UNSUPPORTED")
+        from app.services.intake.error_info import decode_error_message
+
+        decoded = decode_error_message(task["message"])
+        if decoded.get("retryable") is False:
+            raise ValueError("TASK_NOT_RETRYABLE")
+        file_id = task["file_id"]
+        cleanup_evidence_files(file_id)
+        con.execute(
+            """
+            UPDATE intake_task
+            SET status='pending', progress=0, message='requeued',
+                finished_at=NULL, heartbeat_at=?
+            WHERE task_id=?
+            """,
+            [_now(), task_id],
+        )
+        con.execute(
+            "UPDATE file_batch SET status='uploaded' WHERE file_id=?",
+            [file_id],
+        )
+    return {"ok": True, "task_id": task_id, "file_id": file_id, "status": "pending"}
 
 
 def claim_next_task() -> str | None:
