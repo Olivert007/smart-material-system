@@ -350,6 +350,126 @@ def _cell_blank(v: object) -> bool:
     return s == "" or s.lower() in {"nan", "none", "null", "-"}
 
 
+TABULAR_NUMERIC_FIELDS: frozenset[str] = frozenset({
+    "asset_qty",
+    "asset_quota_qty",
+    "check_cycle",
+    "company_wh_qty",
+    "min_qty",
+    "opening_qty",
+    "qty_in",
+    "qty_out",
+    "quantity",
+    "quota_qty",
+    "replace_cycle",
+    "stock_qty",
+    "stock_value",
+    "total_price",
+    "unit_cost",
+    "unit_price",
+})
+
+GEO_REGION_TOKENS: tuple[str, ...] = (
+    "溪洛渡",
+    "向家坝",
+    "葛洲坝",
+    "浦东",
+    "杭州",
+    "上海",
+    "成都",
+    "西坝",
+    "宜昌",
+)
+
+
+def coerce_tabular_for_parquet(
+    df: pd.DataFrame,
+    *,
+    sheet: str | None = None,
+) -> pd.DataFrame:
+    """Return a parquet-safe tabular copy for PyArrow.
+
+    Numeric standard fields (``TABULAR_NUMERIC_FIELDS``) are coerced with
+    ``pd.to_numeric(..., errors='coerce')`` so mixed str/float columns from
+    multi-sheet concat never break ``to_parquet``. Other columns use pandas
+    ``StringDtype``. ``/`` and other non-numeric tokens become NaN, never 0.
+    """
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    for col in out.columns:
+        if col in TABULAR_NUMERIC_FIELDS:
+            out[col] = pd.to_numeric(out[col], errors="coerce")
+        elif col != "sheet":
+            out[col] = out[col].astype("string")
+    return out
+
+
+def _find_header_row_index(
+    raw: pd.DataFrame,
+    *,
+    domain: str = "inventory",
+    max_probe: int = 12,
+) -> int:
+    """Row index of the best alias-matching header band (same probe as normalize_tabular)."""
+    if raw is None or raw.empty:
+        return 0
+    best_i = 0
+    best_score = _header_alias_hits([str(c) for c in raw.columns], domain)
+    probe = pd.concat(
+        [pd.DataFrame([[str(c) for c in raw.columns]]), raw.astype(str)],
+        ignore_index=True,
+    )
+    limit = min(max_probe, len(probe) - 1)
+    for i in range(limit):
+        header = [str(x).strip() for x in probe.iloc[i].tolist()]
+        if sum(1 for h in header if h and h.lower() not in {"nan", "none", ""}) < 3:
+            continue
+        score = _header_alias_hits(header, domain)
+        if score > best_score:
+            best_score = score
+            best_i = i
+    return best_i
+
+
+def _collect_sheet_title_text(
+    raw: pd.DataFrame,
+    *,
+    domain: str = "inventory",
+    max_probe: int = 12,
+) -> str:
+    """Concatenate non-blank cell text from rows before the detected header row."""
+    if raw is None or raw.empty:
+        return ""
+    hdr_i = _find_header_row_index(raw, domain=domain, max_probe=max_probe)
+    probe = pd.concat(
+        [pd.DataFrame([[str(c) for c in raw.columns]]), raw.astype(str)],
+        ignore_index=True,
+    )
+    parts: list[str] = []
+    for i in range(hdr_i):
+        for v in probe.iloc[i].tolist():
+            if not _cell_blank(v):
+                parts.append(str(v).strip())
+    return " ".join(parts)
+
+
+def infer_sheet_region_from_title(text: str) -> str | None:
+    """Infer geographic region from sheet title rows (text before the header).
+
+    Matches whitelist tokens immediately before ``区域`` (e.g. ``上海区域``).
+    Departments such as 软件部 / 通信部 are not regions; ``软件部区域 2026 年``
+    must not yield a token.
+    """
+    if not text or not str(text).strip():
+        return None
+    t = str(text).replace("\n", "").replace("\r", "")
+    for token in sorted(GEO_REGION_TOKENS, key=len, reverse=True):
+        if f"{token}区域" in t:
+            return token
+    return None
+
+
 def _adapt_personal_tools_sheet(raw: pd.DataFrame) -> pd.DataFrame:
     """个人工器具领用记录 → 类别+型号一行，数量=领用合计。"""
     header_idx = None
@@ -463,6 +583,10 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
             domain = "stock_flow" if route.get("flow") else str(route.get("domain") or "stock_flow")
         else:
             domain = "stock_flow"
+        title_domain = "asset" if route is not None and str(route.get("sheet") or "") == "个人工器具" else domain
+        inferred_region = infer_sheet_region_from_title(
+            _collect_sheet_title_text(raw, domain=title_domain, max_probe=12)
+        )
         if route is not None and str(route.get("sheet") or "") == "个人工器具":
             df = _adapt_personal_tools_sheet(raw)
             domain = "asset"
@@ -518,11 +642,19 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
             std = std.loc[keep_id].reset_index(drop=True)
         if len(std) == 0:
             continue
+        if "region" in std.columns or inferred_region is not None:
+            if "region" not in std.columns:
+                std["region"] = None
+            std["region"] = [
+                inferred_region if _cell_blank(v) else v
+                for v in std["region"].tolist()
+            ]
         frames.append(std)
 
     if not frames:
         return pd.DataFrame()
-    return pd.concat(frames, ignore_index=True)
+    out = pd.concat(frames, ignore_index=True)
+    return coerce_tabular_for_parquet(out)
 
 
 def load_to_evidence(path: Path, file_id: str) -> tuple[pd.DataFrame, str, int, pd.DataFrame | None]:
@@ -592,7 +724,7 @@ def save_evidence(df: pd.DataFrame, file_id: str, tabular: pd.DataFrame | None =
     df.to_parquet(out, index=False)
     if tabular is not None and len(tabular) > 0:
         tab_path = config.RAW / f"{file_id}.tabular.parquet"
-        tabular.to_parquet(tab_path, index=False)
+        coerce_tabular_for_parquet(tabular).to_parquet(tab_path, index=False)
     return out
 
 
