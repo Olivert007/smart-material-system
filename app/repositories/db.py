@@ -198,14 +198,21 @@ def _bootstrap_biz() -> None:
     with _bootstrap_lock:
         if path in _bootstrapped_paths:
             return
-        con = duckdb.connect(path)
+        # bootstrap opens the file read-write to ensure schema; it must take the
+        # exclusive lock so it never overlaps an in-flight read-only connection
+        # (duckdb 1.x rejects same-file connections with differing access mode).
+        _rw_lock.w_acquire()
         try:
-            from app.repositories.schema import ensure_biz_schema
+            con = duckdb.connect(path)
+            try:
+                from app.repositories.schema import ensure_biz_schema
 
-            ensure_biz_schema(con)
+                ensure_biz_schema(con)
+            finally:
+                con.close()
+            _bootstrapped_paths.add(path)
         finally:
-            con.close()
-        _bootstrapped_paths.add(path)
+            _rw_lock.w_release()
 
 
 def pause_writer() -> None:
