@@ -152,7 +152,20 @@ def main() -> int:
         else:
             aud_n = len(aud or [])
         print("audit events:", aud_n)
-        print("DEMO_ENV_OK")
+
+    # 补齐趋势分析缺数据板块：区域 / 最低库存 / 资产清查演示行
+    # （样例台账没有区域、最低库存列，且资产清查域不在演示管道内，
+    #   不补齐则 库存区域分布/低库存TOP/资产三图 无数据）
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location(
+        "backfill_demo_analytics", ROOT / "scripts" / "backfill_demo_analytics.py"
+    )
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    _summary = _mod.backfill_demo_analytics(RUNTIME / "material.duckdb")
+    print("backfill[analytics]:", _summary)
+    print("DEMO_ENV_OK")
     return 0
 
 
