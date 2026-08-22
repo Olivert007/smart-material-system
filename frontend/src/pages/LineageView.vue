@@ -46,7 +46,9 @@
           size="small"
           style="margin-top: 6px"
         >
-          <el-table-column prop="sheet" label="工作表" min-width="140" />
+          <el-table-column label="工作表" min-width="140">
+            <template #default="{ row }">{{ sheetNameZh(String(row.sheet || '')) || '—' }}</template>
+          </el-table-column>
           <el-table-column label="角色" width="120" :formatter="(r: Record<string, unknown>) => roleZh(r.role_hint)" />
           <el-table-column label="结构" width="130" :formatter="(r: Record<string, unknown>) => structureZh(r.structure_hint)" />
           <el-table-column prop="rows" label="行" width="70" />
@@ -84,6 +86,7 @@ import {
   STRUCTURE_ZH,
   fileFormatZh,
   mapZh,
+  sheetNameZh,
 } from '@/utils/auditLabels'
 
 const route = useRoute()
@@ -117,7 +120,7 @@ function shortReleaseId(id: unknown): string {
 function releaseStatusLabel(s?: unknown): string {
   const v = String(s || '').toLowerCase()
   if (!v || v === 'released') return '已发布'
-  if (v === 'revoked') return '已吊销'
+  if (v === 'revoked') return '已撤销'
   return '已发布'
 }
 

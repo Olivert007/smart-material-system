@@ -59,8 +59,9 @@
         </div>
         <p v-if="!backups.length" class="empty-backup">尚未创建备份</p>
         <el-table v-else :data="backups" v-loading="backupsLoading" border size="small">
-          <el-table-column prop="backup_id" label="备份编号" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="created_at" label="时间" width="160" />
+          <el-table-column label="备份时间" min-width="170" show-overflow-tooltip>
+            <template #default="{ row }">{{ formatBackupTs(String(row.backup_id || '')) }}</template>
+          </el-table-column>
           <el-table-column prop="files" label="条目数" width="90" />
         </el-table>
         <div class="drill-box">
@@ -180,13 +181,23 @@ const recentFilenameShort = computed(() => {
 
 const latestBackupId = computed(() => backups.value[0]?.backup_id || '')
 
+/** 备份标识/时间戳可读化：20260818T030405Z → 2026-08-18 15:04。 */
+function formatBackupTs(v: string): string {
+  const s = String(v || '').trim()
+  if (!s) return ''
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2}))?/)
+  if (!m) return s
+  const [, y, mo, d, hh, mm] = m
+  return hh != null ? `${y}-${mo}-${d} ${hh}:${mm}` : `${y}-${mo}-${d}`
+}
+
 const metricRowText = computed(() => {
   const pending = tasks.value?.pending ?? '—'
   const processing = tasks.value?.processing ?? '—'
   const done = tasks.value?.done ?? '—'
   const failed = tasks.value?.failed ?? '—'
   const alertCount = alerts.value?.count ?? alerts.value?.active?.length ?? '—'
-  const backup = latestBackupId.value || '无'
+  const backup = formatBackupTs(latestBackupId.value) || '无'
   return `接入任务 待处理 ${pending} · 处理中 ${processing} · 已完成 ${done} · 失败 ${failed} · 活跃告警 ${alertCount} · 最近备份 ${backup}`
 })
 

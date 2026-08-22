@@ -16,7 +16,7 @@
     <template v-else-if="data">
       <el-descriptions :column="3" border size="small">
         <el-descriptions-item label="来源文件">{{ data.source_file }}</el-descriptions-item>
-        <el-descriptions-item label="工作表">{{ data.source_sheet || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="工作表">{{ sheetNameZh(data.source_sheet) || '—' }}</el-descriptions-item>
         <el-descriptions-item label="来源行号">{{ data.source_row ?? '—' }}</el-descriptions-item>
         <el-descriptions-item label="发布版本">{{ shortRelease(data.release_id) }}</el-descriptions-item>
         <el-descriptions-item label="业务域">{{ domainZh(data.domain) }}</el-descriptions-item>
@@ -111,6 +111,7 @@ import {
   DOMAIN_ZH,
   mapZh,
   ruleSourceZh,
+  sheetNameZh,
   taskTypeZh,
 } from '@/utils/auditLabels'
 
