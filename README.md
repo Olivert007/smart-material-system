@@ -102,6 +102,18 @@ LLM sheet-profile for `needs_llm` sheets is Stage B+ (not in Step1 rule path).
 
 ## Stage 1 (local models)
 
+**设计目标**（`app/config.py`）：fast `:8000`、big `:8001`、embed `:8002`。
+
+**当前验收**以运行态脚本输出为准（区分「设计存在」与「环境可用」）：
+
+```bash
+./scripts/start_dev_stack.sh          # 启动顺序指引（不自动拉起进程）
+PYTHONPATH=. python3 scripts/check_runtime.py | python3 -m json.tool
+```
+
+`runtime_level` 口径：`none`（API 未 ready）→ `stage1_degraded`（模型不完整）→ `full`（三模型在线且名称匹配）。  
+embed 不可用时系统可词法 fallback（`EMBED_FALLBACK_LEXICAL=1`）；big 不可用时复杂生成能力受限。
+
 本机 `/models`：
 - `Qwen3.6-27B` → big `:8001`（BF16 制品；`LLM_ENABLE_THINKING=0`）
 - `Qwen3-Embedding-0.6B` → embed `:8002`
