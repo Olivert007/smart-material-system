@@ -27,10 +27,10 @@ export const SOURCE_ZH: Record<string, string> = {
   model_restart_embed: '向量模型重启',
   report_run: '报表运行',
   seed_opening_snapshot: '期初快照',
-  lineage_rebuild: '血缘重建',
-  lineage_revoke: '吊销发布',
-  lineage_revoke_stock_flow: '吊销出入库流水',
-  lineage_rebuild_stock_flow: '重建出入库流水',
+  lineage_rebuild: '重建版本记录',
+  lineage_revoke: '撤销发布',
+  lineage_revoke_stock_flow: '撤销流水发布',
+  lineage_rebuild_stock_flow: '重建流水发布',
   master_apply: '主数据应用',
   master_pending: '主数据待办',
   release_failed: '发布失败',
@@ -104,6 +104,18 @@ export const STRUCTURE_ZH: Record<string, string> = {
   report_only: '仅报表',
   empty: '空',
   unknown: '未识别',
+}
+
+/** 工作表名展示：内部名 tabular / Sheet1 等译成中文，未知保持原样。 */
+export function sheetNameZh(s?: string | null): string {
+  const raw = String(s ?? '').trim()
+  if (!raw) return ''
+  const map: Record<string, string> = {
+    tabular: '表格数据',
+    Sheet1: '工作表1',
+    sheet1: '工作表1',
+  }
+  return map[raw] || raw
 }
 
 export const TASK_TYPE_ZH: Record<string, string> = {

@@ -916,13 +916,21 @@ function decisionLabel(d: string) {
   return map[d] || d
 }
 
+const PARSE_SOURCE_ZH: Record<string, string> = {
+  rule: '规则解析',
+  llm: '大模型解析',
+  manual: '人工录入',
+  example: '示例',
+}
+
 function summarizeSuggest(row: FlowPendingItem): string {
   const s = (row.suggested || {}) as Record<string, unknown>
   const qty = s.quantity
   const date = s.flow_date
   const person = s.person
   const src = s.parse_source
-  return [src, date, qty != null ? `数量=${qty}` : null, person].filter(Boolean).join(' · ') || '—'
+  const srcZh = src ? PARSE_SOURCE_ZH[String(src)] || String(src) : ''
+  return [srcZh, date, qty != null ? `数量=${qty}` : null, person].filter(Boolean).join(' · ') || '—'
 }
 
 function onFlowSelect(rowsSel: FlowPendingItem[]) {

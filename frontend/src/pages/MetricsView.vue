@@ -223,7 +223,7 @@ const GATE_CHECK_LABELS: Record<string, string> = {
   no_year_as_quantity: '无年份脏数据',
   reconcile_runnable: '库存对账可运行',
   fixture_tests_passed: '夹具测试',
-  lineage_rebuild_clean: '血缘重建干净',
+  lineage_rebuild_clean: '版本链完整',
 }
 
 function gateCheckLabel(key: string) {
@@ -237,7 +237,7 @@ function gateCheckHint(key: string) {
     no_year_as_quantity: '无"年份当数量"脏数据',
     reconcile_runnable: '库存对账可运行',
     fixture_tests_passed: '内置夹具测试全部通过',
-    lineage_rebuild_clean: '血缘审计后重建干净',
+    lineage_rebuild_clean: '发布版本链校验完整',
   }
   return hints[key] || gateLabel(key)
 }

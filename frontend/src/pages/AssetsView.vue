@@ -25,9 +25,15 @@
           @change="loadRules"
         >
           <el-table :data="filteredRules" v-loading="loading" border size="small">
-            <el-table-column prop="header" label="表头" min-width="140" />
-            <el-table-column prop="std_field" label="标准字段" width="140" />
-            <el-table-column prop="business_domain" label="域" width="100" />
+            <el-table-column label="表头" min-width="140">
+              <template #default="{ row }">{{ fieldZh(String(row.header || '')) || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="标准字段" width="140">
+              <template #default="{ row }">{{ fieldZh(String(row.std_field || '')) || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="域" width="100">
+              <template #default="{ row }">{{ mapZh(DOMAIN_ZH, row.business_domain) || '—' }}</template>
+            </el-table-column>
             <el-table-column prop="hits" label="命中" width="70" />
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
@@ -41,8 +47,12 @@
                 {{ (Number(row.pending_map_hits) || 0) + (Number(row.pending_blocked_hits) || 0) }}
               </template>
             </el-table-column>
-            <el-table-column prop="source" label="来源" width="120" />
-            <el-table-column prop="confirmed_by" label="确认人" width="100" />
+            <el-table-column label="来源" width="120">
+              <template #default="{ row }">{{ mapZh(RULE_SOURCE_ZH, row.source) || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="确认人" width="100">
+              <template #default="{ row }">{{ mapZh(ACTOR_ZH, row.confirmed_by) || '—' }}</template>
+            </el-table-column>
             <el-table-column prop="created_at" label="时间" width="160" />
             <el-table-column label="操作" width="170" fixed="right">
               <template #default="{ row }">
@@ -206,6 +216,8 @@ import {
   type RuleDictPreview,
 } from '@/api/client'
 import { parseLevelLabel } from '@/utils/parseLevel'
+import { fieldZh } from '@/utils/fields'
+import { ACTOR_ZH, DOMAIN_ZH, RULE_SOURCE_ZH, mapZh } from '@/utils/auditLabels'
 
 const tab = ref('rules')
 const loading = ref(false)
@@ -249,10 +261,22 @@ const filteredRules = computed(() => {
   )
 })
 
+function flowTypeZh(v: unknown): string {
+  if (String(v || '').toUpperCase() === 'IN') return '入库'
+  if (String(v || '').toUpperCase() === 'OUT') return '出库'
+  return String(v ?? '')
+}
+
 function summarizeFlow(flow: unknown): string {
   const arr = Array.isArray(flow) ? flow : []
   const first = (arr[0] || {}) as Record<string, unknown>
-  return [first.parse_level, first.flow_type, first.quantity != null ? `qty=${first.quantity}` : null, first.person]
+  const level = first.parse_level ? parseLevelLabel(String(first.parse_level)) : ''
+  return [
+    level,
+    flowTypeZh(first.flow_type),
+    first.quantity != null ? `数量=${first.quantity}` : null,
+    first.person,
+  ]
     .filter(Boolean)
     .join(' · ') || '—'
 }
