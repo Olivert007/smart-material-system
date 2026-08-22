@@ -1,27 +1,49 @@
 /** Relative API base — never hardcode host/port (docs/11 C13). */
 export const API_BASE = '/api/v1'
 
+export interface ApiErrorPayload {
+  code?: string
+  message?: string
+  request_id?: string
+  detail?: { code?: string; message?: string; error?: string }
+}
+
+export function parseApiErrorPayload(body: unknown): {
+  code: string
+  message: string
+  requestId: string | null
+} {
+  if (typeof body !== 'object' || body === null) {
+    return { code: 'HTTP_ERROR', message: 'Request failed', requestId: null }
+  }
+  const b = body as ApiErrorPayload & Record<string, unknown>
+  const detail = b.detail
+  if (typeof detail === 'object' && detail !== null) {
+    return {
+      code: String(detail.code || detail.error || b.code || 'HTTP_ERROR'),
+      message: String(detail.message || b.message || 'Request failed'),
+      requestId: b.request_id ? String(b.request_id) : null,
+    }
+  }
+  return {
+    code: String(b.code || 'HTTP_ERROR'),
+    message: String(b.message || 'Request failed'),
+    requestId: b.request_id ? String(b.request_id) : null,
+  }
+}
+
 export class ApiError extends Error {
   status: number
   code: string
   body: unknown
   requestId: string | null
   constructor(status: number, body: unknown) {
-    const msg =
-      typeof body === 'object' && body && 'message' in body
-        ? String((body as { message: string }).message)
-        : `HTTP ${status}`
-    super(msg)
+    const parsed = parseApiErrorPayload(body)
+    super(parsed.message)
     this.status = status
     this.body = body
-    this.code =
-      typeof body === 'object' && body && 'code' in body
-        ? String((body as { code: string }).code)
-        : `HTTP_${status}`
-    this.requestId =
-      typeof body === 'object' && body && 'request_id' in body
-        ? String((body as { request_id: string }).request_id)
-        : null
+    this.code = parsed.code
+    this.requestId = parsed.requestId
   }
 }
 
@@ -118,6 +140,12 @@ export type TaskInfo = {
   status: string
   progress: number
   message?: string
+  error_code?: string | null
+  phase?: string | null
+  user_message?: string | null
+  technical_message?: string | null
+  retryable?: boolean
+  next_actions?: string[]
 }
 
 export type StagingInfo = {
@@ -253,6 +281,13 @@ export function watchTask(
 
 export async function getTask(taskId: string) {
   return apiJson<TaskInfo>(`/tasks/${taskId}`)
+}
+
+export async function retryTask(taskId: string) {
+  return apiJson<{ ok: boolean; task_id: string; file_id: string; status: string }>(
+    `/tasks/${encodeURIComponent(taskId)}/retry`,
+    { method: 'POST' },
+  )
 }
 
 export type AnalyzeResult = {
@@ -1348,6 +1383,10 @@ export async function activateFlowMetrics(metricIds?: string[]) {
 export async function modelsStatus() {
   return apiJson<{
     stage: number
+    model_runtime?: string
+    model_match?: boolean
+    blocking?: string[]
+    warnings?: string[]
     big: {
       ok: boolean
       configured_model?: string

@@ -1,5 +1,14 @@
 <template>
   <div class="models">
+    <el-alert
+      v-if="runtimeBanner"
+      :title="runtimeBanner.title"
+      :type="runtimeBanner.type"
+      :closable="false"
+      show-icon
+      :description="runtimeBanner.desc"
+      class="runtime-banner"
+    />
     <div class="toolbar">
       <el-space wrap>
         <el-button type="primary" :loading="loading" @click="load">重扫</el-button>
@@ -70,6 +79,19 @@ const loading = ref(false)
 const actionBusy = ref('')
 const status = ref<Awaited<ReturnType<typeof modelsStatus>> | null>(null)
 const isOps = computed(() => (localStorage.getItem('ops_role') || '') === 'ops')
+
+const runtimeBanner = computed(() => {
+  const s = status.value
+  if (!s) return null
+  const level = s.model_runtime || (s.big?.ok && s.fast?.ok && s.embed?.ok ? 'full' : 'stage1_degraded')
+  if (level === 'full') return null
+  const blocking = (s.blocking || []).join('、') || '部分模型不可用或名称不匹配'
+  return {
+    title: `runtime_level: ${level}`,
+    type: 'warning' as const,
+    desc: `当前非完整运行态。影响：${blocking}。规则路径仍可演示；复杂生成与语义召回可能降级。`,
+  }
+})
 
 function displayModel(entry?: RuntimeModelEntry | null) {
   const configured = String(entry?.configured_model || '').trim()

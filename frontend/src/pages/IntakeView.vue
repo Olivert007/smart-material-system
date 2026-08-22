@@ -23,7 +23,7 @@
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或<em>点击选择</em></div>
         <template #tip>
-          <div class="el-upload__tip">支持 xlsx / csv / json</div>
+          <div class="el-upload__tip">支持 xlsx / csv / json；单文件最大 2GB；相同内容重复上传将复用历史解析结果</div>
         </template>
       </el-upload>
       <div class="actions">
@@ -62,7 +62,21 @@
         <div class="job-conclusion">
           <strong>结论：</strong>{{ businessConclusion(job) }}
         </div>
+        <div v-if="taskError(job.task_id)" class="job-error">
+          <div>{{ taskError(job.task_id)?.user_message || taskError(job.task_id)?.message || '解析失败' }}</div>
+          <ul v-if="taskError(job.task_id)?.next_actions?.length">
+            <li v-for="(a, i) in taskError(job.task_id)!.next_actions!" :key="i">{{ a }}</li>
+          </ul>
+        </div>
         <div class="job-actions">
+          <el-button
+            v-if="job.status === 'failed' && taskError(job.task_id)?.retryable"
+            type="danger"
+            :loading="retryBusy === job.task_id"
+            @click="retryParse(job)"
+          >
+            重试解析
+          </el-button>
           <el-button
             v-if="canEnterStage(job) && !needsGovern(job)"
             type="primary"
@@ -81,7 +95,7 @@
             去处理字段/物资问题
           </el-button>
           <el-button v-else-if="job.status === 'failed'" type="danger" plain disabled>
-            无法接入，请检查文件后重试
+            无法接入{{ taskError(job.task_id)?.retryable === false ? '（不可重试）' : '' }}
           </el-button>
           <el-button v-else disabled>解析完成后可进入规整</el-button>
         </div>
@@ -132,10 +146,12 @@ import {
   formatApiError,
   getIntakeConclusion,
   listFiles,
+  retryTask,
   uploadFile,
   watchTask,
   type FileItem,
   type IntakeConclusion,
+  type TaskInfo,
 } from '@/api/client'
 import {
   dataStateLabel,
@@ -162,6 +178,8 @@ const jobs = ref<Job[]>([])
 const conclusions = ref<Record<string, IntakeConclusion>>({})
 const fileItems = ref<FileItem[]>([])
 const filesLoading = ref(false)
+const retryBusy = ref('')
+const taskErrors = ref<Record<string, TaskInfo>>({})
 const stoppers = new Map<string, () => void>()
 const wizardStep = ref(0)
 
@@ -298,12 +316,38 @@ function goStage(fileId: string) {
   router.push(`/stage/${fileId}`)
 }
 
+function taskError(taskId: string) {
+  return taskErrors.value[taskId]
+}
+
+function storeTaskError(t: TaskInfo) {
+  if (t.status === 'failed') taskErrors.value[t.task_id] = t
+}
+
+async function retryParse(job: Job) {
+  if (!job.task_id || job.task_id === '-') return
+  retryBusy.value = job.task_id
+  try {
+    const res = await retryTask(job.task_id)
+    job.status = res.status
+    job.progress = 0
+    delete taskErrors.value[job.task_id]
+    startWatch(job.task_id, job.file_id, job.events_url)
+    ElMessage.success('已重新排队解析')
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    retryBusy.value = ''
+  }
+}
+
 function startWatch(taskId: string, fileId: string, eventsUrl?: string | null) {
   if (stoppers.has(taskId)) return
   let fallbackNotified = false
   const stop = watchTask(
     taskId,
     (t) => {
+      storeTaskError(t)
       const idx = jobs.value.findIndex((j) => j.task_id === taskId)
       if (idx >= 0) {
         jobs.value[idx] = {
@@ -319,7 +363,9 @@ function startWatch(taskId: string, fileId: string, eventsUrl?: string | null) {
         ElMessage.success(`${t.filename || fileId} 识别完成，可进入规整`)
         void loadFiles()
       }
-      if (t.status === 'failed') ElMessage.error(t.message || '解析失败')
+      if (t.status === 'failed') {
+        ElMessage.error(t.user_message || t.message || '解析失败')
+      }
     },
     {
       eventsUrl,
@@ -368,6 +414,7 @@ async function doUpload() {
     for (const file of pending.value) {
       const res = await uploadFile(file)
       if (res.reused && !res.task_id) {
+        ElMessage.info(`${res.filename} 已存在，使用历史解析结果`)
         jobs.value.unshift({
           filename: res.filename,
           file_id: res.file_id,

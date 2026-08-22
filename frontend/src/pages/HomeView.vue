@@ -1,6 +1,15 @@
 <template>
   <div class="home">
     <el-alert
+      v-if="runtimeHint"
+      :title="runtimeHint.title"
+      :type="runtimeHint.type"
+      :closable="false"
+      show-icon
+      :description="runtimeHint.desc"
+      class="runtime-alert"
+    />
+    <el-alert
       :title="statusTitle"
       :type="statusType"
       :closable="false"
@@ -131,7 +140,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteFile, formatApiError, statsOverview, type StatsOverview } from '@/api/client'
+import { deleteFile, formatApiError, modelsStatus, statsOverview, type StatsOverview } from '@/api/client'
 import {
   dataStateLabel,
   dataStateTagType,
@@ -142,6 +151,23 @@ import { DATA_SCOPE_DISCLAIMER } from '@/utils/copywriting'
 const router = useRouter()
 const loading = ref(false)
 const overview = ref<StatsOverview | null>(null)
+const runtimeLevel = ref<string>('')
+
+const runtimeHint = computed(() => {
+  if (!runtimeLevel.value || runtimeLevel.value === 'full') return null
+  if (runtimeLevel.value === 'none') {
+    return {
+      title: '运行态：API 未就绪',
+      type: 'error' as const,
+      desc: '后端或 worker 未启动，部分功能不可用。请运行 ./scripts/start_dev_stack.sh 查看启动顺序。',
+    }
+  }
+  return {
+    title: `运行态：${runtimeLevel.value === 'stage1_degraded' ? '模型能力受限' : '开发态可用'}`,
+    type: 'warning' as const,
+    desc: 'big/embed 可能不可用或模型名不匹配；复杂生成与语义召回会降级，规则路径仍可运行。',
+  }
+})
 
 const BIZ_METRICS: Record<string, { metric_id: string; hint: string }> = {
   sq: { metric_id: 'INV_QTY_TOTAL', hint: '米、个、包等计量单位不同，不能加总，故显示 —' },
@@ -333,6 +359,20 @@ async function onDeleteFile(row: { file_id?: string; filename?: string }) {
   }
 }
 
+async function loadRuntime() {
+  try {
+    const ms = await modelsStatus()
+    if (ms.model_runtime) {
+      runtimeLevel.value = ms.model_runtime
+      return
+    }
+    const allOk = ms.big?.ok && ms.fast?.ok && ms.embed?.ok
+    runtimeLevel.value = allOk ? 'full' : 'stage1_degraded'
+  } catch {
+    runtimeLevel.value = 'none'
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -345,6 +385,7 @@ async function load() {
 }
 
 onMounted(() => {
+  void loadRuntime()
   void load()
 })
 </script>
