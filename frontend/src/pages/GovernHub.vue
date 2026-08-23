@@ -8,6 +8,18 @@
     </div>
 
     <el-alert
+      v-if="llmLimited"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="智能能力受限"
+      :description="LLM_DEGRADED_GOVERN_HINT"
+      class="llm-hint"
+    >
+      <el-button size="small" @click="$router.push('/system?tab=models')">查看模型状态</el-button>
+    </el-alert>
+
+    <el-alert
       v-if="isNoData"
       type="info"
       :closable="false"
@@ -109,9 +121,11 @@ import {
   formatApiError,
   flowReconcile,
   listRuleLearnCandidates,
+  modelsStatus,
   statsOverview,
   type StatsOverview,
 } from '@/api/client'
+import { LLM_DEGRADED_GOVERN_HINT, isLlmCapabilityLimited } from '@/utils/modelRuntime'
 
 type QueueId = 'map' | 'rulelearn' | 'master' | 'flow' | 'reconcile' | 'release_blocker' | 'assets'
 
@@ -158,6 +172,7 @@ const detailVisible = ref(false)
 const detailType = ref('')
 const activeGovernTab = ref('map')
 const detailPanel = ref<HTMLElement | null>(null)
+const llmLimited = ref(false)
 let queueRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
 const isNoData = computed(
@@ -260,10 +275,18 @@ async function loadRuleLearnCount() {
   }
 }
 
+async function loadModelRuntime() {
+  try {
+    llmLimited.value = isLlmCapabilityLimited(await modelsStatus())
+  } catch {
+    llmLimited.value = false
+  }
+}
+
 async function loadAll() {
   summaryLoading.value = true
   try {
-    await Promise.all([loadSummary(), loadReconcileTotal(), loadRuleLearnCount()])
+    await Promise.all([loadSummary(), loadReconcileTotal(), loadRuleLearnCount(), loadModelRuntime()])
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -361,6 +384,7 @@ onMounted(async () => {
 
 <style scoped>
 .govern-hub { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.llm-hint { margin-bottom: 0; }
 .page-head {
   display: flex;
   justify-content: space-between;

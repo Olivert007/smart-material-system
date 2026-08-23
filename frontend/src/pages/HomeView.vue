@@ -104,7 +104,8 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="尚未接入文件，请先上传原始数据">
+      <el-empty v-else description="尚未接入文件">
+        <p class="first-use-hint">{{ FIRST_USE_INTAKE_HINT }}</p>
         <el-button type="primary" @click="$router.push('/intake')">去数据接入</el-button>
       </el-empty>
     </el-card>
@@ -148,6 +149,7 @@ import {
   mapIntakeStatusToDataState,
 } from '@/utils/dataStates'
 import { DATA_SCOPE_DISCLAIMER, runtimeLevelTitle } from '@/utils/copywriting'
+import { FIRST_USE_INTAKE_HINT } from '@/utils/modelRuntime'
 
 const router = useRouter()
 const loading = ref(false)
@@ -458,6 +460,7 @@ onMounted(() => {
 .biz-empty { padding: 4px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .biz-empty-title { font-size: 14px; font-weight: 600; color: #606266; }
 .biz-empty-desc { color: #909399; font-size: 13px; line-height: 1.6; }
+.first-use-hint { max-width: 520px; margin: 0 0 12px; color: #909399; font-size: 13px; line-height: 1.6; text-align: center; }
 @media (max-width: 720px) {
   .cards,
   .cards.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }

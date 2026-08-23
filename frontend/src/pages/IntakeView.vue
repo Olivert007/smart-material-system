@@ -23,6 +23,7 @@
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">拖拽文件到此处，或<em>点击选择</em></div>
         <template #tip>
+          <div class="el-upload__tip">{{ FIRST_USE_INTAKE_HINT }}</div>
           <div class="el-upload__tip">支持 xlsx / csv / json；单文件最大 2GB；相同内容重复上传将复用历史解析结果</div>
         </template>
       </el-upload>
@@ -158,6 +159,7 @@ import {
   dataStateTagType,
   mapIntakeStatusToDataState,
 } from '@/utils/dataStates'
+import { FIRST_USE_INTAKE_HINT } from '@/utils/modelRuntime'
 
 type Job = {
   filename: string

@@ -1,5 +1,15 @@
 <template>
   <div class="stage" v-loading="loading">
+    <el-alert
+      v-if="llmLimited"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="智能能力受限"
+      :description="LLM_DEGRADED_GOVERN_HINT"
+      class="llm-hint"
+    />
+
     <el-steps
       v-if="!isReleased"
       :active="stepActive"
@@ -127,8 +137,10 @@ import {
   intakeAnalyze,
   listFiles,
   listQualityBlocked,
+  modelsStatus,
   type StagingInfo,
 } from '@/api/client'
+import { LLM_DEGRADED_GOVERN_HINT, isLlmCapabilityLimited } from '@/utils/modelRuntime'
 import { gateLabel as gateCodeLabel } from '@/utils/gateLabels'
 import { fieldZh, valueZh, visibleFields } from '@/utils/fields'
 import {
@@ -153,6 +165,7 @@ const filename = ref('')
 const loading = ref(false)
 const analyzeBusy = ref(false)
 const confirmBusy = ref(false)
+const llmLimited = ref(false)
 const targetDomain = ref('inventory')
 const blockedSamples = ref<
   Array<{ source_row?: number; header?: string; reason_code?: string; reason_detail?: string }>
@@ -389,6 +402,11 @@ watch(targetDomain, () => {
 })
 
 onMounted(async () => {
+  try {
+    llmLimited.value = isLlmCapabilityLimited(await modelsStatus())
+  } catch {
+    llmLimited.value = false
+  }
   await loadFilename()
   await refresh()
   if (!staging.value) {
@@ -407,6 +425,7 @@ onMounted(async () => {
 
 <style scoped>
 .stage { display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0; }
+.llm-hint { margin-bottom: 0; }
 .steps { width: 100%; overflow-x: auto; margin-bottom: 8px; padding-bottom: 4px; }
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .filename { font-weight: 600; word-break: break-all; }
