@@ -10,6 +10,15 @@
       class="runtime-banner"
     />
     <p class="action-hint">{{ MODEL_WEB_ACTION_HINT }}</p>
+    <el-card v-if="llmCost" shadow="never" class="cost-card">
+      <template #header>近 {{ llmCost.days }} 天模型调用</template>
+      <div class="cost-row">
+        <span>总调用 <strong>{{ llmCost.total_calls }}</strong></span>
+        <span>成功 <strong>{{ llmCost.ok_calls }}</strong></span>
+        <span>失败 <strong>{{ llmCost.failed_calls }}</strong></span>
+      </div>
+      <p v-if="!llmCost.total_calls" class="cost-empty">尚无调用记录；规则路径不经过模型时此处为 0。</p>
+    </el-card>
     <div class="toolbar">
       <el-space wrap>
         <el-button type="primary" :loading="loading" @click="load">重扫</el-button>
@@ -53,7 +62,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { formatApiError, modelActivate, modelRestart, modelsStatus } from '@/api/client'
+import { formatApiError, modelActivate, modelRestart, modelsStatus, opsLlmCost } from '@/api/client'
 import { MODEL_WEB_ACTION_HINT, runtimeLevelTitle } from '@/utils/copywriting'
 
 type RoleCard = {
@@ -80,6 +89,7 @@ type RuntimeModelEntry = {
 const loading = ref(false)
 const actionBusy = ref('')
 const status = ref<Awaited<ReturnType<typeof modelsStatus>> | null>(null)
+const llmCost = ref<Awaited<ReturnType<typeof opsLlmCost>> | null>(null)
 const hasLocalToken = computed(() => Boolean(localStorage.getItem('ops_token')))
 
 const runtimeBanner = computed(() => {
@@ -186,7 +196,9 @@ function roleLabel(r: string) {
 async function load() {
   loading.value = true
   try {
-    status.value = await modelsStatus()
+    const [s, cost] = await Promise.all([modelsStatus(), opsLlmCost(7)])
+    status.value = s
+    llmCost.value = cost
   } catch (e: unknown) {
     ElMessage.error(formatApiError(e))
   } finally {
@@ -247,6 +259,9 @@ onMounted(load)
 <style scoped>
 .models { display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0; }
 .action-hint { margin: 0; color: #909399; font-size: 13px; line-height: 1.5; }
+.cost-card { margin: 0; }
+.cost-row { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; color: #606266; }
+.cost-empty { margin: 8px 0 0; color: #909399; font-size: 13px; }
 .toolbar { display: flex; }
 .cards {
   display: grid;
