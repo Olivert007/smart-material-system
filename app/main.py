@@ -166,6 +166,9 @@ def health_ready():
             biz_ok = False
 
     worker_ok = worker.is_alive()
+    if os.environ.get("DISABLE_INTAKE_WORKER", "0") == "1":
+        # Offline compose: intake worker runs in a separate container.
+        worker_ok = True
     ready = biz_ok and worker_ok
     body = {
         "status": "ready" if ready else "not_ready",

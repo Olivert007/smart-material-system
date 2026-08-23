@@ -1,10 +1,10 @@
 # Offline compose stack (doc 21 O3-O4).
-# Usage:
+# Usage (from repo root):
 #   cp deploy/offline.env.example deploy/offline.env
-#   docker compose -f deploy/compose-offline.yml --env-file deploy/offline.env up -d
+#   docker compose -f deploy/compose-offline.yml --env-file deploy/offline.env up -d --build
 #
-# Requires model weights mounted at ${MODELS_DIR:-/models} on the host.
-# GPU: uncomment `gpus: all` on vllm-* services if your compose version supports it.
+# Access: http://127.0.0.1:8080  (nginx → api:8010)
+# Models: host weights at ${MODELS_DIR:-/models}
 
 x-api-env: &api-env
   DATA_DIR: /app/data
@@ -21,6 +21,15 @@ x-api-env: &api-env
   EMBED_FALLBACK_LEXICAL: "1"
   FRONTEND_DIST: /app/frontend_dist_unused
 
+x-vllm-common: &vllm-common
+  image: vllm/vllm-openai:latest
+  restart: unless-stopped
+  volumes:
+    - ${MODELS_DIR:-/models}:/models:ro
+  gpus: all
+  ipc: host
+  shm_size: "16gb"
+
 services:
   api:
     build:
@@ -36,11 +45,17 @@ services:
     entrypoint: ["/bin/bash", "/app/scripts/docker_entrypoint_api.sh"]
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health/ready')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8010/health/ready'); assert r.status==200",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 45s
 
   worker:
     build:
@@ -69,10 +84,7 @@ services:
         condition: service_healthy
 
   vllm-big:
-    image: vllm/vllm-openai:latest
-    restart: unless-stopped
-    volumes:
-      - ${MODELS_DIR:-/models}:/models:ro
+    <<: *vllm-common
     command:
       - --model
       - /models/Qwen3.6-27B-FP8
@@ -84,15 +96,13 @@ services:
       - ${LLM_BIG_MODEL:-qwen3.6-27b}
       - --gpu-memory-utilization
       - "0.45"
+      - --max-model-len
+      - "4096"
     expose:
       - "8001"
-    # gpus: all
 
   vllm-fast:
-    image: vllm/vllm-openai:latest
-    restart: unless-stopped
-    volumes:
-      - ${MODELS_DIR:-/models}:/models:ro
+    <<: *vllm-common
     command:
       - --model
       - /models/Qwen2.5-7B-Instruct
@@ -104,15 +114,13 @@ services:
       - ${LLM_FAST_MODEL:-qwen2.5-7b}
       - --gpu-memory-utilization
       - "0.25"
+      - --max-model-len
+      - "8192"
     expose:
       - "8000"
-    # gpus: all
 
   vllm-embed:
-    image: vllm/vllm-openai:latest
-    restart: unless-stopped
-    volumes:
-      - ${MODELS_DIR:-/models}:/models:ro
+    <<: *vllm-common
     command:
       - --model
       - /models/Qwen3-Embedding-0.6B
@@ -126,9 +134,10 @@ services:
       - embed
       - --served-model-name
       - ${LLM_EMBED_MODEL:-qwen3-embedding-0.6b}
+      - --max-model-len
+      - "4096"
     expose:
       - "8002"
-    # gpus: all
 
 volumes:
   sms-data:

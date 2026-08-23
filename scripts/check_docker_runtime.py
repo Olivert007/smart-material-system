@@ -54,7 +54,8 @@ def compose_ps(compose_file: Path) -> dict[str, bool]:
 
 def check_docker_runtime() -> dict:
     compose_file = ROOT / "deploy" / "compose-offline.yml"
-    api_base = os.environ.get("API_BASE", "http://127.0.0.1:8010").rstrip("/")
+    # Offline stack exposes API only inside the compose network; probe via nginx :8080.
+    api_base = os.environ.get("API_BASE", "http://127.0.0.1:8080").rstrip("/")
     compose = compose_ps(compose_file)
 
     api_ready = False
