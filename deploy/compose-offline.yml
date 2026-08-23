@@ -22,7 +22,7 @@ x-api-env: &api-env
   FRONTEND_DIST: /app/frontend_dist_unused
 
 x-vllm-common: &vllm-common
-  image: vllm/vllm-openai:latest
+  image: ${VLLM_IMAGE:?Set VLLM_IMAGE in deploy/offline.env to repo:tag@sha256:...}
   restart: unless-stopped
   volumes:
     - ${MODELS_DIR:-/models}:/models:ro

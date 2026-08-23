@@ -89,8 +89,12 @@ PYTHONPATH=. python3 scripts/check_offline_bundle.py --manifest deploy/offline-m
 Deploy on an air-gapped host (models at `${MODELS_DIR:-/models}`):
 
 ```bash
-cp deploy/offline.env.example deploy/offline.env   # set OPS_TOKEN, MODELS_DIR
+cp deploy/offline.env.example deploy/offline.env
+# On a connected machine: pin vLLM digest (requires docker)
+./scripts/resolve_vllm_image.sh v0.8.5 --write deploy/offline.env
+# Edit OPS_TOKEN, MODELS_DIR
 docker compose -f deploy/compose-offline.yml --env-file deploy/offline.env up -d --build
+PYTHONPATH=. python3 scripts/check_offline_bundle.py --manifest deploy/offline-manifest.example.json --env-file deploy/offline.env
 PYTHONPATH=. python3 scripts/check_docker_runtime.py | python3 -m json.tool
 ```
 
@@ -103,7 +107,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now smart-material-system.service
 ```
 
-Image digests: fill `deploy/offline-manifest.example.json` after `docker pull` (`docker inspect --format='{{index .RepoDigests 0}}' IMAGE`).
+Image digests: vLLM 通过 `VLLM_IMAGE=repo:tag@sha256:...` 写入 `deploy/offline.env`（`compose-offline.yml` 强制要求）；基础镜像 digest 记录在 `deploy/offline-manifest.example.json`。
 
 ## Phase A status
 

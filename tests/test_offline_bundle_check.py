@@ -19,3 +19,13 @@ def test_offline_bundle_check_structure():
     assert "build_assets" in out
     assert "wheelhouse_or_dist" in out["build_assets"]
     assert isinstance(out["ok"], bool)
+
+
+def test_vllm_image_env_validation():
+    from scripts.check_offline_bundle import check_vllm_image_env
+
+    example = ROOT / "deploy" / "offline.env.example"
+    out = check_vllm_image_env(example)
+    assert out["VLLM_IMAGE"]
+    assert out["pinned"] is False
+    assert out["ok"] is False

@@ -19,7 +19,8 @@
       "image": "vllm/vllm-openai",
       "tag": "v0.8.5",
       "digest": "sha256:REPLACE_ME",
-      "note": "Pin digest after docker pull; use image@digest in compose-offline"
+      "env_var": "VLLM_IMAGE",
+      "note": "Set deploy/offline.env via scripts/resolve_vllm_image.sh"
     }
   ],
   "wheelhouse": "offline/wheelhouse",
