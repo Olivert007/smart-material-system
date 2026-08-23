@@ -1,4 +1,4 @@
-# API + in-process worker (F3). Writer is same process via unique lock.
+# API + in-process worker (F3). Offline builds use wheelhouse (doc 21 §7.1).
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -6,8 +6,16 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     DATA_DIR=/app/data
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+ARG OFFLINE_BUILD=0
+
+COPY requirements.txt requirements-lock.txt /app/
+COPY offline/wheelhouse /wheelhouse
+
+RUN if [ "$OFFLINE_BUILD" = "1" ]; then \
+      pip install --no-index --find-links=/wheelhouse -r /app/requirements-lock.txt; \
+    else \
+      pip install --no-cache-dir -r /app/requirements.txt; \
+    fi
 
 COPY app /app/app
 COPY scripts/init_data_volume.py scripts/run_intake_worker.py scripts/docker_entrypoint_api.sh /app/scripts/

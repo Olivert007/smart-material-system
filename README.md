@@ -75,7 +75,35 @@ F2 单入口：浏览器打开 **http://127.0.0.1:8010** （FastAPI 托管 `fron
 F3 单入口：`docker compose -f deploy/compose.prod.yml up --build` → http://127.0.0.1:8080（Nginx → api；SSE `/events/tasks/{id}`）。  
 写操作带 `version` / `expected_status` / `Idempotency-Key`；冲突返回 **409**。  
 OpenAPI 类型：`npm run api:generate` / `npm run api:check`。  
-Compose：`deploy/compose.dev.yml`（开发）、`deploy/compose.prod.yml`（F3）。
+Compose：`deploy/compose.dev.yml`（开发）、`deploy/compose.prod.yml`（F3 PoC）、`deploy/compose-offline.yml`（离线 + vLLM 全栈）。
+
+### Offline Docker deploy (doc 21)
+
+Prepare local build assets once (online machine):
+
+```bash
+python3 scripts/prepare_offline_bundle.py          # offline/wheelhouse + offline/npm-cache
+PYTHONPATH=. python3 scripts/check_offline_bundle.py --manifest deploy/offline-manifest.example.json
+```
+
+Deploy on an air-gapped host (models at `${MODELS_DIR:-/models}`):
+
+```bash
+cp deploy/offline.env.example deploy/offline.env   # set OPS_TOKEN, MODELS_DIR
+docker compose -f deploy/compose-offline.yml --env-file deploy/offline.env up -d --build
+PYTHONPATH=. python3 scripts/check_docker_runtime.py | python3 -m json.tool
+```
+
+Boot persistence (systemd):
+
+```bash
+sudo cp -r . /opt/smart-material-system
+sudo cp deploy/systemd/smart-material-system.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now smart-material-system.service
+```
+
+Image digests: fill `deploy/offline-manifest.example.json` after `docker pull` (`docker inspect --format='{{index .RepoDigests 0}}' IMAGE`).
 
 ## Phase A status
 

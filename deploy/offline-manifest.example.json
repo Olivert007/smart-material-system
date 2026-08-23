@@ -17,8 +17,9 @@
     },
     {
       "image": "vllm/vllm-openai",
-      "tag": "latest",
-      "digest": "sha256:REPLACE_ME"
+      "tag": "v0.8.5",
+      "digest": "sha256:REPLACE_ME",
+      "note": "Pin digest after docker pull; use image@digest in compose-offline"
     }
   ],
   "wheelhouse": "offline/wheelhouse",

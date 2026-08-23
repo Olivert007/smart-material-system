@@ -45,3 +45,9 @@ frontend/dist/
 .env.*
 !.env.example
 deploy/.env
+
+# Offline build artifacts (regenerate via scripts/prepare_offline_bundle.py)
+offline/wheelhouse/*
+offline/npm-cache/*
+!offline/wheelhouse/.gitkeep
+!offline/npm-cache/.gitkeep
