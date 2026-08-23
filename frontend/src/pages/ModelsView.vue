@@ -9,6 +9,7 @@
       :description="runtimeBanner.desc"
       class="runtime-banner"
     />
+    <p class="action-hint">{{ MODEL_WEB_ACTION_HINT }}</p>
     <div class="toolbar">
       <el-space wrap>
         <el-button type="primary" :loading="loading" @click="load">重扫</el-button>
@@ -41,8 +42,8 @@
           </el-collapse-item>
         </el-collapse>
         <div class="actions">
-          <el-button size="small" :loading="actionBusy === c.role" @click="activate(c.role)">设为活跃</el-button>
-          <el-button size="small" :loading="actionBusy === c.role" @click="restart(c.role)">受控重启</el-button>
+          <el-button size="small" :loading="actionBusy === c.role" @click="activate(c.role)">记录切换请求</el-button>
+          <el-button size="small" :loading="actionBusy === c.role" @click="restart(c.role)">记录重启请求</el-button>
         </div>
       </div>
     </div>
@@ -53,6 +54,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatApiError, modelActivate, modelRestart, modelsStatus } from '@/api/client'
+import { MODEL_WEB_ACTION_HINT, runtimeLevelTitle } from '@/utils/copywriting'
 
 type RoleCard = {
   role: 'embed' | 'fast' | 'big'
@@ -87,7 +89,7 @@ const runtimeBanner = computed(() => {
   if (level === 'full') return null
   const blocking = (s.blocking || []).join('、') || '部分模型不可用或名称不匹配'
   return {
-    title: `runtime_level: ${level}`,
+    title: runtimeLevelTitle(level),
     type: 'warning' as const,
     desc: `当前非完整运行态。影响：${blocking}。规则路径仍可演示；复杂生成与语义召回可能降级。`,
   }
@@ -198,7 +200,11 @@ async function activate(role: 'big' | 'fast' | 'embed') {
     return
   }
   try {
-    await ElMessageBox.confirm(`切换 ${role} 为活跃档位？将记录审计。`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      `向后端记录将 ${roleLabel(role)} 切换为活跃档位的请求？不会直接启动模型进程。`,
+      '记录切换请求',
+      { type: 'warning' },
+    )
   } catch { return }
   actionBusy.value = role
   try {
@@ -218,7 +224,11 @@ async function restart(role: 'big' | 'fast' | 'embed') {
     return
   }
   try {
-    await ElMessageBox.confirm(`请求受控重启 ${role}？`, '确认', { type: 'warning' })
+    await ElMessageBox.confirm(
+      `向后端记录 ${roleLabel(role)} 重启请求？不会在本页直接重启模型进程。`,
+      '记录重启请求',
+      { type: 'warning' },
+    )
   } catch { return }
   actionBusy.value = role
   try {
@@ -236,6 +246,7 @@ onMounted(load)
 
 <style scoped>
 .models { display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0; }
+.action-hint { margin: 0; color: #909399; font-size: 13px; line-height: 1.5; }
 .toolbar { display: flex; }
 .cards {
   display: grid;

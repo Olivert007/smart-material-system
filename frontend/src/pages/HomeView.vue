@@ -147,7 +147,7 @@ import {
   dataStateTagType,
   mapIntakeStatusToDataState,
 } from '@/utils/dataStates'
-import { DATA_SCOPE_DISCLAIMER } from '@/utils/copywriting'
+import { DATA_SCOPE_DISCLAIMER, runtimeLevelTitle } from '@/utils/copywriting'
 
 const router = useRouter()
 const loading = ref(false)
@@ -160,26 +160,26 @@ const runtimeHint = computed(() => {
   if (!level || level === 'full') return null
   if (level === 'none') {
     return {
-      title: '运行态：API 未就绪（runtime_level=none）',
+      title: runtimeLevelTitle('none'),
       type: 'error' as const,
       desc: '后端或 worker 未启动，上传解析与模型能力均不可用。请运行 ./scripts/start_dev_stack.sh 查看启动顺序。',
     }
   }
   if (level === 'dev_ok') {
     return {
-      title: '运行态：开发态可用（runtime_level=dev_ok）',
+      title: runtimeLevelTitle('dev_ok'),
       type: 'info' as const,
-      desc: 'API 与前端已就绪，但本地模型服务未启动；规则路径可演示，智能建议与 Text2SQL 不可用。',
+      desc: 'API 与前端已就绪，但本地模型服务未启动；规则路径可演示，智能建议与复杂问数不可用。',
     }
   }
   const impact =
     runtimeBlocking.value.length > 0
       ? runtimeBlocking.value.join('、')
-      : 'big/embed/fast 部分不可用或模型名不匹配'
+      : '部分模型不可用或名称不匹配'
   return {
-    title: '运行态：模型能力受限（runtime_level=stage1_degraded）',
+    title: runtimeLevelTitle('stage1_degraded'),
     type: 'warning' as const,
-    desc: `影响：${impact}。复杂生成与语义召回可能降级；规则路径与数据接入仍可运行。完整验收请运行 check_runtime.py。`,
+    desc: `影响：${impact}。复杂生成与语义召回可能降级；规则路径与数据接入仍可运行。可在「系统设置 → 本地模型」查看详情。`,
   }
 })
 
