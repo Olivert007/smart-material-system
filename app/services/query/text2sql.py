@@ -8,6 +8,10 @@ from app import config
 from app.repositories import biz_conn, meta_tx
 from app.services.jsonutil import json_safe
 from app.services.llm.model_client import chat
+from app.services.query.ask_insights import (
+    degraded_suggested_examples,
+    empty_result_insight,
+)
 from app.services.sql_guard import validate_readonly_sql
 
 SCHEMA_ZH = {
@@ -253,9 +257,16 @@ def _ask(question: str) -> dict:
             # definition_sql 也返回 NULL（不可加总）。此时展示「—」，避免误读为 0。
             if val is None:
                 answer = f"{best.get('metric_name')} = —{(' ' + unit) if unit else ''}"
+                insight = empty_result_insight(
+                    question=q,
+                    sql=sql,
+                    source="metric_template",
+                    metric_id=mid,
+                )
             else:
                 answer = f"{best.get('metric_name')} = {val}{(' ' + unit) if unit else ''}"
-            return {
+                insight = None
+            payload = {
                 "question": q,
                 "ok": True,
                 "sql": sql,
@@ -278,6 +289,9 @@ def _ask(question: str) -> dict:
                 "latency_ms": 0,
                 "hint": "指标模板优先：未调用生成模型",
             }
+            if insight:
+                payload.update(insight)
+            return payload
 
     schema = schema_summary()
     sys_msg = (
@@ -338,16 +352,7 @@ def _ask(question: str) -> dict:
                 if degraded
                 else None
             ),
-            "suggested_examples": (
-                [
-                    "库存总量是多少",
-                    "库存表有多少行",
-                    "资产台数有多少",
-                    "入库合计是多少",
-                ]
-                if degraded
-                else None
-            ),
+            "suggested_examples": degraded_suggested_examples() if degraded else None,
         }
 
     sql = _extract_sql(result.text)
@@ -425,7 +430,7 @@ def _ask(question: str) -> dict:
         answer = lines[-1] if lines else answer
     total_rows = int(len(df))
     row_cap = config.QUERY_ROW_LIMIT
-    return {
+    payload = {
         **base,
         "ok": True,
         "sql": guard.sql,
@@ -437,3 +442,8 @@ def _ask(question: str) -> dict:
         "answer": answer,
         "summary_model_state": summary.model_state,
     }
+    if total_rows == 0:
+        payload.update(
+            empty_result_insight(question=q, sql=guard.sql, source="llm_text2sql")
+        )
+    return payload

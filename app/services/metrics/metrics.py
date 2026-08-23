@@ -245,6 +245,60 @@ BUSINESS_METRICS: list[dict[str, Any]] = [
         "data_check_sql": "SELECT COUNT(*) AS n FROM fact_inventory WHERE age_days IS NOT NULL",
     },
     {
+        "metric_id": "INV_ZERO_STOCK_CNT",
+        "metric_name": "零库存物资数",
+        "aliases": json.dumps(
+            ["零库存", "库存为0", "库存为零", "零库存物资有多少"],
+            ensure_ascii=False,
+        ),
+        "unit": "种",
+        "definition": "stock_qty = 0 或 stock_qty IS NULL 的库存行数",
+        "definition_sql": (
+            "SELECT COUNT(*) AS v FROM fact_inventory "
+            "WHERE stock_qty IS NULL OR stock_qty = 0"
+        ),
+        "source_tables": "fact_inventory",
+        "engine": "biz",
+        "status": "active",
+        "metric_group": "business",
+    },
+    {
+        "metric_id": "INV_MISSING_LOCATION_CNT",
+        "metric_name": "缺库位库存行数",
+        "aliases": json.dumps(
+            ["缺少库位", "缺库位", "无库位", "缺少库位的库存有多少"],
+            ensure_ascii=False,
+        ),
+        "unit": "行",
+        "definition": "location 为空或仅空白的库存行数",
+        "definition_sql": (
+            "SELECT COUNT(*) AS v FROM fact_inventory "
+            "WHERE location IS NULL OR TRIM(location) = ''"
+        ),
+        "source_tables": "fact_inventory",
+        "engine": "biz",
+        "status": "active",
+        "metric_group": "business",
+    },
+    {
+        "metric_id": "ASSET_MISSING_MANAGER_CNT",
+        "metric_name": "缺保管人资产数",
+        "aliases": json.dumps(
+            ["缺少保管人", "缺保管人", "无保管人", "缺少保管人的资产有多少"],
+            ensure_ascii=False,
+        ),
+        "unit": "台",
+        "definition": "manager 为空或仅空白的资产行数",
+        "definition_sql": (
+            "SELECT COUNT(*) AS v FROM fact_asset "
+            "WHERE manager IS NULL OR TRIM(manager) = ''"
+        ),
+        "source_tables": "fact_asset",
+        "engine": "biz",
+        "status": "active",
+        "metric_group": "business",
+    },
+    {
         "metric_id": "FLOW_IN_QTY_TOTAL",
         "metric_name": "入库流水合计",
         "aliases": json.dumps(

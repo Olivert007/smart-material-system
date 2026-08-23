@@ -565,6 +565,21 @@ export type AskResult = {
   degraded?: boolean
   available_capabilities?: string[]
   suggested_examples?: string[]
+  empty_reason?: string
+  suggested_next?: string[]
+}
+
+export type AskRecommendations = {
+  questions: string[]
+  hint?: string | null
+  data_state?: string
+  tables?: Record<string, number>
+}
+
+export async function fetchAskRecommendations(modelAvailable = true) {
+  return apiJson<AskRecommendations>(
+    `/ask/recommendations?model_available=${modelAvailable ? 'true' : 'false'}`,
+  )
 }
 
 export async function askQuestion(question: string) {

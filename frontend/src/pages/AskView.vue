@@ -12,6 +12,24 @@
       <el-button size="small" @click="$router.push('/system?tab=models')">查看模型状态</el-button>
     </div>
 
+    <el-card v-if="recommendedQuestions.length || recommendHint" class="recommend" shadow="never">
+      <template #header>
+        <span>推荐问题</span>
+      </template>
+      <p v-if="recommendHint" class="recommend-hint">{{ recommendHint }}</p>
+      <div class="recommend-chips">
+        <el-button
+          v-for="q in recommendedQuestions"
+          :key="q"
+          size="small"
+          round
+          @click="askFromChip(q)"
+        >
+          {{ q }}
+        </el-button>
+      </div>
+    </el-card>
+
     <div class="composer">
       <el-input
         v-model="question"
@@ -71,6 +89,23 @@
       />
       <div v-if="isModelDegraded(result) && !modelDown" class="ask-degraded-actions">
         <el-button size="small" @click="$router.push('/system?tab=models')">查看模型状态</el-button>
+      </div>
+      <div
+        v-if="isModelDegraded(result) && result.suggested_examples?.length"
+        class="suggested-examples"
+      >
+        <div class="label">仍可尝试的指标类问题</div>
+        <div class="recommend-chips">
+          <el-button
+            v-for="q in result.suggested_examples"
+            :key="q"
+            size="small"
+            round
+            @click="askFromChip(q)"
+          >
+            {{ q }}
+          </el-button>
+        </div>
       </div>
       <el-alert
         v-if="result.answer"
@@ -138,7 +173,35 @@
         :title="`结果共 ${result.total_rows ?? result.rows ?? 0} 行，页面仅展示前 ${result.data?.length ?? 0} 行`"
         description="请缩小查询范围，或使用数据成果导出完整明细。"
       />
-      <div v-if="result.ok && !result.data?.length" class="empty">无数据行（行数={{ result.rows ?? 0 }}）</div>
+      <el-alert
+        v-if="result.ok && !result.data?.length && result.empty_reason"
+        type="info"
+        :closable="false"
+        show-icon
+        class="empty-insight"
+        title="未查到数据"
+        :description="result.empty_reason"
+      />
+      <div
+        v-if="result.ok && result.suggested_next?.length"
+        class="suggested-next"
+      >
+        <div class="label">可以继续问</div>
+        <div class="recommend-chips">
+          <el-button
+            v-for="q in result.suggested_next"
+            :key="q"
+            size="small"
+            round
+            @click="askFromChip(q)"
+          >
+            {{ q }}
+          </el-button>
+        </div>
+      </div>
+      <div v-else-if="result.ok && !result.data?.length && !result.empty_reason" class="empty">
+        无数据行（行数={{ result.rows ?? 0 }}）
+      </div>
 
       <el-collapse v-if="hasLocalToken" class="adv-fold">
         <el-collapse-item title="技术详情（模型状态 / 耗时）" name="adv">
@@ -162,7 +225,7 @@ import * as echarts from 'echarts/core'
 import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { askQuestion, downloadCsv, formatApiError, modelsStatus, type AskResult } from '@/api/client'
+import { askQuestion, downloadCsv, fetchAskRecommendations, formatApiError, modelsStatus, type AskResult } from '@/api/client'
 import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
 import { ASK_RESULT_SCOPE } from '@/utils/copywriting'
 
@@ -181,6 +244,8 @@ const SINGLE_VALUE_EXAMPLES = [
   '出库合计是多少',
   '超定额物资有多少',
   '呆滞料有多少行',
+  '零库存物资有多少',
+  '缺少库位的库存有多少',
 ]
 /** 需本地模型的分组/前N 类复杂问数，仅模型可用时展示。 */
 const COMPLEX_EXAMPLES = [
@@ -197,6 +262,13 @@ const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 const modelDown = ref(false)
 const hasLocalToken = computed(() => Boolean(localStorage.getItem('ops_token')))
+const recommendedQuestions = ref<string[]>([])
+const recommendHint = ref<string | null>(null)
+
+function askFromChip(q: string) {
+  question.value = q
+  runAsk()
+}
 
 /** 单值指标命中：指标模板 + 单行单列结果，以业务结果表呈现而非 v 列表格。 */
 const singleMetric = computed(() => {
@@ -352,6 +424,15 @@ onMounted(async () => {
   } catch {
     modelDown.value = false
   }
+  try {
+    const rec = await fetchAskRecommendations(!modelDown.value)
+    recommendedQuestions.value = rec.questions?.length
+      ? rec.questions
+      : (modelDown.value ? SINGLE_VALUE_EXAMPLES : examples.value)
+    recommendHint.value = rec.hint || null
+  } catch {
+    recommendedQuestions.value = modelDown.value ? SINGLE_VALUE_EXAMPLES : examples.value
+  }
   const q = typeof route.query.q === 'string' ? route.query.q : ''
   if (q) {
     question.value = q
@@ -376,6 +457,12 @@ watch(
 
 <style scoped>
 .ask { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.recommend { margin-bottom: 0; }
+.recommend-hint { margin: 0 0 10px; color: #606266; font-size: 13px; }
+.recommend-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.suggested-examples, .suggested-next { margin-bottom: 12px; }
+.suggested-examples .label, .suggested-next .label { font-size: 12px; color: #909399; margin-bottom: 6px; }
+.empty-insight { margin-bottom: 12px; }
 .composer { display: flex; flex-direction: column; gap: 10px; }
 .composer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ask-degraded-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
