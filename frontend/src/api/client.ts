@@ -59,7 +59,9 @@ export function formatApiError(e: unknown): string {
       return map[e.code] || `冲突（409）：${e.code}`
     }
     if (e.status === 503) return `服务暂不可用（503）：${e.message}`
-    if (e.status === 401 || e.status === 403) return `鉴权失败（${e.status}）：请检查 Ops Token`
+    if (e.status === 401 || e.status === 403) {
+      return `写入需本机操作口令（${e.status}）：请先到「系统设置」配置`
+    }
     if (e.code === 'EMPTY_EXPORT') return e.message || '当前筛选条件查询结果为空，不支持导出，请重新设置筛选条件'
     const rid = e.requestId ? `（request_id: ${e.requestId}）` : ''
     return `${e.message}${rid}`
@@ -69,7 +71,7 @@ export function formatApiError(e: unknown): string {
 
 function opsHeaders(): HeadersInit {
   const token = localStorage.getItem('ops_token') || ''
-  const role = localStorage.getItem('ops_role') || 'ops'
+  const role = token ? (localStorage.getItem('ops_role') || 'ops') : 'viewer'
   const h: Record<string, string> = {}
   if (token) h['X-Ops-Token'] = token
   if (role) h['X-Ops-Role'] = role

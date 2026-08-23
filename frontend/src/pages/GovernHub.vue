@@ -168,10 +168,7 @@ const isNoData = computed(
     reconcileTotal.value === 0,
 )
 
-const metricsEditable = computed(() => {
-  const role = localStorage.getItem('ops_role') || 'ops'
-  return role === 'ops' || role === 'govern'
-})
+const metricsEditable = computed(() => Boolean(localStorage.getItem('ops_token')))
 
 const gateMissing = computed(() => {
   if (summary.value?.gate?.ready === false) return (summary.value.gate.missing || []).length

@@ -9,7 +9,7 @@
         :description="headline.description"
       />
       <div class="quick-actions">
-        <el-button @click="$router.push('/system?tab=settings')">账户角色</el-button>
+        <el-button @click="$router.push('/system?tab=settings')">本机设置</el-button>
         <el-button @click="$router.push('/system?tab=models')">本地模型</el-button>
         <el-button @click="$router.push('/trace')">追溯审计</el-button>
         <el-button :loading="refreshing" @click="refreshAll">刷新</el-button>

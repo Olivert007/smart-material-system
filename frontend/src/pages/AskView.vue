@@ -140,7 +140,7 @@
       />
       <div v-if="result.ok && !result.data?.length" class="empty">无数据行（行数={{ result.rows ?? 0 }}）</div>
 
-      <el-collapse v-if="isOps" class="adv-fold">
+      <el-collapse v-if="hasLocalToken" class="adv-fold">
         <el-collapse-item title="技术详情（模型状态 / 耗时）" name="adv">
           <div class="adv-meta">
             <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
@@ -196,7 +196,7 @@ const result = ref<AskResult | null>(null)
 const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 const modelDown = ref(false)
-const isOps = computed(() => (localStorage.getItem('ops_role') || '') === 'ops')
+const hasLocalToken = computed(() => Boolean(localStorage.getItem('ops_token')))
 
 /** 单值指标命中：指标模板 + 单行单列结果，以业务结果表呈现而非 v 列表格。 */
 const singleMetric = computed(() => {

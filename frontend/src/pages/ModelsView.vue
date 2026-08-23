@@ -32,7 +32,7 @@
           <div v-if="c.ok">状态：可用</div>
           <div v-else class="err">状态：不可用（已保留规则路径）</div>
         </div>
-        <el-collapse v-if="isOps">
+        <el-collapse v-if="hasLocalToken">
           <el-collapse-item title="高级详情（接口地址 / 错误信息）" :name="c.role">
             <div class="mono">
               <div>接口地址: {{ c.endpoint || '—' }}</div>
@@ -78,7 +78,7 @@ type RuntimeModelEntry = {
 const loading = ref(false)
 const actionBusy = ref('')
 const status = ref<Awaited<ReturnType<typeof modelsStatus>> | null>(null)
-const isOps = computed(() => (localStorage.getItem('ops_role') || '') === 'ops')
+const hasLocalToken = computed(() => Boolean(localStorage.getItem('ops_token')))
 
 const runtimeBanner = computed(() => {
   const s = status.value

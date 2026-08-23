@@ -9,7 +9,7 @@
         <el-menu-item index="/data">数据成果</el-menu-item>
         <el-menu-item index="/ask">问数助手</el-menu-item>
         <el-menu-item index="/trace">追溯审计</el-menu-item>
-        <el-menu-item v-if="isOps" index="/system">系统运维</el-menu-item>
+        <el-menu-item index="/system">系统设置</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -36,10 +36,6 @@ import { healthReady } from '@/api/client'
 const route = useRoute()
 const router = useRouter()
 const systemReady = ref(false)
-const opsRole = ref(localStorage.getItem('ops_role') || 'viewer')
-
-const isOps = computed(() => opsRole.value === 'ops')
-
 const activePath = computed(() => {
   const p = route.path
   if (p === '/browse' || p === '/reports') return '/data'
@@ -55,7 +51,7 @@ const title = computed(() => {
     '/ask': '问数助手',
     '/data': '数据成果',
     '/govern': '数据规整',
-    '/system': '系统运维',
+    '/system': '系统设置',
     '/intake': '数据接入',
     '/trace': '追溯审计',
   }
@@ -67,14 +63,8 @@ function onAuthRequired() {
   router.push({ path: '/system', query: { tab: 'settings' } })
 }
 
-function onStorage() {
-  opsRole.value = localStorage.getItem('ops_role') || 'viewer'
-}
-
 onMounted(async () => {
   window.addEventListener('ops-auth-required', onAuthRequired)
-  window.addEventListener('storage', onStorage)
-  window.addEventListener('ops-settings-changed', onStorage)
   try {
     const h = await healthReady()
     systemReady.value = h.status === 'ready'
@@ -85,8 +75,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('ops-auth-required', onAuthRequired)
-  window.removeEventListener('storage', onStorage)
-  window.removeEventListener('ops-settings-changed', onStorage)
 })
 </script>
 
