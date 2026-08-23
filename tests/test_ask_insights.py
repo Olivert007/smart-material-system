@@ -106,6 +106,18 @@ def test_empty_result_insight_for_metric():
     assert "库存表有多少行" in insight["suggested_next"]
 
 
+def test_empty_result_insight_for_deliberate_null_metric():
+    """definition_sql 带 THEN NULL（多计量单位不可加总）时措辞区分“无数据”。"""
+    insight = empty_result_insight(
+        question="库存总量是多少",
+        sql="SELECT CASE WHEN COUNT(DISTINCT unit) > 1 THEN NULL ELSE SUM(stock_qty) END AS v FROM fact_inventory",
+        source="metric_template",
+        metric_id="INV_QTY_TOTAL",
+    )
+    assert "计量单位" in insight["empty_reason"]
+    assert "并非无数据" in insight["empty_reason"]
+
+
 def test_empty_result_insight_for_llm_zero_rows():
     insight = empty_result_insight(
         question="按库位统计电缆库存",

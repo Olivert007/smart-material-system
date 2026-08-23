@@ -86,12 +86,14 @@ def create_backup(tag: str | None = None) -> dict:
 def list_backups(*, limit: int = 20) -> dict:
     root = config.BACKUP
     root.mkdir(parents=True, exist_ok=True)
+    dirs = sorted(
+        (p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
+        key=lambda x: x.name,
+        reverse=True,
+    )
+    total = len(dirs)
     items: list[dict] = []
-    for p in sorted(root.iterdir(), key=lambda x: x.name, reverse=True):
-        if not p.is_dir():
-            continue
-        if p.name.startswith("."):
-            continue
+    for p in dirs[: max(1, min(limit, 100))]:
         manifest_path = p / "MANIFEST.json"
         created_at = None
         files_n = None
@@ -110,9 +112,7 @@ def list_backups(*, limit: int = 20) -> dict:
                 "files": files_n,
             }
         )
-        if len(items) >= max(1, min(limit, 100)):
-            break
-    return {"total": len(items), "items": items, "backup_root": str(root)}
+    return {"total": total, "items": items, "backup_root": str(root)}
 
 
 def _drill_path() -> Path:

@@ -178,7 +178,14 @@ def empty_result_insight(
     suggested_next: list[str] = []
 
     if source == "metric_template" and metric_id:
-        reasons.append("当前口径下没有符合条件的记录，或相关字段尚未填报。")
+        # definition_sql 带 CASE WHEN … THEN NULL 守卫（如 INV_QTY_TOTAL 多计量单位
+        # 不可加总）时，NULL 是口径刻意返回，不是无数据，措辞需区分。
+        if sql and re.search(r"THEN\s+NULL", sql or "", re.IGNORECASE):
+            reasons.append(
+                "该指标口径要求计量单位统一；当前数据存在多种计量单位，跨单位不可加总，故显示 —（并非无数据）。"
+            )
+        else:
+            reasons.append("当前口径下没有符合条件的记录，或相关字段尚未填报。")
         if metric_id.startswith("INV_"):
             suggested_next.extend(
                 ["库存表有多少行", "库存总量是多少", "超定额物资有多少"]

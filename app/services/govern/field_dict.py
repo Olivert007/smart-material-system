@@ -44,6 +44,9 @@ FIELD_ZH = {
     "min_qty": "最低数量",
     "temp_qty": "临时数量",
     "company_wh_qty": "公司仓数量",
+    # ZW 台账（新模板）扩展列（rpt_ledger_zw 报表列头汉化）
+    "storage_time": "物资储存时间",
+    "remaining_temp_qty": "剩余临时储存数量",
     "age_days": "库龄(天)",
     "unit_cost": "单价",
     "stock_value": "库存金额",

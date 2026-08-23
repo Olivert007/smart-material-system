@@ -37,6 +37,25 @@ def test_full_runtime():
     assert rt["stage"] == 2
 
 
+def test_all_models_down_is_dev_ok():
+    """全部模型未启动但 API 在线：归为 dev_ok（none 仅表示 API 未 ready）。"""
+    status = {
+        "big": {"ok": False, "configured_model": "qwen3.6-27b", "models": []},
+        "fast": {"ok": False, "configured_model": "qwen2.5-7b", "models": []},
+        "embed": {
+            "ok": False,
+            "configured_model": "qwen3-embedding-0.6b",
+            "models": [],
+            "lexical_fallback": True,
+        },
+    }
+    rt = compute_model_runtime(status)
+    assert rt["model_runtime"] == "dev_ok"
+    assert rt["stage"] == 0
+    assert "fast_unavailable" in rt["blocking"]
+    assert "embed_lexical_fallback" in rt["warnings"]
+
+
 def test_embed_lexical_fallback_warning():
     status = {
         "big": {"ok": False, "configured_model": "qwen3.6-27b", "models": []},

@@ -188,7 +188,24 @@ def process_parse_evidence(task_id: str) -> None:
             """,
             [_now(), task_id],
         )
-        path = Path(fb["stored_path"])
+        stored_path = fb["stored_path"]
+        if not stored_path or not Path(stored_path).exists():
+            # B-1: 上传记录缺失或落盘文件被清理时，任务标记失败而非崩溃（worker 循环不再空转）
+            con.execute(
+                """
+                UPDATE intake_task
+                SET status='failed', progress=100, message=?,
+                    finished_at=?, heartbeat_at=NULL
+                WHERE task_id=?
+                """,
+                ["stored file missing (uploaded file not found)", _now(), task_id],
+            )
+            con.execute(
+                "UPDATE file_batch SET status='failed' WHERE file_id=?",
+                [file_id],
+            )
+            return
+        path = Path(stored_path)
 
     phase = "load_evidence"
     try:

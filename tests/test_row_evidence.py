@@ -168,3 +168,18 @@ def test_row_evidence_not_found(client):
         params={"release_id": "rel-row-1", "row_key": "nope"},
     )
     assert r.status_code == 404
+
+
+def test_values_equal_tolerates_numeric_type_mismatch():
+    """规整前后数值类型不一致（"0" vs 0、1.0 vs 1）不应误标为“已规整”。"""
+    from app.services.govern.row_evidence import _values_equal
+
+    assert _values_equal("0", 0) is True
+    assert _values_equal(0, 0) is True
+    assert _values_equal(1.0, 1) is True
+    assert _values_equal("120", 120) is True
+    assert _values_equal("50+", 50) is False
+    assert _values_equal("米", "米") is True
+    assert _values_equal(None, None) is True
+    assert _values_equal(None, 0) is False
+    assert _values_equal("A1", "A-1") is False

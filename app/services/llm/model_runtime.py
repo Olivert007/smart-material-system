@@ -65,7 +65,9 @@ def compute_model_runtime(models_status: dict[str, Any]) -> dict[str, Any]:
     warnings: list[str] = []
 
     if not fast_ok and not big_ok and not embed_ok:
-        model_runtime = "none"
+        # none = API 未 ready（docs/17 口径）；模型均未启动但 API 在线时归为 dev_ok，
+        # 避免首页把「本地模型未启动」误报为「后端或 worker 未启动」
+        model_runtime = "dev_ok"
         blocking.extend(["fast_unavailable", "big_unavailable", "embed_unavailable"])
     elif fast_ok and not big_ok and not embed_ok:
         model_runtime = "fast_only"
@@ -92,7 +94,7 @@ def compute_model_runtime(models_status: dict[str, Any]) -> dict[str, Any]:
     if model_runtime != "full":
         warnings.append("stage_degraded")
 
-    stage_map = {"none": 0, "fast_only": 2, "degraded": 2, "full": 2}
+    stage_map = {"none": 0, "dev_ok": 0, "fast_only": 2, "degraded": 2, "full": 2}
     return {
         "model_runtime": model_runtime,
         "model_match": model_match,

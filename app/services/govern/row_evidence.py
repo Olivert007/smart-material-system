@@ -54,6 +54,19 @@ def _json_safe(v: Any) -> Any:
         return None
 
 
+def _values_equal(a: Any, b: Any) -> bool:
+    """规整前后值比较：容忍类型差异（Excel 原始值常为 str，规整值为数值）。"""
+    if a is None or b is None:
+        return a is None and b is None
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a == b
+    # 数字字符串与数值（如 "0" vs 0、1.0 vs 1）按数值比较
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return str(a).strip() == str(b).strip()
+
+
 def _cell(df: pd.DataFrame, idx: int, col: str | None) -> Any:
     if col is None or col not in df.columns:
         return None
@@ -218,7 +231,7 @@ def row_evidence(release_id: str, row_key: str) -> dict[str, Any]:
                 "source_header": header,
                 "raw_value": raw_val,
                 "clean_value": clean_val,
-                "changed": (raw_val != clean_val) if raw_val is not None else None,
+                "changed": (not _values_equal(raw_val, clean_val)) if raw_val is not None else None,
             }
         )
 

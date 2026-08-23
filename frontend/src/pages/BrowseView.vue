@@ -82,7 +82,11 @@ const loading = ref(true)
 const result = ref<BrowseResult | null>(null)
 
 const modeState = computed(() => (props.mode === 'staged' ? 'standardized' : 'available'))
-const emptyText = computed(() => '暂无数据，请先在「数据接入」上传并完成规整确认')
+const emptyText = computed(() =>
+  table.value === 'fact_quota_adjust'
+    ? '该业务表当前为空：尚未接入并发布定额调整记录'
+    : '暂无数据，请先在「数据接入」上传并完成规整确认',
+)
 const exportLabel = computed(() =>
   props.mode === 'staged' ? '规整快照' : '可用数据',
 )

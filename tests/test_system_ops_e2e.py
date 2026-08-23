@@ -106,7 +106,8 @@ def test_models_status_structure(client):
     r = client.get("/api/v1/models/status")
     assert r.status_code == 200
     body = r.json()
-    assert "stage" in body and body["stage"] in (1, 2)
+    # 模型全未启动时 stage=0（dev_ok）；有模型在线时 stage=1/2。结构上仅要求合法整数。
+    assert "stage" in body and isinstance(body["stage"], int) and body["stage"] in (0, 1, 2)
     for role in ("big", "fast", "embed"):
         item = body[role]
         assert "configured_model" in item and "ok" in item

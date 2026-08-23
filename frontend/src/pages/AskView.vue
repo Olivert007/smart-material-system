@@ -174,7 +174,7 @@
         description="请缩小查询范围，或使用数据成果导出完整明细。"
       />
       <el-alert
-        v-if="result.ok && !result.data?.length && result.empty_reason"
+        v-if="result.ok && result.empty_reason && (!result.data?.length || singleMetricValue == null)"
         type="info"
         :closable="false"
         show-icon

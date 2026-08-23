@@ -8,6 +8,8 @@ data/eval/
 data/test_run/
 data/*.sqlite
 data/*.sqlite.*
+data/*.sqlite-wal
+data/*.sqlite-shm
 data/*.duckdb
 data/*.duckdb.*
 
