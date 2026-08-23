@@ -28,11 +28,36 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENDPOINTS = [
-    {"name": "big", "port": 8001, "heal": True},
-    {"name": "fast", "port": 8000, "heal": False},
-    {"name": "embed", "port": 8002, "heal": False},
-]
+
+HEAL_TIMEOUT_SEC = {
+    "fast": int(os.environ.get("HEAL_TIMEOUT_FAST", "30")),
+    "embed": int(os.environ.get("HEAL_TIMEOUT_EMBED", "240")),
+    "big": int(os.environ.get("HEAL_TIMEOUT_BIG", "1200")),
+}
+
+
+def endpoints_from_env(env: dict[str, str] | None = None) -> list[dict]:
+    e = env or os.environ
+    return [
+        {
+            "name": "big",
+            "port": int(e.get("VLLM_BIG_PORT", "8001")),
+            "heal": e.get("WATCHDOG_HEAL_BIG", "1") == "1",
+        },
+        {
+            "name": "fast",
+            "port": int(e.get("VLLM_FAST_PORT", "8000")),
+            "heal": e.get("WATCHDOG_HEAL_FAST", "0") == "1",
+        },
+        {
+            "name": "embed",
+            "port": int(e.get("VLLM_EMBED_PORT", "8002")),
+            "heal": e.get("WATCHDOG_HEAL_EMBED", "0") == "1",
+        },
+    ]
+
+
+ENDPOINTS = endpoints_from_env()
 # vllm 进程主机 RSS 告警阈值（GB）；GB10 统一内存 128GB
 RSS_ALARM_GB = float(os.environ.get("WATCHDOG_RSS_ALARM_GB", "100"))
 # 系统 MemAvailable 余量告警阈值（GB）
@@ -88,14 +113,19 @@ def http_up(port: int, timeout: float = 3.0) -> bool:
         return False
 
 
-def heal(name: str) -> None:
-    subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "models.sh"), "start", name],
+def heal(name: str) -> dict:
+    timeout = HEAL_TIMEOUT_SEC.get(name, 30)
+    r = subprocess.run(
+        ["bash", str(ROOT / "scripts" / "models.sh"), "start", name],
         check=False,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=timeout,
     )
+    return {
+        "heal_rc": r.returncode,
+        "heal_stdout_tail": (r.stdout or r.stderr or "")[-2000:],
+    }
 
 
 def mem_guard() -> str:
@@ -129,8 +159,8 @@ def check_once(*, heal: bool, guard: bool = False) -> dict:
         if not up:
             state["alarms"].append(f"{name}:800{port % 1000}_DOWN")
             if heal and ep["heal"]:
-                heal(name)
                 entry["healed"] = True
+                entry.update(heal(name))
                 state["alarms"].append(f"{name}_HEAL_ATTEMPT")
         for p, r in zip(pids, rss):
             if r > RSS_ALARM_GB:

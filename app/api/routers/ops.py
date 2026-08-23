@@ -11,6 +11,7 @@ from app import config
 from app.api.auth import require_ops
 from app.repositories import meta_conn
 from app.services import backup as backup_svc
+from app.services.llm.model_runtime import compute_model_runtime
 from app.services.model_client import probe_endpoint
 
 router = APIRouter(prefix=config.API_V1_PREFIX)
@@ -23,20 +24,24 @@ async def models_status():
         asyncio.to_thread(probe_endpoint, config.LLM_FAST_ENDPOINT),
         asyncio.to_thread(probe_endpoint, config.LLM_EMBED_ENDPOINT),
     )
-    stage = 2 if fast.get("ok") else 1
-    return {
-        "stage": stage,
+    payload = {
         "big": {**big, "configured_model": config.LLM_BIG_MODEL},
         "fast": {
             **fast,
             "configured_model": config.LLM_FAST_MODEL,
-            "note": "Stage 2+ (7B transition)" if stage >= 2 else "Stage 2+ (fast down → degraded_up)",
+            "note": "Stage 2+ (7B transition)",
         },
         "embed": {
             **embed,
             "configured_model": config.LLM_EMBED_MODEL,
             "lexical_fallback": config.EMBED_FALLBACK_LEXICAL,
         },
+    }
+    runtime = compute_model_runtime(payload)
+    return {
+        "stage": runtime["stage"],
+        **runtime,
+        **payload,
     }
 
 

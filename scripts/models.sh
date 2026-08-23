@@ -34,6 +34,26 @@ GUARD_FAST_GB="${GUARD_FAST_GB:-10}"
 
 is_up() { curl -sf --max-time 2 "http://127.0.0.1:$1/v1/models" >/dev/null 2>&1; }
 
+wait_ready() {
+  local name="$1" port timeout
+  case "$name" in
+    fast) timeout="${WAIT_FAST_SEC:-30}"; port="$FAST_PORT";;
+    embed) timeout="${WAIT_EMBED_SEC:-180}"; port="$EMBED_PORT";;
+    big) timeout="${WAIT_BIG_SEC:-1200}"; port="$BIG_PORT";;
+    *) echo "wait_ready: unknown role $name" >&2; return 1;;
+  esac
+  local start_ts=$SECONDS
+  while (( SECONDS - start_ts < timeout )); do
+    if is_up "$port"; then
+      echo "$name ready on :$port"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "$name wait_ready timeout after ${timeout}s (see /tmp/vllm-${name}.log)" >&2
+  return 1
+}
+
 free_gb() {
   # GB10 统一内存：取 MemAvailable（KB）→ GB
   awk '/MemAvailable/{printf "%d", $2/1024/1024}' /proc/meminfo
@@ -58,7 +78,7 @@ start_one() {
   local name="$1"
   case "$name" in
     big)
-      local log=/tmp/vllm-big-27b.log pid=/tmp/vllm-big-27b.pid
+      local log=/tmp/vllm-big.log pid=/tmp/vllm-big.pid
       if is_up "$BIG_PORT"; then echo "big already up on :$BIG_PORT"; return 0; fi
       [[ -d "$BIG_DIR" ]] || { echo "missing weights: $BIG_DIR" >&2; return 1; }
       nohup vllm serve "$BIG_DIR" --host 0.0.0.0 --port "$BIG_PORT" \
@@ -66,29 +86,32 @@ start_one() {
         --max-num-seqs "${MAX_NUM_SEQS:-16}" --served-model-name "$BIG_NAME" \
         --limit-mm-per-prompt '{"image":0}' >"$log" 2>&1 &
       echo $! >"$pid"
-      echo "big starting pid=$(cat "$pid") log=$log";;
+      echo "big starting pid=$(cat "$pid") log=$log"
+      wait_ready big;;
     fast)
       local log=/tmp/vllm-fast.log pid=/tmp/vllm-fast.pid
       if is_up "$FAST_PORT"; then echo "fast already up on :$FAST_PORT"; return 0; fi
       [[ -d "$FAST_DIR" ]] || { echo "missing weights: $FAST_DIR" >&2; return 1; }
       if (( $(free_gb) < FAST_MIN_FREE_GB )); then
-        echo "skip fast: mem_free=$(free_gb)GB < ${FAST_MIN_FREE_GB}GB (防 OOM)" >&2; return 1
+        echo "SKIP_FAST_OOM: mem_free=$(free_gb)GB < ${FAST_MIN_FREE_GB}GB" >&2
+        return 0
       fi
       nohup vllm serve "$FAST_DIR" --host 0.0.0.0 --port "$FAST_PORT" \
         --gpu-memory-utilization "${GPU_UTIL_FAST:-0.25}" --max-model-len "${MAX_LEN_FAST:-8192}" \
         --served-model-name "$FAST_NAME" >"$log" 2>&1 &
       echo $! >"$pid"
-      echo "fast starting pid=$(cat "$pid") log=$log";;
+      echo "fast starting pid=$(cat "$pid") log=$log"
+      wait_ready fast;;
     embed)
       local log=/tmp/vllm-embed.log pid=/tmp/vllm-embed.pid device_args=()
       if is_up "$EMBED_PORT"; then echo "embed already up on :$EMBED_PORT"; return 0; fi
       [[ -d "$EMBED_DIR" ]] || { echo "missing weights: $EMBED_DIR" >&2; return 1; }
       if [[ "$EMBED_DEVICE" == "cpu" ]]; then
-        # M-3 CPU 模式：vLLM --device cpu，不占用 GPU 显存；仅需系统内存
         device_args+=(--device cpu)
       else
         if (( $(free_gb) < EMBED_MIN_FREE_GB )); then
-          echo "skip embed: mem_free=$(free_gb)GB < ${EMBED_MIN_FREE_GB}GB (防 OOM)" >&2; return 1
+          echo "SKIP_EMBED_OOM: mem_free=$(free_gb)GB < ${EMBED_MIN_FREE_GB}GB" >&2
+          return 0
         fi
         device_args+=(--gpu-memory-utilization "${GPU_UTIL_EMBED:-0.08}")
       fi
@@ -97,7 +120,8 @@ start_one() {
         --served-model-name "$EMBED_NAME" "${device_args[@]}" \
         >"$log" 2>&1 &
       echo $! >"$pid"
-      echo "embed starting pid=$(cat "$pid") log=$log device=$EMBED_DEVICE";;
+      echo "embed starting pid=$(cat "$pid") log=$log device=$EMBED_DEVICE"
+      wait_ready embed;;
     *) echo "unknown endpoint: $name" >&2; return 1;;
   esac
 }
@@ -152,9 +176,20 @@ case "${1:-status}" in
   status) status;;
   start)
     case "${2:-}" in
-      all) start_one big; start_one embed; start_one fast;;
+      all)
+        degraded=0
+        start_one big || degraded=1
+        start_one embed || true
+        start_one fast || true
+        if (( degraded )); then echo "DEGRADED_START: big unavailable"; fi
+        ;;
       big|fast|embed) start_one "$2";;
       *) echo "usage: models.sh start <big|fast|embed|all>" >&2; exit 1;;
+    esac;;
+  wait)
+    case "${2:-}" in
+      big|fast|embed) wait_ready "$2";;
+      *) echo "usage: models.sh wait <big|fast|embed>" >&2; exit 1;;
     esac;;
   stop)
     case "${2:-}" in
