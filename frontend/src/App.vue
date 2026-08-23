@@ -2,20 +2,14 @@
   <el-container class="layout">
     <el-aside width="220px" class="aside">
       <div class="brand">物资数据规整</div>
-      <el-menu :default-active="activePath" router>
-        <el-menu-item-group title="日常">
-          <el-menu-item index="/">工作台</el-menu-item>
-          <el-menu-item index="/data">数据成果</el-menu-item>
-          <el-menu-item index="/ask">问数助手</el-menu-item>
-          <el-menu-item index="/trace">追溯审计</el-menu-item>
-        </el-menu-item-group>
-        <el-menu-item-group title="整理">
-          <el-menu-item index="/intake">数据接入</el-menu-item>
-          <el-menu-item index="/govern">数据规整</el-menu-item>
-        </el-menu-item-group>
-        <el-menu-item-group title="设置">
-          <el-menu-item index="/system">系统设置</el-menu-item>
-        </el-menu-item-group>
+      <el-menu :default-active="activePath" router class="nav-menu">
+        <el-menu-item index="/">工作台</el-menu-item>
+        <el-menu-item index="/intake">数据接入</el-menu-item>
+        <el-menu-item index="/govern">数据规整</el-menu-item>
+        <el-menu-item index="/data">数据成果</el-menu-item>
+        <el-menu-item index="/ask">问数助手</el-menu-item>
+        <el-menu-item index="/trace">追溯审计</el-menu-item>
+        <el-menu-item index="/system" class="nav-settings">系统设置</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -96,22 +90,17 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(255,255,255,0.15);
 }
 .aside :deep(.el-menu) { border-right: none; background: transparent; }
-.aside :deep(.el-menu-item-group__title) {
-  padding: 12px 16px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.55);
-  line-height: 1.4;
+.nav-menu :deep(.el-menu-item) {
+  color: rgba(255,255,255,0.88);
+  height: 44px;
+  line-height: 44px;
 }
-.aside :deep(.el-menu-item-group:not(:first-child) .el-menu-item-group__title) {
-  padding-top: 16px;
-  margin-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+.nav-menu :deep(.el-menu-item:hover) { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-menu :deep(.el-menu-item.is-active) { background: #0053b7; color: #fff; }
+.nav-menu :deep(.nav-settings) {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
-.aside :deep(.el-menu-item) { color: rgba(255,255,255,0.88); }
-.aside :deep(.el-menu-item:hover) { background: rgba(255,255,255,0.12); color: #fff; }
-.aside :deep(.el-menu-item.is-active) { background: #0053b7; color: #fff; }
 .header {
   display: flex; align-items: center; justify-content: space-between;
   background: #fff; border-bottom: 1px solid #ebeef5;
@@ -124,15 +113,21 @@ onUnmounted(() => {
   .layout { flex-direction: column; }
   .aside { width: 100% !important; height: auto; }
   .brand { padding: 12px 16px; }
-  .aside :deep(.el-menu) { display: flex; flex-wrap: wrap; overflow-x: auto; gap: 4px 8px; padding: 8px; }
-  .aside :deep(.el-menu-item-group) { display: contents; }
-  .aside :deep(.el-menu-item-group__title) {
-    flex: 0 0 100%;
-    padding: 8px 4px 0;
-    margin: 0;
-    border: none;
+  .nav-menu :deep(.el-menu) {
+    display: flex;
+    flex-wrap: wrap;
+    overflow-x: auto;
+    gap: 4px 8px;
+    padding: 8px;
   }
-  .aside :deep(.el-menu-item) { flex-shrink: 0; height: 44px; }
+  .nav-menu :deep(.el-menu-item) {
+    flex-shrink: 0;
+    height: 40px;
+    line-height: 40px;
+    margin: 0;
+    border-top: none;
+  }
+  .nav-menu :deep(.nav-settings) { margin-top: 0; border-top: none; }
   .header { padding: 0 12px; }
   .title { font-size: 16px; }
 }
