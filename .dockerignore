@@ -1,0 +1,13 @@
+.git
+data/
+*.sqlite
+*.sqlite-*
+*.duckdb
+node_modules
+.env
+frontend/node_modules
+frontend/dist
+.pytest_cache
+__pycache__
+*.pyc
+AI20260822/

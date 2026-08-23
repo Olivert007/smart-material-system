@@ -1,0 +1,47 @@
+{
+  "images": [
+    {
+      "image": "python",
+      "tag": "3.12-slim",
+      "digest": "sha256:REPLACE_ME"
+    },
+    {
+      "image": "node",
+      "tag": "20-bookworm",
+      "digest": "sha256:REPLACE_ME"
+    },
+    {
+      "image": "nginx",
+      "tag": "alpine",
+      "digest": "sha256:REPLACE_ME"
+    },
+    {
+      "image": "vllm/vllm-openai",
+      "tag": "latest",
+      "digest": "sha256:REPLACE_ME"
+    }
+  ],
+  "wheelhouse": "offline/wheelhouse",
+  "npm_cache": "offline/npm-cache",
+  "frontend_dist": "frontend/dist",
+  "models": [
+    {
+      "model": "Qwen3.6-27B-FP8",
+      "served_model_name": "qwen3.6-27b",
+      "path": "models/Qwen3.6-27B-FP8",
+      "sha256": "models/Qwen3.6-27B-FP8.sha256"
+    },
+    {
+      "model": "Qwen2.5-7B-Instruct",
+      "served_model_name": "qwen2.5-7b",
+      "path": "models/Qwen2.5-7B-Instruct",
+      "sha256": "models/Qwen2.5-7B-Instruct.sha256"
+    },
+    {
+      "model": "Qwen3-Embedding-0.6B",
+      "served_model_name": "qwen3-embedding-0.6b",
+      "path": "models/Qwen3-Embedding-0.6B",
+      "sha256": "models/Qwen3-Embedding-0.6B.sha256"
+    }
+  ]
+}

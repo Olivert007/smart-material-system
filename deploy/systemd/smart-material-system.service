@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Material System compose stack
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/smart-material-system
+EnvironmentFile=/opt/smart-material-system/deploy/offline.env
+ExecStart=/usr/bin/docker compose -f deploy/compose-offline.yml up -d
+ExecStop=/usr/bin/docker compose -f deploy/compose-offline.yml down
+
+[Install]
+WantedBy=multi-user.target

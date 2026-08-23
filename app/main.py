@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -86,7 +87,8 @@ async def lifespan(app: FastAPI):
     ensure_report_seed()
     recover_orphan_tasks()
     compensate_releasing()
-    worker.start()
+    if os.environ.get("DISABLE_INTAKE_WORKER", "0") != "1":
+        worker.start()
     yield
     worker.stop()
 
