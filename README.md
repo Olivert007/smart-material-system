@@ -120,10 +120,10 @@ embed 不可用时系统可词法 fallback（`EMBED_FALLBACK_LEXICAL=1`）；big
 - `Qwen2.5-7B-Instruct` → 过渡基线（已切走时可停）
 
 ```bash
-./scripts/start_vllm_big27.sh        # :8001
-./scripts/start_vllm_embed.sh        # :8002
-./scripts/start_api.sh               # :8010
-./scripts/build_frontend.sh          # F2 dist
+./scripts/models.sh status                 # 模型生命周期唯一入口（doc 20）
+./scripts/models.sh start big|fast|embed   # 或 start all（big 失败需 ALLOW_DEGRADED_START=1）
+./scripts/start_api.sh                     # :8010
+./scripts/build_frontend.sh                # F2 dist
 PYTHONPATH=. python3 scripts/smoke_f3_sse.py  # F3 SSE → F3_SSE_OK
 ./scripts/republish_sample.sh        # 真实样例 → fact_inventory
 bash ./scripts/harden_real_files.sh  # 多域真实文件压测 → data/eval/results/
