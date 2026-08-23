@@ -61,7 +61,8 @@ export function formatApiError(e: unknown): string {
     if (e.status === 503) return `服务暂不可用（503）：${e.message}`
     if (e.status === 401 || e.status === 403) return `鉴权失败（${e.status}）：请检查 Ops Token`
     if (e.code === 'EMPTY_EXPORT') return e.message || '当前筛选条件查询结果为空，不支持导出，请重新设置筛选条件'
-    return e.message
+    const rid = e.requestId ? `（request_id: ${e.requestId}）` : ''
+    return `${e.message}${rid}`
   }
   return e instanceof Error ? e.message : String(e)
 }
@@ -1160,10 +1161,14 @@ export async function getQualityStats(fileId: string) {
   }>(`/stats/quality/${fileId}`)
 }
 
-export async function listQualityBlocked(fileId: string, opts?: { limit?: number; offset?: number }) {
+export async function listQualityBlocked(
+  fileId: string,
+  opts?: { limit?: number; offset?: number; target_domain?: string },
+) {
   const q = new URLSearchParams()
   q.set('limit', String(opts?.limit ?? 50))
   q.set('offset', String(opts?.offset ?? 0))
+  if (opts?.target_domain) q.set('target_domain', opts.target_domain)
   return apiJson<{
     total: number
     items: Array<{

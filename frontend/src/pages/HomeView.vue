@@ -88,7 +88,8 @@
               v-if="row.file_id"
               link
               type="primary"
-              @click="$router.push(`/stage/${row.file_id}`)"
+              :disabled="row.status === 'failed'"
+              @click="goStage(row)"
             >
               规整确认
             </el-button>
@@ -152,22 +153,59 @@ const router = useRouter()
 const loading = ref(false)
 const overview = ref<StatsOverview | null>(null)
 const runtimeLevel = ref<string>('')
+const runtimeBlocking = ref<string[]>([])
 
 const runtimeHint = computed(() => {
-  if (!runtimeLevel.value || runtimeLevel.value === 'full') return null
-  if (runtimeLevel.value === 'none') {
+  const level = runtimeLevel.value
+  if (!level || level === 'full') return null
+  if (level === 'none') {
     return {
-      title: '运行态：API 未就绪',
+      title: '运行态：API 未就绪（runtime_level=none）',
       type: 'error' as const,
-      desc: '后端或 worker 未启动，部分功能不可用。请运行 ./scripts/start_dev_stack.sh 查看启动顺序。',
+      desc: '后端或 worker 未启动，上传解析与模型能力均不可用。请运行 ./scripts/start_dev_stack.sh 查看启动顺序。',
     }
   }
+  if (level === 'dev_ok') {
+    return {
+      title: '运行态：开发态可用（runtime_level=dev_ok）',
+      type: 'info' as const,
+      desc: 'API 与前端已就绪，但本地模型服务未启动；规则路径可演示，智能建议与 Text2SQL 不可用。',
+    }
+  }
+  const impact =
+    runtimeBlocking.value.length > 0
+      ? runtimeBlocking.value.join('、')
+      : 'big/embed/fast 部分不可用或模型名不匹配'
   return {
-    title: `运行态：${runtimeLevel.value === 'stage1_degraded' ? '模型能力受限' : '开发态可用'}`,
+    title: '运行态：模型能力受限（runtime_level=stage1_degraded）',
     type: 'warning' as const,
-    desc: 'big/embed 可能不可用或模型名不匹配；复杂生成与语义召回会降级，规则路径仍可运行。',
+    desc: `影响：${impact}。复杂生成与语义召回可能降级；规则路径与数据接入仍可运行。完整验收请运行 check_runtime.py。`,
   }
 })
+
+function canEnterStage(status?: string): boolean {
+  return ['evidence_done', 'staged', 'released'].includes(String(status || ''))
+}
+
+async function goStage(row: { file_id?: string; filename?: string; status?: string }) {
+  if (!row.file_id) return
+  if (row.status === 'failed') {
+    ElMessage.warning('该文件解析失败，请先到「数据接入」页重试解析或重新上传')
+    return
+  }
+  if (!canEnterStage(row.status)) {
+    try {
+      await ElMessageBox.confirm(
+        `文件「${row.filename || row.file_id}」尚未完成解析（当前：${fileStateLabel(row.status)}）。\n进入规整页可能无法继续，是否仍要查看？`,
+        '规整确认',
+        { type: 'warning', confirmButtonText: '仍要查看', cancelButtonText: '取消' },
+      )
+    } catch {
+      return
+    }
+  }
+  router.push(`/stage/${row.file_id}`)
+}
 
 const BIZ_METRICS: Record<string, { metric_id: string; hint: string }> = {
   sq: { metric_id: 'INV_QTY_TOTAL', hint: '米、个、包等计量单位不同，不能加总，故显示 —' },
@@ -362,6 +400,7 @@ async function onDeleteFile(row: { file_id?: string; filename?: string }) {
 async function loadRuntime() {
   try {
     const ms = await modelsStatus()
+    runtimeBlocking.value = Array.isArray(ms.blocking) ? ms.blocking : []
     if (ms.model_runtime) {
       runtimeLevel.value = ms.model_runtime
       return
@@ -370,6 +409,7 @@ async function loadRuntime() {
     runtimeLevel.value = allOk ? 'full' : 'stage1_degraded'
   } catch {
     runtimeLevel.value = 'none'
+    runtimeBlocking.value = ['api_not_ready']
   }
 }
 

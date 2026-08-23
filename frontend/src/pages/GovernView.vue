@@ -481,6 +481,52 @@
           <el-table-column prop="source_file" label="来源" min-width="160" show-overflow-tooltip />
         </el-table>
       </el-card>
+
+      <el-card shadow="never">
+        <template #header>
+          <div class="result-head">
+            <span>版本与血缘（高级）</span>
+            <el-space>
+              <el-button :loading="lineageLoading" @click="loadLineageReleases">刷新发布版本</el-button>
+            </el-space>
+          </div>
+        </template>
+        <p class="danger-hint">以下操作会修改已发布数据或版本链，执行前请确认 release_id 与影响范围。</p>
+        <el-table :data="lineageItems" v-loading="lineageLoading" border size="small" empty-text="暂无发布版本">
+          <el-table-column prop="release_id" label="release_id" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="target_domain" label="域" width="100" />
+          <el-table-column prop="clean_rows" label="行数" width="80" />
+          <el-table-column prop="released_at" label="发布时间" width="170" />
+          <el-table-column label="操作" width="120" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="lineageRebuildId = String(row.release_id)">
+                选用
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-form label-width="120px" class="danger-form">
+          <el-form-item label="版本取代">
+            <el-space wrap>
+              <el-input v-model="supersedeNewer" placeholder="较新版本 release_id" style="width: 220px" />
+              <span>取代</span>
+              <el-input v-model="supersedeOlder" placeholder="较旧版本 release_id" style="width: 220px" />
+              <el-button type="danger" plain :loading="lineageActionBusy" @click="runReleaseSupersede">
+                执行取代
+              </el-button>
+            </el-space>
+          </el-form-item>
+          <el-form-item label="血缘重建">
+            <el-space wrap>
+              <el-input v-model="lineageRebuildId" placeholder="release_id" style="width: 280px" />
+              <el-checkbox v-model="lineageRevokeOnly">仅撤销（不重建）</el-checkbox>
+              <el-button type="danger" :loading="lineageActionBusy" @click="runLineageRebuild">
+                执行重建
+              </el-button>
+            </el-space>
+          </el-form-item>
+        </el-form>
+      </el-card>
     </template>
   </div>
 </template>
@@ -511,12 +557,16 @@ import {
   listRuleLearnCandidates,
   confirmRuleLearn,
   createRuleLearnCandidate,
+  lineageRebuild,
+  listLineageReleases,
+  releaseSupersede,
   type FlowPendingItem,
   type FlowReconcileItem,
   type MapPendingItem,
   type MasterPendingItem,
 } from '@/api/client'
 import { parseLevelLabel } from '@/utils/parseLevel'
+import { dangerousConfirmMessage } from '@/utils/dangerousConfirm'
 
 const router = useRouter()
 
@@ -661,6 +711,21 @@ const reconcileTotal = ref(0)
 const reconcileLoading = ref(false)
 const reconcilePersistBusy = ref(false)
 const openingSeedBusy = ref(false)
+const lineageLoading = ref(false)
+const lineageActionBusy = ref(false)
+const lineageItems = ref<
+  Array<{
+    release_id: string
+    file_id?: string
+    target_domain?: string
+    clean_rows?: number
+    released_at?: string
+  }>
+>([])
+const supersedeNewer = ref('')
+const supersedeOlder = ref('')
+const lineageRebuildId = ref('')
+const lineageRevokeOnly = ref(false)
 const reconcileByClass = ref<Record<string, number>>({})
 
 const reconcileCards = computed(() => [
@@ -950,6 +1015,7 @@ async function onTab(name: string | number) {
     await Promise.all([loadFlowPending(), loadFlowStats()])
   } else if (n === 'reconcile') {
     await loadReconcile()
+    await loadLineageReleases()
   }
 }
 
@@ -1556,6 +1622,97 @@ async function seedOpening() {
   }
 }
 
+async function loadLineageReleases() {
+  lineageLoading.value = true
+  try {
+    const res = await listLineageReleases({ limit: 20 })
+    lineageItems.value = res.items || []
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    lineageLoading.value = false
+  }
+}
+
+async function runReleaseSupersede() {
+  if (!localStorage.getItem('ops_token')) {
+    ElMessage.warning(TOKEN_HINT)
+    return
+  }
+  const newer = supersedeNewer.value.trim()
+  const older = supersedeOlder.value.trim()
+  if (!newer || !older) {
+    ElMessage.warning('请填写较新与较旧两个 release_id')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      dangerousConfirmMessage({
+        objectId: `newer=${newer} / older=${older}`,
+        action: '版本取代（release supersede）',
+        impact: '较旧版本将被标记为被取代，审计链与数据成果中的版本关系会更新',
+      }),
+      '危险操作确认',
+      { type: 'warning', confirmButtonText: '确认取代', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  lineageActionBusy.value = true
+  try {
+    await releaseSupersede(newer, older)
+    ElMessage.success('版本取代已完成')
+    await loadLineageReleases()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    lineageActionBusy.value = false
+  }
+}
+
+async function runLineageRebuild() {
+  if (!localStorage.getItem('ops_token')) {
+    ElMessage.warning(TOKEN_HINT)
+    return
+  }
+  const rid = lineageRebuildId.value.trim()
+  if (!rid) {
+    ElMessage.warning('请填写 release_id')
+    return
+  }
+  const action = lineageRevokeOnly.value ? '仅撤销发布（revoke_only）' : '撤销并重建血缘（lineage rebuild）'
+  try {
+    await ElMessageBox.confirm(
+      dangerousConfirmMessage({
+        objectId: rid,
+        action,
+        impact: lineageRevokeOnly.value
+          ? '撤销该发布版本关联的业务行，不自动重建'
+          : '撤销该发布版本并尝试按规则重建关联数据，可能影响库存/流水事实表',
+      }),
+      '危险操作确认',
+      { type: 'error', confirmButtonText: '确认执行', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  lineageActionBusy.value = true
+  try {
+    const res = await lineageRebuild({ release_id: rid, revoke_only: lineageRevokeOnly.value })
+    ElMessage.success(
+      lineageRevokeOnly.value
+        ? `已撤销 release ${res.release_id || rid}`
+        : `重建完成：${res.rows ?? 0} 行`,
+    )
+    await loadLineageReleases()
+    notifyQueueChanged()
+  } catch (e: unknown) {
+    ElMessage.error(formatApiError(e))
+  } finally {
+    lineageActionBusy.value = false
+  }
+}
+
 async function persistReconcile() {
   if (!localStorage.getItem('ops_token')) {
     ElMessage.warning(TOKEN_HINT)
@@ -1563,9 +1720,13 @@ async function persistReconcile() {
   }
   try {
     await ElMessageBox.confirm(
-      '将删除并重建对账差异表，供「对账差异数」指标读取。确认？',
-      '重算并落库',
-      { type: 'warning' },
+      dangerousConfirmMessage({
+        objectId: 'fact_stock_flow 对账差异表',
+        action: '重算并落库对账差异',
+        impact: `将删除并重建对账差异表（当前清单 ${reconcileTotal.value} 行），供「对账差异数」指标读取`,
+      }),
+      '危险操作确认',
+      { type: 'warning', confirmButtonText: '确认落库', cancelButtonText: '取消' },
     )
   } catch {
     return
@@ -1652,6 +1813,8 @@ onUnmounted(() => {
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .stat-label { color: #909399; font-size: 13px; }
 .stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.danger-hint { color: #909399; font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
+.danger-form { margin-top: 16px; }
 /* HG-3.4 库存对账行着色（scoped + :deep 作用于 el-table 行） */
 :deep(.gap-inv_only) { background: #fef2f2; }
 :deep(.gap-flow_only) { background: #fffbeb; }

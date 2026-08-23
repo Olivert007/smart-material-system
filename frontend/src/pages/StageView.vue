@@ -59,7 +59,7 @@
           :loading="confirmBusy"
           @click="runConfirm"
         >
-          确认写入
+          确认写入业务库
         </el-button>
         <el-button v-if="isReleased" type="primary" @click="$router.push('/data')">
           查看数据成果
@@ -70,11 +70,12 @@
           :loading="analyzeBusy"
           @click="runAnalyze"
         >
-          {{ staging ? '重新分析' : '开始分析' }}
+          {{ staging ? '重新生成预览' : '生成规整预览' }}
         </el-button>
         <el-button @click="$router.push('/govern')">去数据规整</el-button>
         <el-button @click="$router.push('/intake')">返回接入</el-button>
       </div>
+      <p v-if="confirmDisabledReason" class="action-hint warn">{{ confirmDisabledReason }}</p>
     </el-card>
 
     <el-alert
@@ -85,6 +86,11 @@
       title="需要处理的问题"
       :description="issueSummaryText"
     />
+    <el-card v-if="blockedDetailLines.length" shadow="never" header="问题定位（样例）">
+      <ul class="blocked-list">
+        <li v-for="(line, i) in blockedDetailLines" :key="i">{{ line }}</li>
+      </ul>
+    </el-card>
 
     <el-card shadow="never" header="规整后预览">
       <template v-if="previewRows.length">
@@ -120,6 +126,7 @@ import {
   getStaging,
   intakeAnalyze,
   listFiles,
+  listQualityBlocked,
   type StagingInfo,
 } from '@/api/client'
 import { gateLabel as gateCodeLabel } from '@/utils/gateLabels'
@@ -128,6 +135,7 @@ import {
   issueCountsSummary,
   sanitizeUserHint,
   stagingStatusZh,
+  detailZh,
 } from '@/utils/stageLabels'
 
 type DomainQuality = {
@@ -146,6 +154,9 @@ const loading = ref(false)
 const analyzeBusy = ref(false)
 const confirmBusy = ref(false)
 const targetDomain = ref('inventory')
+const blockedSamples = ref<
+  Array<{ source_row?: number; header?: string; reason_code?: string; reason_detail?: string }>
+>([])
 
 const isReleased = computed(() => staging.value?.status === 'RELEASED')
 const canConfirm = computed(() => staging.value?.status === 'STAGED')
@@ -184,7 +195,39 @@ const showIssueSummary = computed(() => {
 const issueSummaryText = computed(() => {
   const summary = issueCountsSummary(domainQuality.value?.issue_counts)
   const hint = sanitizeUserHint(domainQuality.value?.hint)
-  return [summary, hint].filter(Boolean).join('。')
+  const plan = staging.value?.dry_run?.intake_plan as Record<string, unknown> | undefined
+  const sheetHint =
+    Array.isArray(plan?.needs_llm_sheets) && plan!.needs_llm_sheets!.length
+      ? `需关注工作表：${(plan!.needs_llm_sheets as string[]).join('、')}`
+      : ''
+  const blockedN = Number(staging.value?.dry_run?.blocked_detail_count || 0)
+  const blockedHint = blockedN > 0 ? `共 ${blockedN} 处单元格/行被阻塞` : ''
+  return [summary, blockedHint, sheetHint, hint].filter(Boolean).join('。')
+})
+
+const blockedDetailLines = computed(() => {
+  if (!blockedSamples.value.length) return []
+  return blockedSamples.value.map((row) => {
+    const rowNo = row.source_row != null ? `第 ${row.source_row} 行` : ''
+    const col = row.header ? `列「${fieldZh(row.header)}」` : ''
+    const reason = detailZh(String(row.reason_detail || row.reason_code || ''))
+    const loc = [rowNo, col].filter(Boolean).join(' ')
+    return loc ? `${loc}：${reason || '数据异常'}` : reason || '数据异常'
+  })
+})
+
+const confirmDisabledReason = computed(() => {
+  if (isReleased.value) return ''
+  if (staging.value?.status === 'FAILED') return '规整失败：请重新生成预览，或返回接入页处理源文件'
+  if (!staging.value) return '请先点击「生成规整预览」，系统会识别字段并给出可写入行数'
+  if ((staging.value.blocked_rows || 0) > 0) {
+    return `仍有 ${staging.value.blocked_rows} 行被阻塞，需先处理问题或前往治理页确认字段/物资`
+  }
+  if (domainQuality.value?.blocking) return '质量检查未通过，请查看上方问题说明'
+  if (!canConfirm.value) {
+    return `当前状态为「${stagingStatusZh(staging.value.status)}」，完成预览后方可写入业务库`
+  }
+  return ''
 })
 
 const conclusionType = computed(() => {
@@ -232,6 +275,23 @@ async function loadFilename() {
   }
 }
 
+async function loadBlockedSamples() {
+  const blocked = Number(staging.value?.blocked_rows || 0)
+  if (!blocked) {
+    blockedSamples.value = []
+    return
+  }
+  try {
+    const res = await listQualityBlocked(props.fileId, {
+      limit: 8,
+      target_domain: targetDomain.value,
+    })
+    blockedSamples.value = res.items || []
+  } catch {
+    blockedSamples.value = []
+  }
+}
+
 async function refresh() {
   loading.value = true
   try {
@@ -241,6 +301,7 @@ async function refresh() {
       staging.value = null
     }
     applyQuality(staging.value)
+    await loadBlockedSamples()
   } finally {
     loading.value = false
   }
@@ -269,7 +330,7 @@ async function runConfirm() {
     return
   }
   if (!staging.value) {
-    ElMessage.warning('无规整结果，请先开始分析')
+    ElMessage.warning('尚无规整预览，请先点击「生成规整预览」')
     return
   }
   const clean = staging.value.clean_rows ?? 0
@@ -366,6 +427,9 @@ onMounted(async () => {
 .svalue { font-size: 22px; font-weight: 600; }
 .svalue.sm { font-size: 16px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.action-hint { font-size: 13px; color: #909399; margin: 4px 0 0; line-height: 1.5; }
+.action-hint.warn { color: var(--el-color-warning); }
+.blocked-list { margin: 0; padding-left: 18px; color: #606266; font-size: 13px; line-height: 1.6; }
 .hint { color: #909399; font-size: 12px; margin: 8px 0; }
 .table-wrap { overflow-x: auto; width: 100%; }
 @media (max-width: 720px) {
