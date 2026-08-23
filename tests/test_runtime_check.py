@@ -41,6 +41,33 @@ def test_api_down_is_none():
     assert "api_not_ready" in blocking
 
 
+def test_api_vite_no_models_is_dev_ok():
+    api = {"ready": True}
+    frontend = {"vite_ok": True, "dist_ok": False}
+    models = {
+        "big": {"ok": False, "configured_model": "qwen3.6-27b", "models": []},
+        "fast": {"ok": False, "configured_model": "qwen2.5-7b", "models": []},
+        "embed": {"ok": False, "configured_model": "qwen3-embedding-0.6b", "models": []},
+    }
+    level, blocking, _, _ = compute_runtime_level(api, frontend, models)
+    assert level == "dev_ok"
+    assert "fast_unavailable" in blocking
+
+
+def test_fast_model_mismatch_is_stage1_degraded():
+    api = {"ready": True}
+    frontend = {"vite_ok": True, "dist_ok": True}
+    models = {
+        "big": {"ok": True, "configured_model": "qwen3.6-27b", "models": ["qwen3.6-27b"]},
+        "fast": {"ok": True, "configured_model": "qwen2.5-7b", "models": ["qwen2.5-omni-3b-local"]},
+        "embed": {"ok": True, "configured_model": "qwen3-embedding-0.6b", "models": ["qwen3-embedding-0.6b"]},
+    }
+    level, _, warnings, flags = compute_runtime_level(api, frontend, models)
+    assert level == "stage1_degraded"
+    assert flags["fast_model_mismatch"] is True
+    assert "fast_model_mismatch" in warnings
+
+
 def test_all_models_match_is_full():
     api = {"ready": True}
     frontend = {"vite_ok": True, "dist_ok": True}

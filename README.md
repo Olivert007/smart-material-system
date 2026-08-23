@@ -111,7 +111,7 @@ LLM sheet-profile for `needs_llm` sheets is Stage B+ (not in Step1 rule path).
 PYTHONPATH=. python3 scripts/check_runtime.py | python3 -m json.tool
 ```
 
-`runtime_level` 口径：`none`（API 未 ready）→ `stage1_degraded`（模型不完整）→ `full`（三模型在线且名称匹配）。  
+`runtime_level` 口径：`none`（API 未 ready）→ `dev_ok`（API + Vite 可访问，模型均未起）→ `stage1_degraded`（模型不完整或名称不匹配）→ `full`（三模型在线且名称匹配）。  
 embed 不可用时系统可词法 fallback（`EMBED_FALLBACK_LEXICAL=1`）；big 不可用时复杂生成能力受限。
 
 本机 `/models`：

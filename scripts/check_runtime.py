@@ -74,6 +74,13 @@ def compute_runtime_level(
     if big_ok and fast_ok and embed_ok and flags["model_match"]:
         return "full", [], warnings, flags
 
+    if fast_ok or big_ok or embed_ok:
+        warnings.append("stage_degraded")
+        return "stage1_degraded", blocking, warnings, flags
+
+    if frontend.get("vite_ok"):
+        return "dev_ok", blocking, warnings, flags
+
     warnings.append("stage_degraded")
     return "stage1_degraded", blocking, warnings, flags
 

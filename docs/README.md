@@ -13,7 +13,7 @@
 | 工作笔记（同级） | `/workspace/2026-07/project_docs/`（roadmap / question / 评审复刻） |
 
 Docker 内开发：系统 Python + `pip3` 直装依赖，**不**使用项目 `.venv`（见 [06](06-运维手册.md) §0.4）。  
-文档状态：P0/P1/P2 已闭环，[06 §11](06-运维手册.md) 已勾选；**Phase A 可信链路 + Stage 1（big+fast、embed 词法降级）已实现**；流水规则路径与 `FLOW_D4_OK` 已激活（见 [13](13-实现任务清单.md)）。
+文档状态：P0/P1/P2 已闭环，[06 §11](06-运维手册.md) 已勾选；**Phase A 可信链路已在代码中落地**；Stage 1 运行态以 `../scripts/check_runtime.py` 的 `runtime_level` 为准（勿将「设计存在」等同于「当前环境可用」）；流水规则路径与 `FLOW_D4_OK` 已激活（见 [13](13-实现任务清单.md)）。
 
 ## 阅读顺序（推荐）
 
