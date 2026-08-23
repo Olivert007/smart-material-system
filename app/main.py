@@ -21,11 +21,11 @@ from app.api.legacy import router as legacy_router
 from app.repositories import init_meta
 from app.repositories.db import readonly_probe
 from app.services.intake import recover_orphan_tasks
-from app.services.flow_config import ensure_flow_configs_seed
+from app.services.govern.flow_config import ensure_flow_configs_seed
 from app.services.metrics import ensure_metrics_seed
 from app.services.fewshot import ensure_sql_fewshot_seed
 from app.services.value_validator import ensure_value_rule_seed
-from app.services.rule_dict import ensure_seed_rules
+from app.services.govern.rule_dict import ensure_seed_rules
 from app.services.report_runner import ensure_report_seed
 from app.services.writer import compensate_releasing
 from app.workers.intake_worker import worker

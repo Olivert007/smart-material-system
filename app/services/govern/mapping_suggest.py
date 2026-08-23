@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
-from app.services.embed_recall import ALLOWED_STD, STD_FIELDS, recall_candidates, validate_mapping
-from app.services.model_client import chat, parse_json_object
-from app.services.rule_dict import dict_prefill
+from app.services.llm.embed_recall import ALLOWED_STD, STD_FIELDS, recall_candidates, validate_mapping
+from app.services.llm.model_client import chat, parse_json_object
+from app.services.govern.rule_dict import dict_prefill
 
 LOW_SCORE = 0.75
 MULTI_SCORE = 0.92

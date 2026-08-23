@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from app.repositories import meta_conn, meta_tx
-from app.services.mapping import ALIASES, _canon_header, _norm
+from app.services.govern.mapping import ALIASES, _canon_header, _norm
 
 # map-suggest STD_FIELDS names ↔ domain ALIASES keys used by resolve_columns
 _STD_TO_DOMAIN: dict[str, list[str]] = {

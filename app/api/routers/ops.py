@@ -12,7 +12,7 @@ from app.api.auth import require_ops
 from app.repositories import meta_conn
 from app.services import backup as backup_svc
 from app.services.llm.model_runtime import compute_model_runtime
-from app.services.model_client import probe_endpoint
+from app.services.llm.model_client import probe_endpoint
 
 router = APIRouter(prefix=config.API_V1_PREFIX)
 

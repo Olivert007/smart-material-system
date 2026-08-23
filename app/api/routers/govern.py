@@ -386,7 +386,7 @@ def lineage_rebuild(body: LineageRebuildBody, actor: str = Depends(require_ops))
 
 @router.get("/govern/std-fields")
 def govern_std_fields():
-    from app.services.embed_recall import ALLOWED_STD, STD_FIELDS
+    from app.services.llm.embed_recall import ALLOWED_STD, STD_FIELDS
 
     return {
         "fields": sorted(ALLOWED_STD),

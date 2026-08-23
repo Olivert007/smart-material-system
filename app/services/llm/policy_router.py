@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from app import config
-from app.services.model_client import LlmResult, chat, probe_endpoint
+from app.services.llm.model_client import LlmResult, chat, probe_endpoint
 
 Validator = Callable[[LlmResult], tuple[bool, list[str]]]
 

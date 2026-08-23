@@ -13,7 +13,7 @@ from typing import Any
 import pandas as pd
 
 from app.repositories import meta_tx
-from app.services.mapping_suggest import classify_queue_items, suggest_header_mapping
+from app.services.govern.mapping_suggest import classify_queue_items, suggest_header_mapping
 
 
 def _sid(n: int = 12) -> str:
@@ -297,8 +297,8 @@ def enqueue_from_file(
     only_roles: tuple[str, ...] = ("detail", "unknown", "wide_export"),
 ) -> dict[str, Any]:
     """Use Step1 profile + evidence to enqueue uncertain headers per sheet."""
-    from app.services.evidence import evidence_path
-    from app.services.profile import get_workbook_profile, profile_file_evidence
+    from app.services.intake.evidence import evidence_path
+    from app.services.intake.profile import get_workbook_profile, profile_file_evidence
 
     path = evidence_path(file_id)
     if not path.exists():

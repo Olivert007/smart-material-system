@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 from app.repositories import biz_conn, meta_conn, meta_tx
-from app.services.flow_gov import parse_stats, reconcile
+from app.services.govern.flow_gov import parse_stats, reconcile
 from app.services.flow_lineage import audit_stock_flow
 
 # definition_sql must be a single SELECT returning column `v` (or first col).

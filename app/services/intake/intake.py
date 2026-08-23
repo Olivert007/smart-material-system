@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app import config
 from app.repositories import meta_tx
-from app.services.evidence import load_to_evidence, save_evidence, sha256_file
+from app.services.intake.evidence import load_to_evidence, save_evidence, sha256_file
 from app.services.intake.error_info import (
     cleanup_evidence_files,
     encode_error_message,
@@ -199,7 +199,7 @@ def process_parse_evidence(task_id: str) -> None:
         save_evidence(df, file_id, tabular=tabular)
         phase = "profile_workbook"
         touch_heartbeat(task_id, message="profiling workbook")
-        from app.services.profile import profile_from_evidence, save_workbook_profile
+        from app.services.intake.profile import profile_from_evidence, save_workbook_profile
 
         profile_payload = profile_from_evidence(df)
         report_id = save_workbook_profile(file_id, profile_payload)
@@ -208,7 +208,7 @@ def process_parse_evidence(task_id: str) -> None:
         map_enqueued = 0
         try:
             touch_heartbeat(task_id, message="enqueue map pending")
-            from app.services.map_gov import enqueue_from_file
+            from app.services.govern.map_gov import enqueue_from_file
 
             mq = enqueue_from_file(file_id)
             map_enqueued = int(mq.get("enqueued") or 0)

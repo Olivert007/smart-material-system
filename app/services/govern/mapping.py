@@ -159,14 +159,14 @@ def resolve_columns(
             sheet = None
     if domain == "stock_flow":
         try:
-            from app.services.flow_config import apply_flow_config_columns
+            from app.services.govern.flow_config import apply_flow_config_columns
 
             mapping = apply_flow_config_columns(cols, sheet, mapping)
         except Exception:
             pass
     # docs/04 §6: rule_dict overrides ALIASES (confirmed human mappings)
     try:
-        from app.services.rule_dict import apply_rule_overrides
+        from app.services.govern.rule_dict import apply_rule_overrides
 
         mapping = apply_rule_overrides(cols, domain, mapping)
     except Exception:
@@ -398,8 +398,8 @@ def build_stock_flow_bundle(
     examples: optional frozen flow_example map (release snapshot). When None, load live meta.
     """
     mapping = resolve_columns(df, "stock_flow")
-    from app.services.flow_parse import FlowFields, parse_flow_cell, text_norm
-    from app.services.flow_config import flow_column_for, get_flow_config
+    from app.services.govern.flow_parse import FlowFields, parse_flow_cell, text_norm
+    from app.services.govern.flow_config import flow_column_for, get_flow_config
     from app.repositories import meta_conn
     import json as _json
 

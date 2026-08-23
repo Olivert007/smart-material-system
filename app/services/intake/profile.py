@@ -346,7 +346,7 @@ def get_workbook_profile(file_id: str) -> dict[str, Any] | None:
 
 def profile_file_evidence(file_id: str) -> dict[str, Any]:
     """Load evidence parquet and build+persist workbook profile."""
-    from app.services.evidence import evidence_path
+    from app.services.intake.evidence import evidence_path
 
     path = evidence_path(file_id)
     if not path.exists():

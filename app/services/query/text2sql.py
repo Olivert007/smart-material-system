@@ -7,7 +7,7 @@ import re
 from app import config
 from app.repositories import biz_conn, meta_tx
 from app.services.jsonutil import json_safe
-from app.services.model_client import chat
+from app.services.llm.model_client import chat
 from app.services.sql_guard import validate_readonly_sql
 
 SCHEMA_ZH = {

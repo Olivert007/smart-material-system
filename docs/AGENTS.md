@@ -10,3 +10,21 @@
 6. 出入库文本流 → `fact_stock_flow` 见 [12](12-出入库流水解析.md)；任务拆解见 [13](13-实现任务清单.md)；规则挂 03 Step5，LLM 兜底非 Step5；`FLOW_*` 指标须过 12/08 门禁。  
 7. API 新路径 `/api/v1`；前端禁止直连库与 vLLM。  
 8. 与本文冲突时改代码对齐文档，或先修订文档再实现。
+
+## 改动边界（doc 18）
+
+**改 canonical，不要改 shim。** 兼容层 `app/services/{evidence,mapping,...}.py` 仅 re-export，业务逻辑在域目录下。
+
+| 域 | 应改（canonical） | 勿改（shim / 少改） |
+|---|---|---|
+| intake | `app/services/intake/`（evidence、profile、quality_precheck、intake.py） | `app/services/evidence.py`、`profile.py`、`quality_precheck.py` |
+| govern | `app/services/govern/`（mapping、map_gov、rule_dict、flow_*） | `app/services/mapping.py`、`map_gov.py` 等根级 shim |
+| query / metrics / llm | `app/services/query/`、`metrics/`、`llm/` | — |
+
+检查遗留 import：
+
+```bash
+PYTHONPATH=. python3 scripts/check_import_boundaries.py | python3 -m json.tool
+```
+
+`app/` 生产代码应无 legacy import；收敛顺序：tests/scripts → intake → govern（详见 `AI20260822/18-工程结构与Agent改动边界.md`）。

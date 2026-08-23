@@ -12,7 +12,7 @@ from typing import Any
 
 from app import config
 from app.repositories import meta_conn, meta_tx
-from app.services.model_client import LlmResult, parse_json_object
+from app.services.llm.model_client import LlmResult, parse_json_object
 from app.services.policy_router import route_chat
 
 _YEAR_QTY = re.compile(r"^(?:19|20)\d{2}(?:\.0+)?$")

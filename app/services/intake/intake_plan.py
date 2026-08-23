@@ -233,10 +233,10 @@ def build_intake_plan(
     target_domain: str = "inventory",
 ) -> dict[str, Any]:
     """Assemble plan from profile + latest staging dry_run (+ quality)."""
-    from app.services.profile import get_workbook_profile
-    from app.services.quality_precheck import get_quality_report
+    from app.services.intake.profile import get_workbook_profile
+    from app.services.intake.quality_precheck import get_quality_report
     from app.services.staging import get_staging
-    from app.services.map_gov import list_pending
+    from app.services.govern.map_gov import list_pending
 
     with meta_tx() as con:
         fb = con.execute("SELECT * FROM file_batch WHERE file_id=?", [file_id]).fetchone()

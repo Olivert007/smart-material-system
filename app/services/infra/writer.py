@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from app.repositories import acquire_writer, meta_tx, writer_conn
-from app.services.mapping import build_domain_rows
+from app.services.govern.mapping import build_domain_rows
 from app.services.staging import staging_payload_path
 
 

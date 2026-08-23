@@ -12,7 +12,7 @@ from typing import Any
 import pandas as pd
 
 from app.repositories import meta_tx
-from app.services.evidence import evidence_path, normalize_tabular, tabular_path
+from app.services.intake.evidence import evidence_path, normalize_tabular, tabular_path
 
 
 def _sid(n: int = 12) -> str:
@@ -29,8 +29,8 @@ def _file_status(file_id: str) -> dict[str, Any] | None:
 
 
 def _run_quality(file_id: str, target_domain: str) -> dict[str, Any]:
-    from app.services.mapping import resolve_columns
-    from app.services.quality_precheck import run_quality_precheck, save_quality_report
+    from app.services.govern.mapping import resolve_columns
+    from app.services.intake.quality_precheck import run_quality_precheck, save_quality_report
 
     tab = tabular_path(file_id)
     if not tab.exists():
@@ -60,7 +60,7 @@ def _run_quality(file_id: str, target_domain: str) -> dict[str, Any]:
 
 
 def _ensure_profile(file_id: str, *, refresh: bool) -> dict[str, Any]:
-    from app.services.profile import (
+    from app.services.intake.profile import (
         get_workbook_profile,
         profile_file_evidence,
         save_workbook_profile,
@@ -88,7 +88,7 @@ def _ensure_profile(file_id: str, *, refresh: bool) -> dict[str, Any]:
 
 
 def _enqueue_map(file_id: str) -> dict[str, Any]:
-    from app.services.map_gov import enqueue_from_file, enqueue_headers
+    from app.services.govern.map_gov import enqueue_from_file, enqueue_headers
 
     try:
         out = enqueue_from_file(file_id)
@@ -326,8 +326,8 @@ def get_analyze_report(file_id: str) -> dict[str, Any] | None:
 def get_intake_bundle(file_id: str) -> dict[str, Any]:
     """Aggregate Step1–4 + analyze + staging for GET /intake/report/{file_id}."""
     from app.services.intake_plan import get_intake_plan
-    from app.services.profile import get_workbook_profile
-    from app.services.quality_precheck import get_quality_report
+    from app.services.intake.profile import get_workbook_profile
+    from app.services.intake.quality_precheck import get_quality_report
     from app.services.staging import get_staging
 
     fb = _file_status(file_id)

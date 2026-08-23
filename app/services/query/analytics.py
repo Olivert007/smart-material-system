@@ -171,7 +171,7 @@ def flow_top(
 
 def flow_level_ratio() -> dict[str, Any]:
     """L1/L2/L3 占比（与 /govern/flow/stats published_by_level 同源）。"""
-    from app.services.flow_gov import parse_stats
+    from app.services.govern.flow_gov import parse_stats
 
     stats = parse_stats()
     levels = stats.get("published_by_level") or {}

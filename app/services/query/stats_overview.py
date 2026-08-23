@@ -7,7 +7,7 @@ from typing import Any
 from app.repositories import biz_conn, meta_conn
 from app.services import flow_gov as flow_gov_svc
 from app.services import metrics as metrics_svc
-from app.services.model_client import probe_endpoint
+from app.services.llm.model_client import probe_endpoint
 from app import config
 
 

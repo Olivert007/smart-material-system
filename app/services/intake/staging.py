@@ -11,9 +11,9 @@ import pandas as pd
 
 from app import config
 from app.repositories import meta_tx
-from app.services.evidence import evidence_path, tabular_path
+from app.services.intake.evidence import evidence_path, tabular_path
 from app.services.jsonutil import json_safe
-from app.services.mapping import resolve_columns
+from app.services.govern.mapping import resolve_columns
 
 
 def _now() -> str:
@@ -72,7 +72,7 @@ def create_staging(
         ".xlsm",
         ".ods",
     }:
-        from app.services.evidence import load_stock_flow_tabular, save_evidence
+        from app.services.intake.evidence import load_stock_flow_tabular, save_evidence
 
         flow_df = load_stock_flow_tabular(stored)
         if flow_df is not None and len(flow_df) > 0:
@@ -88,7 +88,7 @@ def create_staging(
             payload_kind = "tabular"
         elif tab.exists():
             df = pd.read_parquet(tab)
-            from app.services.evidence import normalize_tabular
+            from app.services.intake.evidence import normalize_tabular
 
             df = normalize_tabular(df, domain=target_domain)
             clean = df
@@ -99,7 +99,7 @@ def create_staging(
             raise FileNotFoundError("stock_flow tabular missing")
     elif tab.exists():
         df = pd.read_parquet(tab)
-        from app.services.evidence import normalize_tabular
+        from app.services.intake.evidence import normalize_tabular
         from app.services.govern.flow_config import get_ledger_route, ledger_sheet_names
 
         # T3.2: 台账按域路由过滤（仅当文件内实际存在路由 sheet；否则保持旧行为）
@@ -180,7 +180,7 @@ def create_staging(
     flow_stats = None
     pending_n = 0
     if target_domain == "stock_flow" and payload_kind == "tabular":
-        from app.services.mapping import build_stock_flow_bundle
+        from app.services.govern.mapping import build_stock_flow_bundle
 
         _table, l1_rows, pending, flow_stats = build_stock_flow_bundle(
             clean,
@@ -221,7 +221,7 @@ def create_staging(
 
     quality = None
     if payload_kind == "tabular" and target_domain != "generic":
-        from app.services.quality_precheck import run_quality_precheck, save_quality_report
+        from app.services.intake.quality_precheck import run_quality_precheck, save_quality_report
 
         quality = run_quality_precheck(clean, domain=target_domain, col_map=col_map)
         save_quality_report(file_id, quality)

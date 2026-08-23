@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 
 from app.repositories import acquire_writer, biz_conn, meta_tx, writer_conn
-from app.services.mapping import build_stock_flow_bundle
+from app.services.govern.mapping import build_stock_flow_bundle
 from app.services.staging import staging_payload_path
 from app.services.writer import _upsert_materials_impl as upsert_materials
 

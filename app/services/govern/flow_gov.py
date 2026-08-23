@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from app.repositories import biz_conn, meta_conn, meta_tx
-from app.services.flow_parse import example_key, text_norm
+from app.services.govern.flow_parse import example_key, text_norm
 
 
 def _sid() -> str:

@@ -46,7 +46,7 @@ def flow_examples(limit: int = 50, offset: int = 0):
 @router.get("/assets/flow-configs")
 def assets_flow_configs():
     """Seeded flow_config catalog (docs/12 A3)."""
-    from app.services.flow_config import list_flow_configs
+    from app.services.govern.flow_config import list_flow_configs
 
     items = list_flow_configs()
     return {"total": len(items), "items": items}

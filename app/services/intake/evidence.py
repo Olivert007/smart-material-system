@@ -284,7 +284,7 @@ def _load_json(path: Path, file_id: str) -> tuple[pd.DataFrame, int]:
 
 
 def _header_alias_hits(cols: list[str], domain: str = "inventory") -> int:
-    from app.services.mapping import ALIASES, _canon_header, _norm
+    from app.services.govern.mapping import ALIASES, _canon_header, _norm
 
     alias_norms = {_norm(n) for names in ALIASES.get(domain, {}).values() for n in names}
     alias_canons = {_canon_header(n) for names in ALIASES.get(domain, {}).values() for n in names}
@@ -549,7 +549,7 @@ def _adapt_personal_tools_sheet(raw: pd.DataFrame) -> pd.DataFrame:
 
 def _ledger_keep_fields() -> tuple[str, ...]:
     """T3.2: 标准字段并集（inventory/asset/stock_flow）+ sheet 标记。"""
-    from app.services.mapping import ALIASES
+    from app.services.govern.mapping import ALIASES
 
     fields: set[str] = set()
     for dom in ("inventory", "asset", "stock_flow"):
@@ -567,7 +567,7 @@ def load_stock_flow_tabular(path: Path) -> pd.DataFrame:
     - 未命中路由 → 旧 flow 判定（无流水列则跳过，保持既有文件行为不变）
     """
     from app.services.govern.flow_config import get_ledger_route
-    from app.services.mapping import resolve_columns
+    from app.services.govern.mapping import resolve_columns
 
     try:
         book = _read_excel_best(path, sheet_name=None, dtype=str, header=None)
