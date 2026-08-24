@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Text2SQL via Stage 1 big model + AST guard + readonly exec."""
+"""Text2SQL via AskEngine + AST guard + readonly exec."""
 from __future__ import annotations
-
-import re
 
 from app import config
 from app.repositories import biz_conn, meta_tx
 from app.services.jsonutil import json_safe
 from app.services.llm.model_client import chat
+from app.services.query.ask_engine import get_ask_engine
 from app.services.query.ask_insights import (
     degraded_suggested_examples,
     empty_result_insight,
 )
+from app.services.query.legacy_text2sql_engine import _guard_error_zh
 from app.services.sql_guard import validate_readonly_sql
 
 SCHEMA_ZH = {
@@ -111,48 +111,6 @@ def schema_summary() -> str:
         zh = SCHEMA_ZH.get(r["table_name"], {}).get(r["column_name"], "")
         lines.append(f"  - {r['column_name']} ({r['data_type']}){f'，{zh}' if zh else ''}")
     return "\n".join(lines)
-
-
-_GUARD_ERROR_ZH = {
-    "SQL_EMPTY": "生成的查询为空，请换个问法",
-    "SQL_PARSE_ERROR": "查询语句无法解析，请换个问法",
-    "SQL_MULTI_STATEMENT": "查询包含多条语句，仅允许单条只读查询",
-    "SQL_FORBIDDEN": "查询包含受限操作，仅允许只读查询",
-    "SQL_NOT_SELECT": "查询不是只读查询，仅允许查询数据",
-    "SQL_FORBIDDEN_FN": "查询使用了受限函数，仅允许常规统计查询",
-}
-
-
-def _guard_error_zh(guard) -> str:
-    """SQL 守卫错误中文化：业务页不展示英文 guard.error，详情仍可入审计。"""
-    return _GUARD_ERROR_ZH.get(guard.code) or f"查询未通过安全校验（{guard.code}）"
-
-
-def _extract_sql(text: str) -> str:
-    raw = text or ""
-    if "</think>" in raw:
-        raw = raw.split("</think>", 1)[-1]
-    raw = re.sub(r"```(?:sql)?", "", raw, flags=re.I).strip()
-    # Prefer a SELECT/WITH that ends at semicolon or EOL without trailing prose.
-    matches = list(
-        re.finditer(
-            r"(?is)\b((?:with|select)\b[\s\S]*?)(?:;|\Z)",
-            raw,
-        )
-    )
-    for m in reversed(matches):
-        cand = m.group(1).strip()
-        # drop if clearly prose (too many English words / no FROM|COUNT)
-        if re.search(r"(?i)\b(from|count|with)\b", cand) and not re.search(
-            r"(?i)\b(explanation|thinking|requirements?|I'll|don't)\b", cand
-        ):
-            cand = re.split(r"\n\s*\n", cand)[0].strip()
-            return cand.rstrip(";").strip()
-    for line in raw.splitlines():
-        s = line.strip()
-        if re.match(r"(?i)^(with|select)\b", s) and re.search(r"(?i)\b(from|count)\b", s):
-            return s.rstrip(";").strip()
-    return raw.rstrip(";").strip()
 
 
 def ask(question: str) -> dict:
@@ -293,42 +251,26 @@ def _ask(question: str) -> dict:
                 payload.update(insight)
             return payload
 
-    schema = schema_summary()
-    sys_msg = (
-        "你是物资管理系统的 DuckDB 专家。根据表结构生成一条只读 SQL。\n"
-        f"{schema}\n\n"
-        "硬性要求：\n"
-        "1. 最终输出只能是一条 SELECT/WITH，禁止解释、禁止 markdown、禁止思考过程。\n"
-        "2. 中文条件用 LIKE '%关键词%'。\n"
-        "3. 只能引用上述表与列；禁止写操作与附件函数。\n"
-        "4. 结果建议 LIMIT 100。\n"
-        "5. 不要输出英文 reasoning / thinking。"
-    )
-    result = chat(
-        role="big",
-        task_type="text2sql",
-        messages=[
-            {"role": "system", "content": sys_msg},
-            {"role": "user", "content": f"问题：{q}\n只输出 SQL："},
-        ],
-        temperature=0.0,
-        max_tokens=256,
-    )
+    engine = get_ask_engine()
+    gen = engine.generate_sql(q, metric_match=matched)
     base = {
         "question": q,
-        "model": result.model,
-        "model_request_attempted": result.model_request_attempted,
-        "model_invoked": result.model_invoked,
-        "output_available": result.output_available,
-        "model_state": result.model_state,
-        "fallback_reason": result.fallback_reason,
-        "latency_ms": result.latency_ms,
-        "source": "llm_text2sql",
+        "model": gen.model,
+        "model_request_attempted": gen.model_request_attempted,
+        "model_invoked": gen.model_invoked,
+        "output_available": gen.output_available,
+        "model_state": gen.model_state,
+        "fallback_reason": gen.fallback_reason,
+        "latency_ms": gen.latency_ms,
+        "source": gen.source,
+        "engine_state": gen.engine_state,
         "data_scope": "available_candidate",
         "metric_match": matched,
     }
-    if not result.ok or not result.output_available:
-        degraded = str(result.model_state or "") in {
+    if gen.engine_fallback:
+        base["engine_fallback"] = True
+    if not gen.ok:
+        degraded = str(gen.model_state or "") in {
             "local_model_unavailable",
             "circuit_open",
             "llm_invocation_failed",
@@ -337,7 +279,9 @@ def _ask(question: str) -> dict:
         return {
             **base,
             "ok": False,
-            "error": result.error or "model unavailable",
+            "sql": gen.sql,
+            "error": gen.error or "model unavailable",
+            "code": gen.code,
             "answer": None,
             "degraded": degraded,
             "hint": (
@@ -355,51 +299,16 @@ def _ask(question: str) -> dict:
             "suggested_examples": degraded_suggested_examples() if degraded else None,
         }
 
-    sql = _extract_sql(result.text)
-    guard = validate_readonly_sql(sql)
+    guard = validate_readonly_sql(gen.sql or "")
     if not guard.ok:
-        # one repair pass asking for SQL only
-        repair = chat(
-            role="big",
-            task_type="text2sql_repair",
-            messages=[
-                {"role": "system", "content": "只输出一条 DuckDB SELECT/WITH，不要任何其他文字。"},
-                {"role": "user", "content": f"问题：{q}\n表：\n{schema}\nSQL："},
-            ],
-            temperature=0.0,
-            max_tokens=128,
-        )
-        if repair.ok and repair.output_available:
-            sql2 = _extract_sql(repair.text)
-            guard2 = validate_readonly_sql(sql2)
-            if guard2.ok:
-                result = repair
-                sql = sql2
-                guard = guard2
-                base.update(
-                    {
-                        "model_state": repair.model_state,
-                        "latency_ms": (base.get("latency_ms") or 0) + (repair.latency_ms or 0),
-                    }
-                )
-            else:
-                return {
-                    **base,
-                    "ok": False,
-                    "sql": sql,
-                    "error": _guard_error_zh(guard),
-                    "code": guard.code,
-                    "answer": None,
-                }
-        else:
-            return {
-                **base,
-                "ok": False,
-                "sql": sql,
-                "error": _guard_error_zh(guard),
-                "code": guard.code,
-                "answer": None,
-            }
+        return {
+            **base,
+            "ok": False,
+            "sql": gen.sql,
+            "error": _guard_error_zh(guard),
+            "code": guard.code,
+            "answer": None,
+        }
 
     con = biz_conn()
     try:

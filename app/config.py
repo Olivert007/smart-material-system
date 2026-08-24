@@ -76,6 +76,11 @@ FLOW_LLM_CONFIDENCE_MIN = float(os.environ.get("FLOW_LLM_CONFIDENCE_MIN", 0.55))
 # When embed endpoint missing: use lexical recall (Stage 1 PoC)
 EMBED_FALLBACK_LEXICAL = os.environ.get("EMBED_FALLBACK_LEXICAL", "1") == "1"
 
+# Ask assistant NL2SQL engine (docs/19 Step1+): legacy | vanna
+ASK_ENGINE = os.environ.get("ASK_ENGINE", "legacy").strip().lower()
+VANNA_PERSIST_DIR = Path(os.environ.get("VANNA_PERSIST_DIR", str(DATA / "vanna")))
+VANNA_AUTO_TRAIN = os.environ.get("VANNA_AUTO_TRAIN", "1") == "1"
+
 # Step4 confirm gate (docs/03 §4.5): block release on quality blockers / unconfirmed plan
 INTAKE_GATE_ENFORCE = os.environ.get("INTAKE_GATE_ENFORCE", "1").strip().lower() in (
     "1",
