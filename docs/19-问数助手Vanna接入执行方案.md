@@ -5,7 +5,7 @@
 
 ---
 
-> 状态：执行中。**Step1 ✅ · Step2 ✅ · Step3 ✅**（2026-08-24）。
+> 状态：执行中。**Step1 ✅ · Step2 ✅ · Step3 ✅ · Step4 ✅**（2026-08-24）。
 
 ## Step1 实施记录（2026-08-24）
 
@@ -63,6 +63,22 @@ PYTHONPATH=. python3 -m pytest tests/test_vanna_train.py
 ```
 
 训练数据写入 `data/vanna/store.json` 与 `manifest.json`。
+
+---
+
+## Step4 实施记录（2026-08-24）
+
+已完成：
+
+- `frontend/src/utils/askSource.ts` — 来源标签映射
+- `frontend/src/pages/AskView.vue` — 结果区展示来源 tag、回退提示
+- `frontend/src/api/client.ts` — `AskResult` 增加 `engine_fallback` / `engine_state`
+
+验收：
+
+```bash
+cd frontend && npm run build
+```
 
 ---
 

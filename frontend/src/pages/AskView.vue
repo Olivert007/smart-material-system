@@ -62,6 +62,12 @@
             <el-tag size="small" :type="result.ok ? 'success' : 'danger'">
               {{ result.ok ? '成功' : '失败' }}
             </el-tag>
+            <el-tag v-if="sourceLabel" size="small" :type="sourceTagType || 'info'">
+              {{ sourceLabel }}
+            </el-tag>
+            <el-tag v-if="result.engine_fallback" size="small" type="warning">
+              已回退基础问数
+            </el-tag>
             <el-tag v-if="result.metric_id" size="small" type="success">
               指标：{{ result.metric_name || result.metric_id }}
             </el-tag>
@@ -78,6 +84,15 @@
         </div>
       </template>
 
+      <el-alert
+        v-if="result.engine_fallback && result.ok && !isModelDegraded(result)"
+        type="info"
+        :closable="false"
+        show-icon
+        class="fallback-hint"
+        title="已回退基础问数"
+        description="Vanna 引擎未命中，已使用基础问数生成查询。"
+      />
       <el-alert
         v-if="isModelDegraded(result) && !modelDown"
         type="warning"
@@ -206,6 +221,7 @@
       <el-collapse v-if="hasLocalToken" class="adv-fold">
         <el-collapse-item title="技术详情（模型状态 / 耗时）" name="adv">
           <div class="adv-meta">
+            <el-tag v-if="result.engine_state" size="small" type="info">{{ result.engine_state }}</el-tag>
             <el-tag size="small" type="info">{{ result.model_state || '-' }}</el-tag>
             <el-tag v-if="result.latency_ms != null" size="small" type="warning">
               {{ result.latency_ms }} ms
@@ -228,6 +244,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { askQuestion, downloadCsv, fetchAskRecommendations, formatApiError, modelsStatus, type AskResult } from '@/api/client'
 import { fieldZh, visibleFields, zhColumns } from '@/utils/fields'
 import { ASK_RESULT_SCOPE } from '@/utils/copywriting'
+import { askSourceLabel, askSourceTagType } from '@/utils/askSource'
 
 echarts.use([BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -264,6 +281,9 @@ const modelDown = ref(false)
 const hasLocalToken = computed(() => Boolean(localStorage.getItem('ops_token')))
 const recommendedQuestions = ref<string[]>([])
 const recommendHint = ref<string | null>(null)
+
+const sourceLabel = computed(() => askSourceLabel(result.value?.source))
+const sourceTagType = computed(() => askSourceTagType(result.value?.source))
 
 function askFromChip(q: string) {
   question.value = q
@@ -469,6 +489,7 @@ watch(
 .hint { color: #909399; font-size: 12px; }
 .result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.fallback-hint { margin-bottom: 12px; }
 .answer { margin-bottom: 12px; }
 .chart-wrap { margin-bottom: 12px; }
 .chart-wrap .label { font-size: 12px; color: #909399; margin-bottom: 4px; }

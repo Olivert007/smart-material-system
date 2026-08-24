@@ -556,6 +556,8 @@ export type AskResult = {
   code?: string
   summary_model_state?: string
   source?: string
+  engine_state?: string
+  engine_fallback?: boolean
   metric_id?: string
   metric_name?: string
   metric_version?: number | string | null
