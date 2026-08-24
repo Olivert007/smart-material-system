@@ -269,6 +269,7 @@ def _ask(question: str) -> dict:
     }
     if gen.engine_fallback:
         base["engine_fallback"] = True
+        base["hint"] = "Vanna 引擎未命中，已回退基础问数"
     if not gen.ok:
         degraded = str(gen.model_state or "") in {
             "local_model_unavailable",
@@ -285,11 +286,16 @@ def _ask(question: str) -> dict:
             "answer": None,
             "degraded": degraded,
             "hint": (
-                "本地模型不可用：复杂问数暂不可用。指标模板类问题仍可回答"
-                "（例如：库存总量是多少、库存表有多少行、资产台数有多少）。"
-                "数据成果浏览与导出不受影响。"
+                "Vanna 引擎未命中，已回退基础问数。"
+                + (
+                    " 本地模型不可用：复杂问数暂不可用。指标模板类问题仍可回答"
+                    "（例如：库存总量是多少、库存表有多少行、资产台数有多少）。"
+                    "数据成果浏览与导出不受影响。"
+                    if degraded
+                    else ""
+                )
             )
-            if degraded
+            if (degraded or gen.engine_fallback)
             else None,
             "available_capabilities": (
                 ["metric_template_ask", "browse", "export", "govern", "trace"]

@@ -5,7 +5,7 @@
 
 ---
 
-> 状态：执行中。**Step1 已完成**（2026-08-24）。结论：第一阶段只接 **VannaAI**。
+> 状态：执行中。**Step1 ✅ · Step2 ✅**（2026-08-24）。
 
 ## Step1 实施记录（2026-08-24）
 
@@ -26,6 +26,25 @@ PYTHONPATH=. python3 -m pytest tests/test_ask_engine_legacy.py \
 ```
 
 `ASK_ENGINE=vanna` 暂仍走 legacy（Step2 接入 VannaEngine + 回退）。
+
+---
+
+## Step2 实施记录（2026-08-24）
+
+已完成：
+
+- `app/services/query/vanna_local.py` — 本地 JSON 向量库 + `model_client.chat` 适配
+- `app/services/query/vanna_engine.py` — Vanna 单次生成，失败/守卫不通过回退 legacy
+- `requirements.txt` — `vanna>=0.7.9,<0.8` 及运行时依赖
+- `tests/test_ask_engine_vanna_fallback.py` — 成功/失败/守卫回退/接口 hint
+
+验收：
+
+```bash
+ASK_ENGINE=vanna PYTHONPATH=. python3 -m pytest tests/test_ask_engine_vanna_fallback.py
+```
+
+默认 `ASK_ENGINE=legacy` 行为不变；显式 `ASK_ENGINE=vanna` 启用 Vanna 路径。
 
 ---
 
@@ -65,9 +84,10 @@ PYTHONPATH=. python3 -m pytest tests/test_ask_engine_legacy.py \
 |------|------|
 | `app/services/query/ask_engine.py` | ✅ Step1 |
 | `app/services/query/legacy_text2sql_engine.py` | ✅ Step1 |
-| `app/services/query/vanna_engine.py` | Step2 |
+| `app/services/query/vanna_engine.py` | ✅ Step2 |
+| `app/services/query/vanna_local.py` | ✅ Step2 |
 | `scripts/train_vanna_ask.py` | Step3 |
-| `tests/test_ask_engine_vanna_fallback.py` | Step2 |
+| `tests/test_ask_engine_vanna_fallback.py` | ✅ Step2 |
 | `tests/test_ask_engine_legacy.py` | ✅ Step1 |
 
 ### 5.2 已修改
@@ -100,10 +120,10 @@ schema summary、active 指标、SCHEMA_ZH、sql_fewshot、10–20 条领域样�
 - AskEngine 接口 + legacy 实现
 - `ASK_ENGINE=legacy` 行为不变
 
-### Step2：接入 VannaEngine，但默认关闭
+### Step2：接入 VannaEngine，但默认关闭 ✅
 
-- 安装 vanna 依赖
-- `ASK_ENGINE=vanna` 时调用 Vanna，失败回退 legacy
+- `ASK_ENGINE=vanna` 时调用 Vanna；失败回退 legacy
+- LLM 走 `model_client.chat(task_type=vanna_text2sql)`，不直连外部云模型
 
 ### Step3：训练 Vanna 上下文
 
@@ -118,6 +138,6 @@ schema summary、active 指标、SCHEMA_ZH、sql_fewshot、10–20 条领域样�
 ## 11. Agent 执行提示
 
 ```
-只执行 docs/19-问数助手Vanna接入执行方案.md 的 Step2。
-不要一次做完 Step2 到 Step5。
+只执行 docs/19-问数助手Vanna接入执行方案.md 的 Step3。
+不要一次做完 Step3 到 Step5。
 ```

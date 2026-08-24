@@ -36,11 +36,12 @@ class AskEngine(Protocol):
 
 
 def get_ask_engine() -> AskEngine:
-    """Return configured ask engine. Step1: legacy only; vanna wired in Step2."""
+    """Return configured ask engine."""
     from app.services.query.legacy_text2sql_engine import LegacyText2SqlEngine
 
     mode = (config.ASK_ENGINE or "legacy").strip().lower()
     if mode == "vanna":
-        # Step2 will import VannaEngine with legacy fallback.
-        return LegacyText2SqlEngine()
+        from app.services.query.vanna_engine import VannaEngine
+
+        return VannaEngine()
     return LegacyText2SqlEngine()
