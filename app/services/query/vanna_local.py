@@ -64,6 +64,19 @@ class _JsonVectorStore:
     def _save(self) -> None:
         self.path.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def replace_all(self, data: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+        self._data = {
+            "ddl": list(data.get("ddl") or []),
+            "documentation": list(data.get("documentation") or []),
+            "question_sql": list(data.get("question_sql") or []),
+        }
+        self._save()
+        return {
+            "ddl_count": len(self._data["ddl"]),
+            "documentation_count": len(self._data["documentation"]),
+            "question_sql_count": len(self._data["question_sql"]),
+        }
+
     def add(self, kind: str, *, text: str, extra: dict | None = None) -> str:
         item_id = uuid.uuid4().hex[:12]
         row = {"id": item_id, "text": text, **(extra or {})}
@@ -237,3 +250,50 @@ def vanna_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def write_training_store(payload: dict, *, replace: bool = True) -> dict[str, int]:
+    """Persist training artifacts to store.json (Step3)."""
+    store = _JsonVectorStore(Path(config.VANNA_PERSIST_DIR))
+    rows_ddl = [{"id": uuid.uuid4().hex[:12], "text": t} for t in (payload.get("ddl") or []) if str(t).strip()]
+    rows_doc = [
+        {"id": uuid.uuid4().hex[:12], "text": t} for t in (payload.get("documentation") or []) if str(t).strip()
+    ]
+    rows_sql = []
+    for item in payload.get("question_sql") or []:
+        q = str(item.get("question") or "").strip()
+        sql = str(item.get("sql") or "").strip()
+        if not q or not sql:
+            continue
+        rows_sql.append(
+            {
+                "id": uuid.uuid4().hex[:12],
+                "text": q,
+                "question": q,
+                "sql": sql,
+                "source": item.get("source"),
+            }
+        )
+    if replace:
+        return store.replace_all({"ddl": rows_ddl, "documentation": rows_doc, "question_sql": rows_sql})
+    for row in rows_ddl:
+        store._data.setdefault("ddl", []).append(row)
+    for row in rows_doc:
+        store._data.setdefault("documentation", []).append(row)
+    for row in rows_sql:
+        store._data.setdefault("question_sql", []).append(row)
+    store._save()
+    return {
+        "ddl_count": len(store._data.get("ddl") or []),
+        "documentation_count": len(store._data.get("documentation") or []),
+        "question_sql_count": len(store._data.get("question_sql") or []),
+    }
+
+
+def store_stats() -> dict[str, int]:
+    store = _JsonVectorStore(Path(config.VANNA_PERSIST_DIR))
+    return {
+        "ddl_count": len(store._data.get("ddl") or []),
+        "documentation_count": len(store._data.get("documentation") or []),
+        "question_sql_count": len(store._data.get("question_sql") or []),
+    }
