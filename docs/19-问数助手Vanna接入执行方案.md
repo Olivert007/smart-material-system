@@ -25,8 +25,6 @@ PYTHONPATH=. python3 -m pytest tests/test_ask_engine_legacy.py \
   tests/test_metric_template_ask.py tests/test_ask_degraded.py tests/test_ask_insights.py
 ```
 
-`ASK_ENGINE=vanna` 暂仍走 legacy（Step2 接入 VannaEngine + 回退）。
-
 ---
 
 ## Step2 实施记录（2026-08-24）
