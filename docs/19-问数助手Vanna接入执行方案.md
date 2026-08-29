@@ -5,7 +5,7 @@
 
 ---
 
-> 状态：执行中。**Step1 ✅ · Step2 ✅ · Step3 ✅ · Step4 ✅**（2026-08-24）。
+> 状态：**Step1–Step5 全部完成**（2026-08-29）。第一阶段 Vanna 接入闭环。
 
 ## Step1 实施记录（2026-08-24）
 
@@ -79,6 +79,29 @@ PYTHONPATH=. python3 -m pytest tests/test_vanna_train.py
 ```bash
 cd frontend && npm run build
 ```
+
+---
+
+## Step5 实施记录（2026-08-29）
+
+已完成：
+
+- `app/services/query/ask_engine_eval.py` — 20 条物资问数用例 + `run_compare`
+- `scripts/eval_ask_engine.py` — CLI（支持 `--offline`）
+- `tests/test_ask_engine_eval.py`
+
+验收：
+
+```bash
+PYTHONPATH=. python3 -m pytest tests/test_ask_engine_eval.py
+PYTHONPATH=. python3 scripts/eval_ask_engine.py --offline
+# 本地模型就绪后实跑：
+PYTHONPATH=. python3 scripts/eval_ask_engine.py
+```
+
+结果写入 `data/eval/results/ask_engine_compare.json`（`data/eval/` 已 gitignore）。
+
+当前环境无 big 模型在线，已用 `--offline` 产出对比骨架；实跑后可重新生成并比较 `summary.exec_rate`。
 
 ---
 
@@ -164,9 +187,14 @@ schema summary、active 指标、SCHEMA_ZH、sql_fewshot、10–20 条领域样�
 
 - `train_vanna_ask.py` 写入 `data/vanna/`
 
-### Step4：前端标注来源
+### Step4：前端标注来源 ✅
 
-### Step5：真实问题对比（`data/eval/results/ask_engine_compare.json`）
+- 展示「指标模板 / Vanna 问数 / 基础问数」
+- `engine_fallback` 时展示「已回退基础问数」
+
+### Step5：真实问题对比 ✅
+
+- 20 条用例对比 legacy / vanna → `data/eval/results/ask_engine_compare.json`
 
 ## 10. 成功标准
 
@@ -174,7 +202,4 @@ schema summary、active 指标、SCHEMA_ZH、sql_fewshot、10–20 条领域样�
 
 ## 11. Agent 执行提示
 
-```
-只执行 docs/19-问数助手Vanna接入执行方案.md 的 Step4。
-不要一次做完 Step4 到 Step5。
-```
+第一阶段 Step1–Step5 已完成。后续优化请单独立项（如 fewshot 扩量、实跑评测、前端体验）。
