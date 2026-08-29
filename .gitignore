@@ -5,6 +5,7 @@ data/staging/
 data/backups/
 data/reports/
 data/eval/
+data/vanna/
 data/test_run/
 data/*.sqlite
 data/*.sqlite.*
